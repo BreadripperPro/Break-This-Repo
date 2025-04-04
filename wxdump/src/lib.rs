@@ -680,11 +680,11 @@ rule GetKeyAddrStub
     const PAGE_SIZE: usize = 4096;
     const ROUND_COUNT: u32 = 256000;
     let mut db_file_path = PathBuf::from(data_dir.clone());
-    db_file_path.push(r"db_storage\biz\biz.db");
+    db_file_path.push(r"db_storage\contact\contact.db");
     let mut db_file = std::fs::File::open(&db_file_path)
         .expect(format!("{} is not exsit", db_file_path.display()).as_str());
     let mut buf = [0u8; PAGE_SIZE];
-    db_file.read(&mut buf[..]).expect("read biz.db is failed");
+    db_file.read(&mut buf[..]).expect("read contact.db is failed");
 
     // HMAC_SHA512算法比较耗时，使用多线程跑
     let n_job = pre_addresses.len();

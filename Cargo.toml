@@ -1,6 +1,6 @@
 [package]
 name = "wechat-dump-rs"
-version = "1.0.30"
+version = "1.0.31"
 edition = "2021"
 repository = "https://github.com/0xlane/wechat-dump-rs"
 
