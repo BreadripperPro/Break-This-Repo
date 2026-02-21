@@ -24,6 +24,7 @@
 * [龟苓膏](./../dishes/dessert/龟苓膏/龟苓膏.md)
 * [冬瓜茶](./../dishes/drink/冬瓜茶.md)
 * [冰粉](./../dishes/drink/冰粉/冰粉.md)
+* [印度奶茶](./../dishes/drink/印度奶茶.md)
 * [可乐桶](./../dishes/drink/可乐桶.md)
 * [奶茶](./../dishes/drink/奶茶.md)
 * [杨枝甘露](./../dishes/drink/杨枝甘露.md)
