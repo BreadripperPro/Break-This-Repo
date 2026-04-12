@@ -40,6 +40,7 @@
 * [空气炸锅鸡翅中](./../dishes/semi-finished/空气炸锅鸡翅中/空气炸锅鸡翅中.md)
 * [速冻馄饨](./../dishes/semi-finished/速冻馄饨.md)
 * [小米粥](./../dishes/soup/小米粥.md)
+* [排骨山药玉米汤](./../dishes/soup/排骨山药玉米汤/排骨山药玉米汤.md)
 * [米粥](./../dishes/soup/米粥.md)
 * [紫菜蛋花汤](./../dishes/soup/紫菜蛋花汤.md)
 * [西红柿鸡蛋汤](./../dishes/soup/西红柿鸡蛋汤.md)
