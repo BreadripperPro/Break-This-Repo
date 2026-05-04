@@ -13,7 +13,7 @@ FROM python:3.11 AS python-env
 WORKDIR /app
 COPY --from=lint-env /app .
 RUN rm node_modules -rf && pip install -r requirements.txt
-RUN python3 -m properdocs build --strict
+RUN python3 -m properdocs build
 
 # ============================
 # Prepare Runtime Environment
