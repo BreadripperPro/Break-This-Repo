@@ -7,7 +7,7 @@ const MKDOCS_PATH = 'properdocs.yml';
 const dishesFolder = 'dishes';
 const starsystemFolder = 'starsystem';
 
-const ignorePaths = ['.git', 'README.md', 'node_modules', 'CONTRIBUTING.md', '.github'];
+const ignorePaths = ['.git', 'README.md', 'node_modules', 'CONTRIBUTING.md', '.github', 'en', 'site'];
 
 const categories = {
   vegetable_dish: {
