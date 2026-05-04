@@ -9,7 +9,7 @@ RUN npm run lint
 
 # ============================
 # Prepare Build Environment
-FROM python:3.11 AS python-env
+FROM python:3.13 AS python-env
 WORKDIR /app
 COPY --from=lint-env /app .
 RUN rm node_modules -rf && pip install -r requirements.txt
