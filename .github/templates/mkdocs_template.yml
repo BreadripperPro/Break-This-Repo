@@ -19,7 +19,7 @@ theme:
     # - header.autohide
     # - navigation.expand
     # - navigation.indexes
-    - navigation.instant
+    # - navigation.instant  # Incompatible with mkdocs-static-i18n language switcher
     - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
@@ -53,6 +53,13 @@ theme:
         name: Switch to system preference
 
 extra:
+  alternate:
+    - name: 简体中文
+      link: /zh/
+      lang: zh
+    - name: English
+      link: /en/
+      lang: en
   icon:
     annotation: material/arrow-right-circle
     admonition:
@@ -91,6 +98,33 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 
 plugins:
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      reconfigure_material: true
+      languages:
+        - locale: zh
+          default: true
+          name: 简体中文
+          build: true
+        - locale: en
+          name: English
+          build: true
+          nav_translations:
+            做菜之前: Before You Cook
+            菜谱: Recipes
+            按种类: By Category
+            素菜: Vegetarian Dishes
+            荤菜: Meat Dishes
+            水产: Seafood
+            早餐: Breakfast
+            主食: Staple Foods
+            半成品加工: Semi-finished Products
+            汤与粥: Soups & Porridge
+            饮料: Beverages
+            酱料和其它材料: Sauces & Seasonings
+            甜品: Desserts
+            进阶知识学习: Advanced Knowledge
   - offline
   - same-dir
   - search

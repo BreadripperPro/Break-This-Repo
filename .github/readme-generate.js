@@ -235,7 +235,7 @@ function categoryReadmeTemplate(title, inlineStr) {
 }
 
 function inlineMkdocsTemplate(file, path, isDish = false) {
-  return `${' '.repeat(isDish ? 10 : 6)}- ${file.replace('.md', '')}: ${path}/${file}\n`;
+  return `${' '.repeat(isDish ? 10 : 6)}- ${path}/${file}\n`;
 }
 
 function categoryMkdocsTemplate(title, inlineStr) {
