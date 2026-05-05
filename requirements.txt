@@ -1,7 +1,5 @@
 mkdocs-material>=9.0
 mkdocs-same-dir
-mkdocs-minify-plugin>=0.5.5
 mkdocs-static-i18n>=1.2.0
 properdocs>=1.6.7
 pymdown-extensions
-htmlmin2>=0.1.10

@@ -128,8 +128,6 @@ plugins:
   - offline
   - same-dir
   - search
-  - minify:
-      minify_html: true
 
 nav:
   - README.md
