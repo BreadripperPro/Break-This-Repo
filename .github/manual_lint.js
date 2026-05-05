@@ -2,6 +2,7 @@ const util = require("util");
 const glob = util.promisify(require('glob'));
 const fs = require("fs").promises;
 const path = require('path');
+const fsSyncAccess = require("fs");
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 // glob 模式，定位菜谱 Markdown 文件和所有文件
@@ -142,6 +143,49 @@ const validators = [
     const footer = '如果您遵循本指南的制作流程而发现有问题或可以改进的流程，请提出 Issue 或 Pull request 。';
     if (!lines.includes(footer)) {
       errors.push(`文件 ${filePath} 不符合仓库的规范！ 它没有包含必需的附加内容！，需要在最后一行添加模板中的【${footer}】`);
+    }
+  },
+
+  // 检查图片引用是否存在
+  async (filePath, lines, errors) => {
+    const fileDir = path.dirname(filePath);
+    const content = lines.join('\n');
+    
+    // 匹配 ![alt](path) 和 [text](path) 的图片引用
+    // 支持相对路径和 URL
+    const imageRegex = /\[([^\]]*)\]\(([^)]+\.(?:jpg|jpeg|png|gif|webp|svg))\)/gi;
+    let match;
+    const imageRefs = new Set();
+    
+    while ((match = imageRegex.exec(content)) !== null) {
+      imageRefs.add(match[2]);
+    }
+
+    // 检查每个引用的图片是否存在
+    for (const imagePath of imageRefs) {
+      // 跳过 URL（http/https/ftp）
+      if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('ftp://')) {
+        continue;
+      }
+      
+      // 解析相对路径
+      let fullImagePath;
+      if (imagePath.startsWith('/')) {
+        // 绝对路径（相对于repo根目录）
+        fullImagePath = path.resolve(__dirname, '../../', imagePath);
+      } else if (imagePath.includes('..')) {
+        // 相对路径（包含 ..）
+        fullImagePath = path.resolve(fileDir, imagePath);
+      } else {
+        // 相对路径（同目录或子目录）
+        fullImagePath = path.resolve(fileDir, imagePath);
+      }
+      
+      try {
+        fsSyncAccess.accessSync(fullImagePath);
+      } catch (err) {
+        errors.push(`文件 ${filePath} 引用了不存在的图片: ${imagePath}`);
+      }
     }
   }
 ];
