@@ -1,12 +1,10 @@
 # 程序员做饭指南
 
-[![build](https://github.com/Anduin2017/HowToCook/actions/workflows/build.yml/badge.svg)](https://github.com/Anduin2017/HowToCook/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/Anduin2017/HowToCook)](./LICENSE)
 [![GitHub contributors](https://img.shields.io/github/contributors/Anduin2017/HowToCook)](https://github.com/Anduin2017/HowToCook/graphs/contributors)
-[![npm](https://img.shields.io/npm/v/how-to-cook)](https://www.npmjs.com/package/how-to-cook)
 [![Man hours](https://manhours.aiursoft.com/r/github.com/Anduin2017/HowToCook.svg)](https://manhours.aiursoft.com/r/github.com/Anduin2017/HowToCook.html)
-[![Docker](https://img.shields.io/badge/docker-latest-blue?logo=docker)](https://github.com/Anduin2017/HowToCook/pkgs/container/how-to-cook)
-[![Join the AnduinOS Community on Revolt](https://img.shields.io/badge/Revolt-Join-fd6671?style=flat-square)](https://rvlt.gg/ndApqZEs)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fhowtocook.aiursoft.com)](https://howtocook.aiursoft.com)
+[![Docker](https://img.shields.io/docker/pulls/aiursoft/howtocookviewer.svg)](https://hub.docker.com/r/aiursoft/howtocookviewer)
 
 最近宅在家做饭，作为程序员，我偶尔在网上找找菜谱和做法。但是这些菜谱往往写法千奇百怪，经常中间莫名出来一些材料。对于习惯了形式语言的程序员来说极其不友好。
 
@@ -19,11 +17,9 @@
 如果需要在本地部署菜谱 Web 服务，可以在安装 Docker 后运行下面命令：
 
 ```bash
-docker pull ghcr.io/anduin2017/how-to-cook:latest
-docker run -d -p 5000:80 ghcr.io/anduin2017/how-to-cook:latest
+docker pull aiursoft/howtocookviewer
+docker run -d -p 5000:5000 aiursoft/howtocookviewer
 ```
-
-如需下载 PDF 版本，可以在浏览器中访问 [/document.pdf](https://cook.aiursoft.com/document.pdf)
 
 ## 如何贡献
 
