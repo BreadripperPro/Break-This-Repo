@@ -33,8 +33,6 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 
 ## 菜谱
 
-{{index_stars}}
-
 {{main}}
 
 ## 进阶知识学习

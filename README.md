@@ -46,14 +46,6 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 
 ## 菜谱
 
-### 按难度索引
-
-- [1 星难度](starsystem/1Star.md)
-- [2 星难度](starsystem/2Star.md)
-- [3 星难度](starsystem/3Star.md)
-- [4 星难度](starsystem/4Star.md)
-- [5 星难度](starsystem/5Star.md)
-
 ### 素菜
 
 - [拔丝土豆](dishes/vegetable_dish/拔丝土豆/拔丝土豆.md)
