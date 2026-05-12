@@ -126,6 +126,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 - [咕噜肉](dishes/meat_dish/咕噜肉.md)
 - [广式萝卜牛腩](dishes/meat_dish/广式萝卜牛腩/广式萝卜牛腩.md)
 - [贵州辣子鸡](dishes/meat_dish/贵州辣子鸡/贵州辣子鸡.md)
+- [桂林十八酿](dishes/meat_dish/桂林十八酿/桂林十八酿.md)
 - [荷兰豆炒腊肠](dishes/meat_dish/荷兰豆炒腊肠/荷兰豆炒腊肠.md)
 - [黑椒牛柳](dishes/meat_dish/黑椒牛柳/黑椒牛柳.md)
 - [红烧鸡翅](dishes/meat_dish/红烧鸡翅.md)
@@ -170,6 +171,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 - [农家一碗香](dishes/meat_dish/农家一碗香/农家一碗香.md)
 - [啤酒鸭](dishes/meat_dish/啤酒鸭/啤酒鸭.md)
 - [黔式腊肠娃娃菜](dishes/meat_dish/黔式腊肠娃娃菜/黔式腊肠娃娃菜.md)
+- [青椒酿](dishes/meat_dish/青椒酿/青椒酿.md)
 - [青椒土豆炒肉](dishes/meat_dish/青椒土豆炒肉/青椒土豆炒肉.md)
 - [清蒸鳜鱼](dishes/meat_dish/清蒸鳜鱼/清蒸鳜鱼.md)
 - [肉饼炖蛋](dishes/meat_dish/肉饼炖蛋.md)
@@ -183,6 +185,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 - [台式卤肉饭](dishes/meat_dish/台式卤肉饭/台式卤肉饭.md)
 - [糖醋里脊](dishes/meat_dish/糖醋里脊.md)
 - [糖醋排骨](dishes/meat_dish/糖醋排骨/糖醋排骨.md)
+- [田螺酿](dishes/meat_dish/田螺酿/田螺酿.md)
 - [甜辣烤全翅](dishes/meat_dish/甜辣烤全翅.md)
 - [土豆炖排骨](dishes/meat_dish/土豆炖排骨/土豆炖排骨.md)
 - [无骨鸡爪](dishes/meat_dish/无骨鸡爪/无骨鸡爪.md)
@@ -242,6 +245,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 - [香煎翘嘴鱼](dishes/aquatic/香煎翘嘴鱼/香煎翘嘴鱼.md)
 - [响油鳝丝](dishes/aquatic/响油鳝丝.md)
 - [小龙虾](dishes/aquatic/小龙虾/小龙虾.md)
+- [阳朔啤酒鱼](dishes/aquatic/阳朔啤酒鱼/阳朔啤酒鱼.md)
 - [油焖大虾](dishes/aquatic/油焖大虾/油焖大虾.md)
 
 ### 早餐
