@@ -97,6 +97,35 @@ const validators = [
   },
 
   
+  // 检查 操作 章节必须使用有序列表
+  async (filePath, lines, errors) => {
+    const opTitleIdx = lines.findIndex(l => l.startsWith('## 操作'));
+    if (opTitleIdx === -1) return;
+
+    const rawContent = await fs.readFile(filePath, 'utf8');
+    const rawLines = rawContent.split('\n');
+
+    const nextH2 = rawLines.findIndex((l, i) => i > opTitleIdx && l.startsWith('## '));
+    const endIdx = nextH2 === -1 ? rawLines.length : nextH2;
+
+    for (let i = opTitleIdx + 1; i < endIdx; i++) {
+      const rawLine = rawLines[i];
+      if (/^[-*+] /.test(rawLine)) {
+        errors.push(`文件 ${filePath} 不符合仓库的规范！「操作」章节必须使用有序列表 (1. 2. 3.)，而不是 "${rawLine.slice(0, 2)}"！`);
+      }
+    }
+  },
+
+  // 检查菜谱中不得出现 HTML 注释（示例菜模板除外）
+  async (filePath, lines, errors) => {
+    if (filePath.includes('template/示例菜')) return;
+
+    const rawContent = await fs.readFile(filePath, 'utf8');
+    if (rawContent.includes('<!--')) {
+      errors.push(`文件 ${filePath} 不符合仓库的规范！菜谱中不得出现 HTML 注释（<!-- -->）。请删除所有注释。`);
+    }
+  },
+
   async (filePath, lines, errors) => {
     const count = keyword => lines.filter(l => l.includes(keyword)).length;
 
