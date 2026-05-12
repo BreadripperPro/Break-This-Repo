@@ -280,7 +280,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 
 ### 主食
 
-- [炒方便面](dishes/staple/炒方便面.md)
+- [炒方便面](dishes/staple/炒方便面/炒方便面.md)
 - [炒河粉](dishes/staple/炒河粉.md)
 - [炒凉粉](dishes/staple/炒凉粉/炒凉粉.md)
 - [炒馍](dishes/staple/炒馍.md)
