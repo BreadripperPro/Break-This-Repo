@@ -58,7 +58,7 @@ docker run -d -p 5000:5000 aiursoft/howtocookviewer
 - [炒青菜](dishes/vegetable_dish/炒青菜.md)
 - [葱煎豆腐](dishes/vegetable_dish/葱煎豆腐.md)
 - [脆皮豆腐](dishes/vegetable_dish/脆皮豆腐.md)
-- [地三鲜](dishes/vegetable_dish/地三鲜.md)
+- [地三鲜](dishes/vegetable_dish/地三鲜/地三鲜.md)
 - [干锅花菜](dishes/vegetable_dish/干锅花菜/干锅花菜.md)
 - [蚝油三鲜菇](dishes/vegetable_dish/蚝油三鲜菇/蚝油三鲜菇.md)
 - [蚝油生菜](dishes/vegetable_dish/蚝油生菜.md)
