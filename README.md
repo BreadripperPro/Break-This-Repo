@@ -12,6 +12,12 @@
 
 同样，我希望它是一个由社区驱动和维护的开源项目，使更多人能够一起做一个有趣的仓库。所以非常欢迎大家贡献它~
 
+## 浏览菜谱
+
+请直接访问 HowToCook 网站浏览菜谱可视化：
+
+[https://howtocook.aiursoft.com/](https://howtocook.aiursoft.com/)
+
 ## 本地部署
 
 如果需要在本地部署菜谱 Web 服务，可以在安装 Docker 后运行下面命令：
