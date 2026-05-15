@@ -67,15 +67,17 @@ const validators = [
       }
     });
 
-    // 检查烹饪难度
+    // 检查烹饪难度和卡路里
     const mainTitleIndex = titles.length > 0 ? lines.indexOf(titles[0]) : -1;
     const firstSecondTitleIndex = sections.length > 0 ? lines.indexOf(sections[0]) : -1;
 
     if (mainTitleIndex >= 0 && firstSecondTitleIndex >= 0 && mainTitleIndex < firstSecondTitleIndex) {
       const contentBetweenTitles = lines.slice(mainTitleIndex + 1, firstSecondTitleIndex);
       let hasDifficultyLine = false;
+      let hasCalorieLine = false;
       const difficultyPatternGeneral = /^预估烹饪难度：(★*)$/;
       const difficultyPatternStrict = /^预估烹饪难度：★{1,5}$/;
+      const caloriePattern = /^预估卡路里：\d+大卡$/;
 
       for (const line of contentBetweenTitles) {
         if (difficultyPatternGeneral.test(line)) {
@@ -85,11 +87,16 @@ const validators = [
             const starCount = starMatch ? starMatch.length : 0;
             errors.push(`文件 ${filePath} 不符合仓库的规范！烹饪难度的星星数量必须在1-5颗之间！(当前为 ${starCount} 颗)`);
           }
-          break;
+        }
+        if (caloriePattern.test(line)) {
+          hasCalorieLine = true;
         }
       }
       if (!hasDifficultyLine) {
         errors.push(`文件 ${filePath} 不符合仓库的规范！在大标题和第一个二级标题之间必须包含"预估烹饪难度：★★"格式的难度评级，星星数量必须在1-5颗之间！`);
+      }
+      if (!hasCalorieLine) {
+        errors.push(`文件 ${filePath} 不符合仓库的规范！在大标题和第一个二级标题之间必须包含"预估卡路里：XXX大卡"。`);
       }
     } else if (mainTitleIndex === -1 || firstSecondTitleIndex === -1) {
         errors.push(`文件 ${filePath} 结构错误，无法定位烹饪难度区域。`);
