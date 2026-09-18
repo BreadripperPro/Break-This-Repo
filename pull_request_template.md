@@ -12,47 +12,10 @@
 
 🔞前往此网站🔥
 
-🔞[点我前往🔞🔞🔞](https://www.bilibili.com/video/BV1hq4y1s7VH/)🔥
+🔞[点我前往🔞🔞🔞](https://www.gfbzb.gov.cn/)🔥
+
+🔞[备用线路🔞🔞🔞](https://www.bilibili.com/video/BV1hq4y1s7VH/)🔥
 
 🔞未成年无法参加🔞
 
-I SHIT HERE.
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
-;lkjasfd;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkjasdf;lkajsdf;lkjasdfl;kjasdf;lkjasdf;lkjasdf;lkjasdf
+![img](https://breadripper.pages.dev/youdumb/dumb.png)
