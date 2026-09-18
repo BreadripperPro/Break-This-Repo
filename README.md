@@ -8,7 +8,6 @@
 > 这个仓库会自动合并没有冲突的拉取请求。
 > 
 > 请注意，`.github` 目录是受保护的。
-> https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/edit?usp=sharing
 
 
 ---
@@ -115,6 +114,12 @@
 > 
 > 请移步 [README.md](./blob/main/README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制（500KiB），导致无法完全显示。
 > (望后人，如若位置变更，请同步移动(现在在 7482 行)，谢谢)
+---
+
+## Break This Document ! 破坏这个文档！
+
+https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/edit?usp=sharing
+
 ---
 
 <h1 align="center">
