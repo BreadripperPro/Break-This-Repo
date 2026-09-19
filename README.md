@@ -62,6 +62,15 @@
 
 ---
 
+> [!NOTE]
+> Space, the final frontier. These are the voyages of the starship Enterprise. Her five-year mission: to explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before.
+>
+> 太空，最后的边疆。这些是星舰企业号的旅程。她的五年任务是:探索奇异新世界，寻找新生命和新文明，勇踏前人未及之境。
+>
+> —— [STAR TREK](https://www.startrek.com)
+
+---
+
 > [!CAUTION]
 > We are the Borg. You will be assimilated. Resistance is futile.
 
