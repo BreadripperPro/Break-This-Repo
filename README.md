@@ -2425,6 +2425,15 @@ https://aria7.wiki
 >
 > ## 今天晚上记得关注《死神千年血战祸进谭》，我将按时出演角色「蓝染惣右介」，你也可以来看看我的网站:http://134.175.147.211:324/,等我备案后访问 cnyicheng.top
 
+> 不知道要干麻阿，WoW～ 天空属于我们！
+
+https://blog.admincmd.xyz/
+https://admincmd.xyz/
+
+> 你要在这个 VSCode 粘贴都可以卡几秒的 Markdown 里写上你的 Website 吗？快来闹一闹 ——admincmd-a
+
+---
+
 # Debian --通用操作系统
 [![Debian Logo](https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f365.png)](https://www.debian.org/)
 ## Debian 是自由软件。
