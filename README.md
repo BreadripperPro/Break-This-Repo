@@ -2430,7 +2430,7 @@ https://aria7.wiki
 https://blog.admincmd.xyz/
 https://admincmd.xyz/
 
-> 你要在这个 VSCode 粘贴都可以卡几秒的 Markdown 里写上你的 Website 吗？ ——admincmd-a
+> 你要在这个 VSCode 粘贴都可以卡几秒的 Markdown 里写上你的 Website 吗？快来闹一闹 ——admincmd-a
 
 ---
 
