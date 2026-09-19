@@ -67,7 +67,7 @@
 >
 > 太空，最后的边疆。这些是星舰企业号的旅程。她的五年任务是:探索奇异新世界，寻找新生命和新文明，勇踏前人未及之境。
 >
-> —— [STAR TREK](startrek.com)
+> —— [STAR TREK](https://startrek.com)
 
 ---
 
