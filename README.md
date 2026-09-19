@@ -1,10 +1,3 @@
-> [!CAUTION]
-> 该README.md旨在帮助用户了解仓库内容及注意事项，**随意删除可能会导致严重后果**
->
-> This README.md is intended to help users understand the repository contents and important considerations, and **deleting it arbitrarily may lead to serious consequences**
-
----
-
 ## Break This Repository! 破坏这个仓库！
 
 > [!CAUTION]
@@ -15,6 +8,15 @@
 > 这个仓库会自动合并没有冲突的拉取请求。
 > 
 > 请注意，`.github` 目录是受保护的。
+
+
+---
+
+## 警告!
+> [!CAUTION]
+> To [@mpmp666](https://github.com/mpmp666), if you posting shit ads again, i'll report ur fking shit github account for abusing this repo
+
+---
 
 ## 免责声明
 > [!CAUTION]
@@ -68,14 +70,41 @@
 
 ---
 
-## 警告!
 > [!CAUTION]
-> To [@mpmp666](https://github.com/mpmp666), if you posting shit ads again, i'll report ur fking shit github account for abusing this repo
+> H
 
----
+> [!CAUTION]
+> e
 
-> [!NOTE]
-> Hello,world!
+> [!CAUTION]
+> l
+
+> [!CAUTION]
+> l
+
+> [!CAUTION]
+> o
+
+> [!CAUTION]
+> ,
+
+> [!CAUTION]
+> w
+
+> [!CAUTION]
+> o
+
+> [!CAUTION]
+> r
+
+> [!CAUTION]
+> l
+
+> [!CAUTION]
+> d
+
+> [!CAUTION]
+> !
 
 ---
 ## 注意
