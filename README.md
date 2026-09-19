@@ -66,7 +66,7 @@
 > [!CAUTION]
 > We are the Borg. You will be assimilated. Resistance is futile.
 
-[Leran more](./Borg.md)
+[Learn more](./Borg.md)
 
 ---
 
@@ -2123,10 +2123,6 @@ HA 看不到设备时先等一会儿。
 
 ### [dream away](https://www.bilibili.com/video/BV1nC41137aW)真好听吧
 
-# 小心！
-
-<img src="https://breadripper.pages.dev/warnl.png" alt="图片alt" title="null">
-
 ## hyw
 
 openpgp177ABD1B671BC99FA4AD20A1A96607E60ECBAC84
@@ -2312,27 +2308,13 @@ sudo emerge --ask app-misc/break-this-repo
 
 - [喵打猫司令部——本喵娘的一张大字报](./留言与聊天/bigtextnews.md)
 
-# show you my cat
-
-![cat](./cat.jpeg)
-
 # Hello, Mayx
 ## Follow Me On [Mabbs](https://github.com/Mabbs)
 [My Blog](https://mabbs.github.io/)
 
-# BREAKING:Deepseek V4.5 Flash Preview just released!
-![deepseeek](./1786763623934.jpg)
+# BREAKING:Deepseek V4.5 Flash Preview & Deepsuck R2 Flash Preview just released!
 
 # [<img width="460" height="460" alt="image" src="https://github.com/user-attachments/assets/fca57543-7fa4-4e96-bf0b-e6e432dc8fcc" />](https://k.asxz.one)
-
-~~这是滚木~~
-
-# BREAKING:Deepsuck R2 Flash Preview just released!
-![deepseeek](./1786763623934.jpg)
-
-# [<img width="460" height="460" alt="image" src="https://github.com/user-attachments/assets/fca57543-7fa4-4e96-bf0b-e6e432dc8fcc" />](https://k.asxz.one)
-
-~~这也是滚木~~
 
 # 友链
 
@@ -2570,19 +2552,7 @@ curl http://zzz.1145.lol/v1/chat/completions \
 
 ---
 
--->
-
----
-
 [![0d00](https://0d00.cn/assets/see-mine-0721.png)](https://0d00.cn)
-
-[八千代可爱捏](yachiyo-visit.md)
-
-[FUSHI 可爱捏](fushi/fushi.svg)
-
-![Potato 图片](potato.jpg)
-
-[Potato 工作目录](potato/)
 
 ---
 
@@ -2639,13 +2609,6 @@ git show <commit>:README.md
 
 
 ---
-
----
-
-# 免费领取高速cdn!!!
-<img src="https://breadripper.pages.dev/cf.png" alt="图片alt" title="CF">
----
-    
 
 　　钦定四库全书
 
@@ -3052,6 +3015,12 @@ Java版中，服务端分为集成服务端和独立服务端。集成服务端�
 
 在基岩版中，红石刻真实存在于游戏中，红石系统每2游戏刻启动一次，计算并更新红石系统。如增删红石元件、依赖变动（如可能被充能的红石导体，被比较器检测的容器）和红石信号在元件间的流动等。有时通过将并发线程启动的那1游戏刻称为“红石刻”，反之称为“非红石刻”来区分并发线程是否启动的游戏刻。
 
+游戏源码中，红石系统的工作频率（以游戏刻为基准单位）被硬编码为2。但实际上可以通过特殊手段强制改动，以此来调整红石刻的工作频率。
+
+# 哈喽！这里是周-zhou，我只是来这里看看喵
+WCNMSSB 是我的名字之一（真的没有恶意QWQ）
+# ↓点这里去关注周-zhou谢谢喵
+[GOGOGO](https://space.bilibili.com/1668225938)
 
 ## 注意
 > [!NOTE]
@@ -3065,9 +3034,3 @@ Java版中，服务端分为集成服务端和独立服务端。集成服务端�
 > 请移步 [README.markdown](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制，导致无法完全显示。
 > (望后人，如若位置变更，请同步移动（或者使用我写的脚本 [自动插入readme大小警告](./自动插入readme大小警告.py) ），谢谢)
 ---
-# 哈喽！这里是周-zhou，我只是来这里看看喵
-WCNMSSB 是我的名字之一（真的没有恶意QWQ）
-# ↓点这里去关注周-zhou谢谢喵
-[GOGOGO](https://space.bilibili.com/1668225938)
-
-游戏源码中，红石系统的工作频率（以游戏刻为基准单位）被硬编码为2。但实际上可以通过特殊手段强制改动，以此来调整红石刻的工作频率。
