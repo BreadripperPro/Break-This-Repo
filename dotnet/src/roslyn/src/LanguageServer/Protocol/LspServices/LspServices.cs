@@ -1,0 +1,283 @@
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System;
+using System.Collections.Frozen;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.CodeAnalysis.ErrorReporting;
+using Microsoft.CodeAnalysis.Internal.Log;
+using Microsoft.CodeAnalysis.PooledObjects;
+using Microsoft.CommonLanguageServerProtocol.Framework;
+using Roslyn.Utilities;
+
+namespace Microsoft.CodeAnalysis.LanguageServer;
+
+internal sealed class LspServices : ILspServices, IMethodHandlerProvider
+{
+    private readonly FrozenDictionary<string, Lazy<ILspService, LspServiceMetadataView>> _lazyMefLspServices;
+
+    /// <summary>
+    /// A set of base services that apply to all Roslyn lsp services.
+    /// Unfortunately MEF doesn't provide a good way to export something for multiple contracts with metadata
+    /// so these are manually created in <see cref="RoslynLanguageServer"/>.
+    /// </summary>
+    private readonly FrozenDictionary<string, ImmutableArray<BaseService>> _baseServices;
+    private readonly RoslynTelemetry _telemetry = RoslynTelemetry.Current;
+
+    /// <summary>
+    /// Gates access to <see cref="_servicesToDispose"/> and <see cref="_servicesToDisposeAsync"/>.
+    /// </summary>
+    private readonly object _gate = new();
+    private readonly HashSet<IDisposable> _servicesToDispose = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<IAsyncDisposable> _servicesToDisposeAsync = new(ReferenceEqualityComparer.Instance);
+
+    public LspServices(
+        ImmutableArray<Lazy<ILspService, LspServiceMetadataView>> mefLspServices,
+        ImmutableArray<Lazy<ILspServiceFactory, LspServiceMetadataView>> mefLspServiceFactories,
+        WellKnownLspServerKinds serverKind,
+        FrozenDictionary<string, ImmutableArray<BaseService>> baseServices)
+    {
+        var serviceMap = new Dictionary<string, Lazy<ILspService, LspServiceMetadataView>>();
+
+        // Add services from factories exported for this server kind.
+        foreach (var lazyServiceFactory in mefLspServiceFactories.Where(f => f.Metadata.ServerKind == serverKind))
+            AddSpecificService(new(() => lazyServiceFactory.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
+
+        // Add services exported for this server kind.
+        foreach (var lazyService in mefLspServices.Where(s => s.Metadata.ServerKind == serverKind))
+            AddSpecificService(lazyService);
+
+        // Add services from factories exported for any (if there is not already an existing service for the specific server kind).
+        foreach (var lazyServiceFactory in mefLspServiceFactories.Where(f => f.Metadata.ServerKind == WellKnownLspServerKinds.Any))
+            TryAddAnyService(new(() => lazyServiceFactory.Value.CreateILspService(this, serverKind), lazyServiceFactory.Metadata));
+
+        // Add services exported for any (if there is not already an existing service for the specific server kind).
+        foreach (var lazyService in mefLspServices.Where(s => s.Metadata.ServerKind == WellKnownLspServerKinds.Any))
+            TryAddAnyService(lazyService);
+
+        _lazyMefLspServices = serviceMap.ToFrozenDictionary();
+
+        _baseServices = baseServices;
+
+        void AddSpecificService(Lazy<ILspService, LspServiceMetadataView> serviceGetter)
+        {
+            var metadata = serviceGetter.Metadata;
+            Contract.ThrowIfFalse(metadata.ServerKind == serverKind);
+            serviceMap.Add(metadata.TypeRef.TypeName, serviceGetter);
+        }
+
+        void TryAddAnyService(Lazy<ILspService, LspServiceMetadataView> serviceGetter)
+        {
+            var metadata = serviceGetter.Metadata;
+            Contract.ThrowIfFalse(metadata.ServerKind == WellKnownLspServerKinds.Any);
+            if (!serviceMap.TryGetValue(metadata.TypeRef.TypeName, out var existing))
+            {
+                serviceMap.Add(metadata.TypeRef.TypeName, serviceGetter);
+            }
+            else
+            {
+                // Make sure we're not trying to add a duplicate Any service, but otherwise we should skip adding
+                // this service as we already have a more specific service available.
+                Contract.ThrowIfTrue(existing.Metadata.ServerKind == WellKnownLspServerKinds.Any);
+            }
+        }
+    }
+
+    public T GetRequiredService<T>() where T : notnull
+    {
+        var service = GetService<T>();
+        Contract.ThrowIfNull(service, $"Missing required LSP service {typeof(T).FullName}");
+        return service;
+    }
+
+    public T? GetService<T>() where T : notnull
+    {
+        var type = typeof(T);
+        var typeName = type.FullName;
+        Contract.ThrowIfNull(typeName);
+
+        // Query for a service with an exact type match.
+        var service = GetService(typeName);
+        if (service is not null)
+        {
+            return (T)service;
+        }
+
+        // If given an interface, query for a service that implements that interface (this is how GetRequiredServices works)
+        // Only allow this if there is exactly one service that implements the interface.
+        return type.IsInterface
+            ? GetRequiredServices<T>().SingleOrDefault()
+            : default;
+    }
+
+    public IEnumerable<T> GetRequiredServices<T>()
+    {
+        // We provide this ILspServices instance as a service.
+        if (typeof(T) == typeof(ILspServices))
+        {
+            yield return (T)(object)this;
+        }
+
+        foreach (var service in GetBaseServices<T>())
+        {
+            yield return service;
+        }
+
+        foreach (var service in GetMefServices<T>())
+        {
+            yield return service;
+        }
+    }
+
+    public bool TryGetService(Type type, [NotNullWhen(true)] out object? service)
+    {
+        var typeName = type.FullName;
+        Contract.ThrowIfNull(typeName);
+
+        service = GetService(typeName);
+        return service is not null;
+    }
+
+    private object? GetService(string typeName)
+    {
+        // We provide this ILspServices instance as a service.
+        if (typeName == typeof(ILspServices).FullName)
+        {
+            return this;
+        }
+
+        // Check the base services first
+        if (_baseServices.TryGetValue(typeName, out var baseServices))
+        {
+            // It's possible that there may be more than one base service registered for the same type,
+            // such as IMethodHandler. If that's the case, we return null.
+            return baseServices is [var baseService]
+                ? baseService.GetInstance(this)
+                : null;
+        }
+
+        if (_lazyMefLspServices.TryGetValue(typeName, out var lazyService))
+        {
+            // If we are creating a stateful LSP service for the first time, we need to check
+            // if it is disposable after creation and keep it around to dispose of on shutdown.
+            // Stateless LSP services will be disposed of on MEF container disposal.
+            var checkDisposal = !lazyService.Metadata.IsStateless && !lazyService.IsValueCreated;
+
+            // A service can first be requested from a context that carries no ambient instance of its own (for
+            // example a file-watcher callback or work-queue batch), so re-establish this server's instance for
+            // factories that capture RoslynTelemetry.Current.
+            using var _ = RoslynTelemetry.SetCurrent(_telemetry);
+            var lspService = lazyService.Value;
+            if (checkDisposal)
+            {
+                lock (_gate)
+                {
+                    if (lspService is IAsyncDisposable asyncDisposableService)
+                        _servicesToDisposeAsync.Add(asyncDisposableService);
+                    else if (lspService is IDisposable disposableService)
+                        _servicesToDispose.Add(disposableService);
+                }
+            }
+
+            return lspService;
+        }
+
+        return null;
+    }
+
+    public ImmutableArray<(IMethodHandler? Instance, TypeRef HandlerTypeRef, ImmutableArray<MethodHandlerDetails> HandlerDetails)> GetMethodHandlers()
+    {
+        using var _ = ArrayBuilder<(IMethodHandler?, TypeRef, ImmutableArray<MethodHandlerDetails>)>.GetInstance(out var builder);
+
+        // First, add any IMethodHandlers found in base services.
+        foreach (var handler in GetBaseServices<IMethodHandler>())
+        {
+            var handlerType = handler.GetType();
+            var methods = MethodHandlerDetails.From(handlerType);
+
+            builder.Add((handler, TypeRef.From(handlerType), methods));
+        }
+
+        // Now, walk through our MEF services and add any IMethodHandlers.
+        foreach (var lazyService in _lazyMefLspServices.Values)
+        {
+            var metadata = lazyService.Metadata;
+
+            if (metadata.HandlerDetails is { } handlerMethods)
+            {
+                builder.Add((null, metadata.TypeRef, handlerMethods));
+            }
+        }
+
+        return builder.ToImmutableAndClear();
+    }
+
+    private ImmutableArray<T> GetBaseServices<T>()
+    {
+        var typeName = typeof(T).FullName;
+        Contract.ThrowIfNull(typeName);
+
+        return _baseServices.TryGetValue(typeName, out var baseServices)
+            ? baseServices.SelectAsArray(s => (T)s.GetInstance(this))
+            : [];
+    }
+
+    private IEnumerable<T> GetMefServices<T>()
+    {
+        foreach (var (typeName, lazyService) in _lazyMefLspServices)
+        {
+            if (lazyService.Metadata.InterfaceNames.Contains(typeof(T).AssemblyQualifiedName!))
+            {
+                var serviceInstance = GetService(typeName);
+                if (serviceInstance is not null)
+                {
+                    yield return (T)serviceInstance;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Could not construct service: {typeName}");
+                }
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ImmutableArray<IDisposable> disposableServices;
+        ImmutableArray<IAsyncDisposable> asyncDisposableServices;
+        lock (_gate)
+        {
+            disposableServices = [.. _servicesToDispose];
+            _servicesToDispose.Clear();
+            asyncDisposableServices = [.. _servicesToDisposeAsync];
+            _servicesToDisposeAsync.Clear();
+        }
+
+        foreach (var service in disposableServices)
+        {
+            try
+            {
+                service.Dispose();
+            }
+            catch (Exception ex) when (FatalError.ReportAndCatch(ex))
+            {
+            }
+        }
+
+        foreach (var service in asyncDisposableServices)
+        {
+            try
+            {
+                await service.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (FatalError.ReportAndCatch(ex))
+            {
+            }
+        }
+    }
+}

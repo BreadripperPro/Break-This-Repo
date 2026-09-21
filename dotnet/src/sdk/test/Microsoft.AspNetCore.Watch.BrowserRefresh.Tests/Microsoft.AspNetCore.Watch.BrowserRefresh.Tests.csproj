@@ -1,0 +1,23 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+    <RootNamespace>Microsoft.AspNetCore.Watch.BrowserRefresh</RootNamespace>
+    <StrongNameKeyId>MicrosoftAspNetCore</StrongNameKeyId>
+    <MSTestParallelizeScope>MethodLevel</MSTestParallelizeScope>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RepoRoot)src\Dotnet.Watch\BrowserRefresh\Microsoft.AspNetCore.Watch.BrowserRefresh.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="wwwroot\*" CopyToOutputDirectory="PreserveNewest" Pack="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="wwwroot\favicon.ico" />
+  </ItemGroup>
+
+</Project>

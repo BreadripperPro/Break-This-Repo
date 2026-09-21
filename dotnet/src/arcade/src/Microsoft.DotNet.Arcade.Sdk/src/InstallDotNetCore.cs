@@ -1,0 +1,317 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using Microsoft.Build.Evaluation;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+using NuGet.Versioning;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+
+namespace Microsoft.DotNet.Arcade.Sdk;
+
+[MSBuildMultiThreadableTask]
+public class InstallDotNetCore : Task, IMultiThreadableTask
+{
+    private static readonly char[] s_keyTrimChars = ['$', '(', ')'];
+
+    /// <summary>Injected by MSBuild so paths resolve against the project directory in multithreaded builds.</summary>
+    public TaskEnvironment TaskEnvironment { get; set; } = TaskEnvironment.Fallback;
+
+    [Required]
+    public string DotNetInstallScript { get; set; }
+
+    [Required]
+    public string GlobalJsonPath { get; set; }
+
+    [Required]
+    public string DotNetPath { get; set; }
+
+    [Required]
+    public string Platform { get; set; }
+
+    public string VersionsPropsPath { get; set; }
+
+    public string RuntimeSourceFeed { get; set; }
+
+    public string RuntimeSourceFeedKey { get; set; }
+
+    /// <summary>
+    /// If true, skips installing runtimes listed in the GlobalJsonPath file.
+    /// </summary>
+    public bool SkipRuntimesInstall { get; set; }
+
+    public override bool Execute()
+    {
+        AbsolutePath globalJsonPath = TaskEnvironment.GetAbsolutePath(GlobalJsonPath);
+        if (!File.Exists(globalJsonPath))
+        {
+            Log.LogWarning($"Unable to find global.json file '{GlobalJsonPath}' exiting");
+            return true;
+        }
+
+        AbsolutePath dotNetInstallScript = TaskEnvironment.GetAbsolutePath(DotNetInstallScript);
+        if (!File.Exists(dotNetInstallScript))
+        {
+            Log.LogError($"Unable to find dotnet install script '{DotNetInstallScript}' exiting");
+            return !Log.HasLoggedErrors;
+        }
+
+        var jsonContent = File.ReadAllText(globalJsonPath);
+        var bytes = Encoding.UTF8.GetBytes(jsonContent);
+
+        using (JsonDocument jsonDocument = JsonDocument.Parse(bytes))
+        {
+            if (jsonDocument.RootElement.TryGetProperty("tools", out JsonElement toolsElement))
+            {
+                if (!SkipRuntimesInstall && toolsElement.TryGetProperty("runtimes", out JsonElement dotnetLocalElement))
+                {
+                    var runtimeItems = new Dictionary<string, IEnumerable<KeyValuePair<string, string>>>();
+                    foreach (var runtime in dotnetLocalElement.EnumerateObject())
+                    {
+                        var items = GetItemsFromJsonElementArray(runtime, out string runtimeName);
+                        if (runtimeItems.ContainsKey(runtimeName))
+                        {
+                            runtimeItems[runtimeName] = runtimeItems[runtimeName].Concat(items);
+                        }
+                        else
+                        {
+                            runtimeItems.Add(runtimeName, items);
+                        }
+                    }
+                    if (runtimeItems.Count > 0)
+                    {
+                        System.Linq.ILookup<string, ProjectProperty> properties = null;
+                        // Only load Versions.props if there's a need to look for a version identifier (ie, there's a value listed that's not a parsable version).
+                        if (runtimeItems.SelectMany(r => r.Value).Select(r => r.Key).FirstOrDefault(f => !SemanticVersion.TryParse(f, out SemanticVersion version)) != null)
+                        {
+                            if (string.IsNullOrEmpty(VersionsPropsPath))
+                            {
+                                Log.LogError($"{nameof(VersionsPropsPath)} must be specified to resolve version identifiers.");
+                                return !Log.HasLoggedErrors;
+                            }
+
+                            AbsolutePath versionsPropsPath = TaskEnvironment.GetAbsolutePath(VersionsPropsPath);
+                            if (!File.Exists(versionsPropsPath))
+                            {
+                                Log.LogError($"Unable to find the properties file '{VersionsPropsPath}' used to resolve version identifiers.");
+                                return !Log.HasLoggedErrors;
+                            }
+
+                            var proj = Project.FromFile(versionsPropsPath, new Microsoft.Build.Definition.ProjectOptions() { ProjectCollection = new ProjectCollection() });
+                            properties = proj.AllEvaluatedProperties.ToLookup(p => p.Name, StringComparer.OrdinalIgnoreCase);
+                        }
+
+                        foreach (var runtimeItem in runtimeItems)
+                        {
+                            foreach (var item in runtimeItem.Value)
+                            {
+                                string architecture = GetArchitecture(item.Value);
+
+                                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && string.Equals("x86", architecture, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    Log.LogMessage(MessageImportance.Low, "Skipping installing x86 runtimes because this is a non-Windows platform and .NET Core x86 is not currently supported on any non-Windows platform.");
+                                    continue;
+                                }
+
+                                SemanticVersion version = null;
+                                // Try to parse version
+                                if (!SemanticVersion.TryParse(item.Key, out version))
+                                {
+                                    var propertyName = item.Key.Trim(s_keyTrimChars);
+
+                                    // Unable to parse version, try to find the corresponding identifier from the MSBuild loaded MSBuild properties
+                                    ProjectProperty property = properties[propertyName].FirstOrDefault();
+                                    if (property == null)
+                                    {
+                                        Log.LogError($"Unable to find '{item.Key}' in properties defined in '{VersionsPropsPath}'");
+                                    }
+                                    else if (!SemanticVersion.TryParse(property.EvaluatedValue, out version))
+                                    {
+                                        Log.LogError($"Unable to parse '{item.Key}' from properties defined in '{VersionsPropsPath}'");
+                                    }
+                                }
+
+                                if (version != null)
+                                {
+                                    string normalizedVersion = version.ToNormalizedString();
+                                    string runtime = runtimeItem.Key;
+                                    string arguments = BuildInstallArguments(runtime, normalizedVersion, architecture, includeRuntimeSourceOptions: true);
+                                    // Null architecture means that the script should infer it, we don't want to re-implement too much logic here,
+                                    // so we skip the quick check.
+                                    if (architecture != null)
+                                    {
+                                        // Quickly check if the runtime is already installed, skipping double process hop,
+                                        // load of powershell, and load of tools.sh, or similar overhead for shell script.
+                                        // Saving about 1 second per runtime.
+                                        if (CheckRuntimeDotnetInstalled(DotNetPath, normalizedVersion, architecture, runtime))
+
+                                        {
+                                            continue;
+                                        }
+                                    }
+
+                                    Log.LogMessage(MessageImportance.Low, $"Executing: {dotNetInstallScript} {arguments}");
+                                    var startInfo = TaskEnvironment.GetProcessStartInfo();
+                                    startInfo.FileName = dotNetInstallScript;
+                                    startInfo.Arguments = arguments;
+                                    startInfo.UseShellExecute = false;
+                                    // Redirect to stdout/err. Addressing https://github.com/dotnet/msbuild/issues/7913
+                                    // Without it script execution was failing on Linux when run from
+                                    startInfo.RedirectStandardOutput = true;
+                                    startInfo.RedirectStandardError = true;
+
+                                    using var process = new Process { StartInfo = startInfo };
+                                    process.OutputDataReceived += (sender, e) =>
+                                    {
+                                        if (!String.IsNullOrEmpty(e.Data))
+                                        {
+                                            Log.LogMessage(MessageImportance.High, e.Data);
+                                        }
+                                    };
+                                    process.ErrorDataReceived += (sender, e) =>
+                                    {
+                                        if (!String.IsNullOrEmpty(e.Data))
+                                        {
+                                            Log.LogMessage(MessageImportance.High, e.Data);
+                                        }
+                                    };
+                                    process.Start();
+                                    process.BeginOutputReadLine();
+                                    process.BeginErrorReadLine();
+                                    process.WaitForExit();
+                                    if (process.ExitCode != 0)
+                                    {
+                                        string safeArguments = BuildInstallArguments(runtime, normalizedVersion, architecture, includeRuntimeSourceOptions: false);
+                                        Log.LogError($"dotnet-install failed for runtime '{runtime}' version '{normalizedVersion}' (exit code {process.ExitCode}). Command: {dotNetInstallScript} {safeArguments}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return !Log.HasLoggedErrors;
+    }
+
+    private string BuildInstallArguments(string runtime, string version, string architecture, bool includeRuntimeSourceOptions)
+    {
+        string dotNetPath = Path.TrimEndingDirectorySeparator(DotNetPath);
+
+        // Preserve root paths and double a trailing backslash so it doesn't escape the closing quote
+        // in the raw command-line string passed to dotnet-install on Windows.
+        if (dotNetPath.EndsWith('\\'))
+        {
+            dotNetPath += '\\';
+        }
+
+        string arguments = $"-runtime \"{runtime}\" -version \"{version}\" -dotnetPath \"{dotNetPath}\"";
+        if (!string.IsNullOrEmpty(architecture))
+        {
+            arguments += $" -architecture {architecture}";
+        }
+
+        if (includeRuntimeSourceOptions && !string.IsNullOrWhiteSpace(RuntimeSourceFeed))
+        {
+            arguments += $" -runtimeSourceFeed {RuntimeSourceFeed}";
+        }
+
+        // The default RuntimeSourceFeed doesn't need a key
+        if (includeRuntimeSourceOptions && !string.IsNullOrWhiteSpace(RuntimeSourceFeed) && !string.IsNullOrWhiteSpace(RuntimeSourceFeedKey))
+        {
+            arguments += $" -runtimeSourceFeedKey {RuntimeSourceFeedKey}";
+        }
+
+        return arguments;
+    }
+
+    private string GetArchitecture(string architecture)
+    {
+        if (!string.IsNullOrWhiteSpace(architecture))
+        {
+            return architecture;
+        }
+        else if (!string.IsNullOrWhiteSpace(Platform) && !string.Equals(Platform, "AnyCpu", StringComparison.OrdinalIgnoreCase))
+        {
+            return Platform;
+        }
+        else if (RuntimeInformation.OSArchitecture == Architecture.X86 ||
+                 RuntimeInformation.OSArchitecture == Architecture.X64)
+        {
+            return "x64";
+        }
+
+        // let dotnet-install.sh/ps1 infer a default arch
+        return null;
+    }
+
+    /*
+     * Parses a json token of this format
+     * { (runtime): [(version), ..., (version)] }
+     * or this format
+     * { (runtime/architecture): [(version), ..., (version)] }
+     */
+    private IEnumerable<KeyValuePair<string, string>> GetItemsFromJsonElementArray(JsonProperty token, out string runtime)
+    {
+        var items = new List<KeyValuePair<string, string>>();
+
+        runtime = token.Name;
+        string architecture = string.Empty;
+        if (runtime.Contains('/'))
+        {
+            var parts = runtime.Split(new char[] { '/' }, 2);
+            runtime = parts[0];
+            architecture = parts[1];
+        }
+        foreach (var version in token.Value.EnumerateArray())
+        {
+            items.Add(new KeyValuePair<string, string>(version.GetString(), architecture));
+        }
+        return items.ToArray();
+    }
+
+    private bool CheckRuntimeDotnetInstalled(
+        string dotnetRoot,
+        string version,
+        string architecture,
+        string runtime)
+    {
+        // For performance this check is duplicated from InstallDotnet in tools.sh and tools.ps1
+        // if you are making changes here, consider if you need to make changes there as well.
+        if (string.IsNullOrEmpty(runtime) && runtime == "sdk")
+        {
+            throw new ArgumentException($"{nameof(InstallDotNetCore)} cannot be used for .NET SDK installation.");
+        }
+
+        if (!string.Equals(architecture, RuntimeInformation.OSArchitecture.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            // This istallation is not native to this OS, it will be installed into a subfolder with the architecture name.
+            // See eng/common/dotnet-install.sh and eng/common/dotnet-install.ps1
+            dotnetRoot = Path.Combine(dotnetRoot, architecture.ToLowerInvariant());
+        }
+
+        string runtimePath = runtime switch
+        {
+            "dotnet" => Path.Combine(dotnetRoot, "shared", "Microsoft.NETCore.App", version),
+            "aspnetcore" => Path.Combine(dotnetRoot, "shared", "Microsoft.AspNetCore.App", version),
+            "windowsdesktop" => Path.Combine(dotnetRoot, "shared", "Microsoft.WindowsDesktop.App", version),
+            _ => Path.Combine(dotnetRoot, "shared", version)
+        };
+
+        AbsolutePath runtimeDirectory = TaskEnvironment.GetAbsolutePath(runtimePath);
+        if (Directory.Exists(runtimeDirectory))
+        {
+            Log.LogMessage(MessageImportance.Normal, $"  Runtime toolset '{runtime}/{architecture} v{version}' already installed in directory '{runtimePath}'.");
+            return true;
+        }
+
+        return false;
+    }
+}

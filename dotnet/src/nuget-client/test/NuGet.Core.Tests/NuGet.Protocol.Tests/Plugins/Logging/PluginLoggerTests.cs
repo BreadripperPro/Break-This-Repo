@@ -1,0 +1,277 @@
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
+#nullable disable
+
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json.Nodes;
+using System.Threading;
+using Moq;
+using Newtonsoft.Json.Linq;
+using NuGet.Common;
+using NuGet.Test.Utility;
+using Xunit;
+
+namespace NuGet.Protocol.Plugins.Tests
+{
+    // Two of these tests raise StaticState's process-global events, which resets every subscriber in the process, so
+    // they must not run alongside tests that depend on that state.
+    [Collection(nameof(NuGet.Protocol.Tests.NotThreadSafeResourceCollection))]
+    public class PluginLoggerTests : LogMessageTests
+    {
+        [Fact]
+        public void Constructor_WhenEnvironmentVariableReaderIsNull_Throws()
+        {
+            var exception = Assert.Throws<ArgumentNullException>(() => new PluginLogger(environmentVariableReader: null));
+
+            Assert.Equal("environmentVariableReader", exception.ParamName);
+        }
+
+        [Fact]
+        public void BuildEnded_DiscardsTheLog()
+        {
+            PluginLogger before = PluginLogger.DefaultInstance;
+            try
+            {
+                // The end of the build tears the plugins down, so the log they wrote to is closed with them.
+                StaticState.RaiseBuildEnded();
+
+                Assert.NotSame(before, PluginLogger.DefaultInstance);
+            }
+            finally
+            {
+                PluginLogger.ResetDefaultInstance();
+            }
+        }
+
+        [Fact]
+        public void Write_WhenDisposed_DoesNotThrow()
+        {
+            string original = Environment.GetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG");
+            string originalLogDir = Environment.GetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH");
+
+            using (var testDirectory = TestDirectory.Create())
+            {
+                try
+                {
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH", testDirectory.Path);
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG", bool.TrueString);
+
+                    var logger = new PluginLogger(EnvironmentVariableWrapper.Instance);
+                    logger.Dispose();
+
+                    // A plugin can still hold a logger that has been discarded, and teardown itself logs. Diagnostics
+                    // must never fail the operation being diagnosed.
+                    logger.Write(new StopwatchLogMessage(logger.Now, Stopwatch.Frequency));
+                }
+                finally
+                {
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG", original);
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH", originalLogDir);
+                }
+            }
+        }
+
+        [Fact]
+        public void ResetDefaultInstance_ReReadsEnableLogFromEnvironment()
+        {
+            // DefaultInstance freezes its IsEnabled when created; in a process reused across builds, ResetDefaultInstance
+            // must rebuild it so a toggled NUGET_PLUGIN_ENABLE_LOG takes effect on the next restore.
+            string original = Environment.GetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG");
+            using (var testDirectory = TestDirectory.Create())
+            {
+                string originalLogDir = Environment.GetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH");
+                try
+                {
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH", testDirectory.Path);
+
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG", bool.TrueString);
+                    PluginLogger.ResetDefaultInstance();
+                    Assert.True(PluginLogger.DefaultInstance.IsEnabled);
+
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG", bool.FalseString);
+                    PluginLogger.ResetDefaultInstance();
+                    Assert.False(PluginLogger.DefaultInstance.IsEnabled);
+                }
+                finally
+                {
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_ENABLE_LOG", original);
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_LOG_DIRECTORY_PATH", originalLogDir);
+                    PluginLogger.ResetDefaultInstance();
+                }
+            }
+        }
+
+        [Fact]
+        public void IsEnabled_WhenLoggingIsNotEnabled_ReturnsTrue()
+        {
+            var environmentVariableReader = CreateEnvironmentVariableReaderMock(isLoggingEnabled: false);
+
+            using (var logger = new PluginLogger(environmentVariableReader.Object))
+            {
+                Assert.False(logger.IsEnabled);
+            }
+
+            environmentVariableReader.VerifyAll();
+        }
+
+        [Fact]
+        public void IsEnabled_WhenLoggingIsEnabled_ReturnsTrue()
+        {
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var environmentVariableReader = CreateEnvironmentVariableReaderMock(
+                    isLoggingEnabled: true,
+                    testDirectory: testDirectory);
+
+                using (var logger = new PluginLogger(environmentVariableReader.Object))
+                {
+                    Assert.True(logger.IsEnabled);
+                }
+
+                environmentVariableReader.VerifyAll();
+            }
+        }
+
+        [Fact]
+        public void Write_WhenLoggingIsNotEnabled_DoesNotCreateLogFile()
+        {
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var environmentVariableReader = CreateEnvironmentVariableReaderMock(
+                    isLoggingEnabled: false,
+                    testDirectory: testDirectory);
+                var logMessage = new RandomLogMessage();
+
+                using (var logger = new PluginLogger(environmentVariableReader.Object))
+                {
+                    logger.Write(logMessage);
+                }
+
+                var files = Directory.GetFiles(testDirectory.Path, "*", SearchOption.TopDirectoryOnly);
+
+                Assert.Empty(files);
+
+                environmentVariableReader.VerifyAll();
+            }
+        }
+
+        [Fact]
+        public void Write_WhenLoggingIsEnabled_WritesToStringResult()
+        {
+            using (var testDirectory = TestDirectory.Create())
+            {
+                var environmentVariableReader = CreateEnvironmentVariableReaderMock(
+                    isLoggingEnabled: true,
+                    testDirectory: testDirectory);
+                RandomLogMessageWithTime logMessage;
+                DateTimeOffset loggerInitLoggedAt;
+                DateTimeOffset randomMessageLoggedAt;
+                using (var logger = new PluginLogger(environmentVariableReader.Object))
+                {
+                    loggerInitLoggedAt = DateTimeOffset.UtcNow;
+                    Thread.Sleep(10000); // Enough for potential accuracy issues to arise.
+                    logMessage = new RandomLogMessageWithTime(logger.Now);
+                    randomMessageLoggedAt = DateTimeOffset.UtcNow;
+                    logger.Write(logMessage);
+                }
+
+                var logFile = GetLogFile(testDirectory);
+
+                Assert.NotNull(logFile);
+                Assert.True(logFile.Exists);
+
+                var actualLines = File.ReadAllLines(logFile.FullName);
+
+                Assert.Collection(actualLines,
+                    actualLine =>
+                    {
+                        var message = VerifyOuterMessageAndReturnInnerMessage(actualLine, loggerInitLoggedAt.AddSeconds(-1), loggerInitLoggedAt.AddSeconds(1), "stopwatch");
+
+                        Assert.Equal(1, message.Count);
+                        Assert.Equal(Stopwatch.Frequency, message["frequency"].Value<long>());
+                    },
+                    actualLine =>
+                    {
+                        var message = VerifyOuterMessageAndReturnInnerMessage(actualLine, randomMessageLoggedAt.AddSeconds(-1), randomMessageLoggedAt.AddSeconds(1), "random");
+
+                        Assert.Equal(1, message.Count);
+                        Assert.Equal(logMessage.Message, message["message"]);
+                    });
+
+                environmentVariableReader.VerifyAll();
+            }
+        }
+
+        private static Mock<IEnvironmentVariableReader> CreateEnvironmentVariableReaderMock(
+            bool isLoggingEnabled,
+            TestDirectory testDirectory = null)
+        {
+            var environmentVariableReader = new Mock<IEnvironmentVariableReader>(MockBehavior.Strict);
+
+            environmentVariableReader.Setup(x => x.GetEnvironmentVariable(
+                    It.Is<string>(value => value == EnvironmentVariableConstants.EnableLog)))
+                .Returns(isLoggingEnabled ? bool.TrueString : bool.FalseString);
+
+            if (isLoggingEnabled && testDirectory != null)
+            {
+                environmentVariableReader.Setup(x => x.GetEnvironmentVariable(
+                        It.Is<string>(value => value == EnvironmentVariableConstants.LogDirectoryPath)))
+                    .Returns(testDirectory.Path);
+            }
+
+            return environmentVariableReader;
+        }
+
+        private static FileInfo GetLogFile(TestDirectory directory)
+        {
+            FileInfo file;
+
+            using (var process = Process.GetCurrentProcess())
+            {
+                file = new FileInfo(process.MainModule.FileName);
+            }
+
+            var partialFileName = $"NuGet_PluginLogFor_{Path.GetFileNameWithoutExtension(file.Name)}_*.log";
+            var files = Directory.GetFiles(directory, partialFileName, SearchOption.TopDirectoryOnly);
+
+            Assert.Single(files);
+
+            return new FileInfo(files[0]);
+        }
+
+        private sealed class RandomLogMessage : IPluginLogMessage
+        {
+            internal string Message { get; }
+
+            internal RandomLogMessage()
+            {
+                Message = Guid.NewGuid().ToString();
+            }
+
+            public override string ToString()
+            {
+                return Message;
+            }
+        }
+
+        private sealed class RandomLogMessageWithTime : PluginLogMessage
+        {
+            internal string Message { get; }
+
+            internal RandomLogMessageWithTime(DateTimeOffset now) : base(now)
+            {
+                Message = Guid.NewGuid().ToString();
+            }
+
+            public override string ToString()
+            {
+                var message = new JsonObject { ["message"] = Message };
+
+                return ToString("random", message);
+            }
+        }
+    }
+}

@@ -1,0 +1,79 @@
+parameters:
+- name: dotnetPath
+  type: string
+  default: '$(Build.SourcesDirectory)/.dotnet'
+
+# The pipeline that is being run
+# Used to determine the correct baseline update tool to run
+# Currently supports "sdk", "license", and "reproducibility"
+- name: pipeline
+  type: string
+
+# Path to the directory containing the original test files
+# Should be relative to the targeted repo
+- name: originalFilesDirectory
+  type: string
+
+# Path to the directory containing the updated test files
+# Should be absolute or relative to the working directory of the tool
+- name: updatedFilesDirectory
+  type: string
+
+- name: pullRequestTitle
+  type: string
+  default: Update Test Baselines
+
+# Optional discriminator forwarded to the runner so multiple jobs of the same pipeline
+# targeting the same branch produce distinct PRs.
+- name: identifier
+  type: string
+  default: ''
+
+# Two separate invocations of the underlying runner, gated by mutually-exclusive
+# branch conditions. This is defensive programming to ensure that an internal
+# branch isn't accidentally pushed to a public repository.
+steps:
+- ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+  - template: run-baseline-update-pr-tool.yml
+    parameters:
+      dotnetPath: ${{ parameters.dotnetPath }}
+      pipeline: ${{ parameters.pipeline }}
+      repoUrl: 'https://github.com/dotnet/dotnet'
+      token: $(BotAccount-dotnet-sb-bot-pat)
+      originalFilesDirectory: ${{ parameters.originalFilesDirectory }}
+      updatedFilesDirectory: ${{ parameters.updatedFilesDirectory }}
+      pullRequestTitle: ${{ parameters.pullRequestTitle }}
+      identifier: ${{ parameters.identifier }}
+
+- ${{ if startsWith(variables['Build.SourceBranch'], 'refs/heads/internal/release/') }}:
+  - task: AzureCLI@2
+    displayName: Mint AzDO token (WIF)
+    condition: succeededOrFailed()
+    inputs:
+      azureSubscription: dnceng-build-rw-code-rw-wif
+      scriptType: pscore
+      scriptLocation: inlineScript
+      inlineScript: |
+        # Azure DevOps AAD resource ID
+        $azureDevOpsResourceId = "499b84ac-1321-427f-aa17-267ca6975798"
+        $token = az account get-access-token --resource $azureDevOpsResourceId --query accessToken -o tsv
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to acquire Azure DevOps token via 'az account get-access-token'. Exit code: $LASTEXITCODE"
+          exit 1
+        }
+        $token = $token.Trim()
+        if ([string]::IsNullOrWhiteSpace($token)) {
+          Write-Error "Received an empty Azure DevOps token from 'az account get-access-token'."
+          exit 1
+        }
+        Write-Host "##vso[task.setvariable variable=BaselinePrAzdoToken;issecret=true]$token"
+  - template: run-baseline-update-pr-tool.yml
+    parameters:
+      dotnetPath: ${{ parameters.dotnetPath }}
+      pipeline: ${{ parameters.pipeline }}
+      repoUrl: 'https://dev.azure.com/dnceng/internal/_git/dotnet-dotnet'
+      token: $(BaselinePrAzdoToken)
+      originalFilesDirectory: ${{ parameters.originalFilesDirectory }}
+      updatedFilesDirectory: ${{ parameters.updatedFilesDirectory }}
+      pullRequestTitle: ${{ parameters.pullRequestTitle }}
+      identifier: ${{ parameters.identifier }}

@@ -1,0 +1,63 @@
+ENTRYPOINT
+  false
+
+DOCUMENTS
+ [0] <elided-for-testing>
+     Type: None
+     Language: None
+     Vendor: None
+
+METHODS
+ f2
+     Params: []
+     Range: Some "[0,5:9] - [0,5:11]"
+     Points:
+      - Doc: 0 Offset:0 [5:5]-[5-15]
+      - Doc: 0 Offset:2 [6:5]-[6-14]
+      - Doc: 0 Offset:5 [7:9]-[7-21]
+      - Doc: 0 Offset:15 [8:9]-[8-18]
+      - Doc: 0 Offset:18 [9:12]-[9-24]
+      - Doc: 0 Offset:24 [10:12]-[10-22]
+      - Doc: 0 Offset:26 [11:12]-[11-14]
+      - Doc: 0 Offset:28 [13:12]-[13-24]
+      - Doc: 0 Offset:35 [14:12]-[14-22]
+      - Doc: 0 Offset:38 [15:12]-[15-14]
+      - Doc: 0 Offset:41 [17:9]-[17-21]
+      - Doc: 0 Offset:52 [18:9]-[18-18]
+      - Doc: 0 Offset:55 [19:12]-[19-24]
+      - Doc: 0 Offset:62 [20:12]-[20-22]
+      - Doc: 0 Offset:65 [21:12]-[21-14]
+      - Doc: 0 Offset:68 [23:12]-[23-24]
+      - Doc: 0 Offset:75 [24:12]-[24-22]
+      - Doc: 0 Offset:78 [25:12]-[25-14]
+     Scopes:
+      - [0-81]
+        - [1-14]
+          Locals: ["0: v1"]
+        - [14-23]
+          Locals: ["0: v1"; "1: v2"]
+        - [23-25]
+          Locals: ["0: v1 (shadowed)"; "1: v2"; "2: v1"]
+        - [25-28]
+          Locals: ["1: v2 (shadowed)"; "0: v1 (shadowed)"; "2: v1"; "3: v2"]
+        - [28-33]
+          Locals: ["0: v1"; "1: v2"]
+        - [33-36]
+          Locals: ["0: v1 (shadowed)"; "1: v2"; "4: v1"]
+        - [36-41]
+          Locals: ["1: v2 (shadowed)"; "0: v1 (shadowed)"; "4: v1"; "5: v2"]
+        - [41-50]
+          Locals: ["0: v1"]
+        - [50-60]
+          Locals: ["0: v1"; "6: v2"]
+        - [60-63]
+          Locals: ["0: v1 (shadowed)"; "6: v2"; "7: v1"]
+        - [63-68]
+          Locals: ["6: v2 (shadowed)"; "0: v1 (shadowed)"; "7: v1"; "8: v2"]
+        - [68-73]
+          Locals: ["0: v1"; "6: v2"]
+        - [73-76]
+          Locals: ["0: v1 (shadowed)"; "6: v2"; "9: v1"]
+        - [76-81]
+          Locals: ["6: v2 (shadowed)"; "0: v1 (shadowed)"; "9: v1"; "10: v2"]
+

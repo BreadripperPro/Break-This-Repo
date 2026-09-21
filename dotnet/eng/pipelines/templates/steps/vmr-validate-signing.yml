@@ -1,0 +1,123 @@
+parameters:
+- name: continueOnError
+  type: boolean
+  default: false
+
+- name: OS
+  type: string
+  values:
+    - Windows_NT
+    - Linux
+    - Darwin
+
+## Internal properties not to be set by the user ##
+- name: signCheckFilesDirectory
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/SignCheckFiles'
+
+- name: artifactsDirectory
+  type: string
+  default: '$(Build.StagingDirectory)/Artifacts'
+
+- name: outputDirectory
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/SigningValidation'
+
+- name: signCheckNuGetPackagesDirectory
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/SignCheckPackages'
+
+steps:
+- ${{ if eq(parameters.OS, 'Darwin') }}:
+  - script: |
+      xcrun simctl runtime delete all
+    displayName: Reclaim disk space from unused simulator runtimes
+
+- ${{ if eq(parameters.OS, 'Linux') }}:
+  - script: df -h
+    displayName: Print free disk space
+
+- task: DownloadPipelineArtifact@2
+  displayName: Download Shortstack Vertical Build Artifacts
+  continueOnError: ${{ parameters.continueOnError }}
+  enabled: true
+  inputs:
+    patterns: |
+      **Shortstack*_Artifacts/**
+    downloadPath: '${{ parameters.signCheckFilesDirectory }}'
+
+- ${{ if eq(parameters.OS, 'Darwin') }}:
+  - task: DownloadPipelineArtifact@2
+    displayName: Download OSX Vertical Build Artifacts
+    continueOnError: ${{ parameters.continueOnError }}
+    enabled: true
+    inputs:
+      patterns: |
+        **OSX_*_Artifacts/**
+      downloadPath: '${{ parameters.signCheckFilesDirectory }}'
+
+- ${{ if eq(parameters.OS, 'Windows_NT') }}:
+  - task: DownloadPipelineArtifact@2
+    displayName: Download Windows Vertical Build Artifacts
+    continueOnError: ${{ parameters.continueOnError }}
+    enabled: true
+    inputs:
+      patterns: |
+        **Windows_*_Artifacts/**
+      downloadPath: '${{ parameters.signCheckFilesDirectory }}'
+
+- ${{ if eq(parameters.OS, 'Linux') }}:
+  - task: DownloadPipelineArtifact@2
+    displayName: Download Linux Vertical Build Artifacts
+    continueOnError: ${{ parameters.continueOnError }}
+    enabled: true
+    inputs:
+      patterns: |
+        **Linux_*_Artifacts/**
+        **SB_CentOSStream*_Offline_MsftSdk_x64_Artifacts/**/Release/source-build/dotnet-sdk-*.tar.gz
+        **SB_CentOSStream*_Offline_MsftSdk_x64_Artifacts/**/Release/source-build/Private.SourceBuilt.Artifacts.*.tar.gz
+        **SB_CentOSStream*_Offline_MsftSdk_x64_Artifacts/**/Release/source-build/dotnet-source-*
+      downloadPath: '${{ parameters.signCheckFilesDirectory }}'
+
+- task: DownloadPipelineArtifact@2
+  displayName: Download Microsoft.DotNet.SignCheckTask Package
+  inputs:
+    artifactName: Windows_x64_Artifacts
+    itemPattern: packages/Release/NonShipping/arcade/Microsoft.DotNet.SignCheckTask.*.nupkg
+    targetPath: '${{ parameters.signCheckNuGetPackagesDirectory }}'
+
+# This is necessary whenever we want to publish/restore to an AzDO private feed
+# Since sdk-task.ps1 tries to restore packages we need to do this authentication here
+# otherwise it'll complain about accessing a private feed.
+- task: NuGetAuthenticate@1
+  displayName: 'Authenticate to AzDO Feeds'
+
+- pwsh: |
+    $pkgFiles = @(Get-ChildItem -LiteralPath "${{ parameters.signCheckNuGetPackagesDirectory }}/packages/Release/NonShipping/arcade" -Filter "Microsoft.DotNet.SignCheckTask.*.nupkg" -ErrorAction SilentlyContinue)
+    if ($pkgFiles.Count -ne 1) {
+      Write-Error "Expected exactly one Microsoft.DotNet.SignCheckTask nupkg in '${{ parameters.signCheckNuGetPackagesDirectory }}/packages/Release/NonShipping/arcade', found $($pkgFiles.Count)."
+      exit 1
+    }
+    $nupkg = $pkgFiles[0]
+    $version = $nupkg.BaseName -replace '^Microsoft\.DotNet\.SignCheckTask\.'
+
+    $dotnetExt = if ($IsWindows) { 'cmd' } else { 'sh' }
+    & "$(Build.SourcesDirectory)/eng/common/dotnet.$dotnetExt" build `
+      "$(Build.SourcesDirectory)/eng/signing-validation.proj" `
+      /p:ArtifactDownloadDirectory="${{ parameters.signCheckFilesDirectory }}" `
+      /p:SignDacEnabled="${{ variables.signDacEnabled }}" `
+      /p:OutputLogsDirectory="${{ parameters.outputDirectory }}" `
+      /p:RestoreAdditionalProjectSources="${{ parameters.signCheckNuGetPackagesDirectory }}/packages/Release/NonShipping/arcade" `
+      /p:MicrosoftDotNetSignCheckTaskVersion="$version" `
+      /bl:"${{ parameters.outputDirectory }}/signing-validation.binlog"
+  displayName: Validate Signing
+  continueOnError: ${{ parameters.continueOnError }}
+
+- task: 1ES.PublishPipelineArtifact@1
+  displayName: Publish SignCheck Logs
+  continueOnError: true
+  inputs:
+    path: ${{ parameters.outputDirectory }}
+    artifactName: SignCheck_${{ parameters.OS }}
+    artifactType: Container
+    parallel: true

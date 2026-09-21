@@ -1,0 +1,706 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System;
+using System.Globalization;
+
+using Microsoft.VisualStudio.TestPlatform.CommandLine.Processors;
+using Microsoft.VisualStudio.TestPlatform.Common;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+using vstest.console.UnitTests.Processors;
+
+using CommandLineResources = Microsoft.VisualStudio.TestPlatform.CommandLine.Resources.Resources;
+
+namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
+
+[TestClass]
+[DoNotParallelize]
+public class EnableLoggersArgumentProcessorTests
+{
+    private readonly RunSettingsManager _runSettingsManager = new();
+
+    [TestInitialize]
+    public void Initialize()
+    {
+        RunTestsArgumentProcessorTests.SetupMockExtensions();
+    }
+
+    [TestMethod]
+    public void GetMetadataShouldReturnEnableLoggerArgumentProcessorCapabilities()
+    {
+        EnableLoggerArgumentProcessor processor = new(new TestableRunSettingsProvider());
+        Assert.IsTrue(processor.Metadata.Value is EnableLoggerArgumentProcessorCapabilities);
+    }
+
+    [TestMethod]
+    public void GetExecuterShouldReturnEnableLoggerArgumentExecutor()
+    {
+        EnableLoggerArgumentProcessor processor = new(new TestableRunSettingsProvider());
+        Assert.IsTrue(processor.Executor!.Value is EnableLoggerArgumentExecutor);
+    }
+
+    [TestMethod]
+    public void CapabilitiesShouldAppropriateProperties()
+    {
+        EnableLoggerArgumentProcessorCapabilities capabilities = new();
+        Assert.AreEqual("/Logger", capabilities.CommandName);
+#if NETFRAMEWORK
+        Assert.AreEqual("--logger|/logger:<Logger Uri/FriendlyName>" + Environment.NewLine + "      Specify a logger for test results. For example, to log results into a " + Environment.NewLine + "      Visual Studio Test Results File (TRX) use /logger:trx[;LogFileName=<Defaults to unique file name>]" + Environment.NewLine + "      Creates file in TestResults directory with given LogFileName." + Environment.NewLine + "" + Environment.NewLine + "      Change the verbosity level in log messages for console logger as shown below" + Environment.NewLine + "      Example: /logger:console;verbosity=<Defaults to \"normal\">" + Environment.NewLine + "      Allowed values for verbosity: quiet, minimal, normal and detailed." + Environment.NewLine + "" + Environment.NewLine + "      Change the diagnostic level prefix for console logger as shown below" + Environment.NewLine + "      Example: /logger:console;prefix=<Defaults to \"false\">" + Environment.NewLine + "      More info on Console Logger here : https://aka.ms/console-logger", capabilities.HelpContentResourceName);
+#else
+        Assert.AreEqual("--logger|/logger:<Logger Uri/FriendlyName>" + Environment.NewLine + "      Specify a logger for test results. For example, to log results into a " + Environment.NewLine + "      Visual Studio Test Results File (TRX) use /logger:trx[;LogFileName=<Defaults to unique file name>]" + Environment.NewLine + "      Creates file in TestResults directory with given LogFileName." + Environment.NewLine + "" + Environment.NewLine + "      Change the verbosity level in log messages for console logger as shown below" + Environment.NewLine + "      Example: /logger:console;verbosity=<Defaults to \"minimal\">" + Environment.NewLine + "      Allowed values for verbosity: quiet, minimal, normal and detailed." + Environment.NewLine + "" + Environment.NewLine + "      Change the diagnostic level prefix for console logger as shown below" + Environment.NewLine + "      Example: /logger:console;prefix=<Defaults to \"false\">" + Environment.NewLine + "      More info on Console Logger here : https://aka.ms/console-logger", capabilities.HelpContentResourceName);
+#endif
+
+        Assert.AreEqual(HelpContentPriority.EnableLoggerArgumentProcessorHelpPriority, capabilities.HelpPriority);
+        Assert.IsFalse(capabilities.IsAction);
+        Assert.AreEqual(ArgumentProcessorPriority.Logging, capabilities.Priority);
+
+        Assert.IsTrue(capabilities.AllowMultiple);
+        Assert.IsFalse(capabilities.AlwaysExecute);
+        Assert.IsFalse(capabilities.IsSpecialCommand);
+    }
+
+    [TestMethod]
+    [DataRow("  ")]
+    [DataRow(null)]
+    [DataRow("TestLoggerExtension;==;;;Collection=http://localhost:8080/tfs/DefaultCollection;TeamProject=MyProject;BuildName=DailyBuild_20121130.1")]
+    public void ExectorInitializeShouldThrowExceptionIfInvalidArgumentIsPassed(string argument)
+    {
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        var e = Assert.ThrowsExactly<CommandLineException>(() => executor.Initialize(argument));
+        string exceptionMessage = string.Format(CultureInfo.CurrentCulture, CommandLineResources.LoggerUriInvalid, argument);
+        Assert.IsInstanceOfType<CommandLineException>(e);
+        Assert.Contains(exceptionMessage, e.Message);
+    }
+
+    [TestMethod]
+    public void ExecutorExecuteShouldReturnArgumentProcessorResultSuccess()
+    {
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        var result = executor.Execute();
+        Assert.AreEqual(ArgumentProcessorResult.Success, result);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldAddLoggerWithFriendlyNameInRunSettingsIfNamePresentInArg()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("DummyLoggerExtension");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName=""DummyLoggerExtension"" enabled=""True"" />
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldAddLoggerWithUriInRunSettingsIfUriPresentInArg()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://DummyLoggerUri");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"" />
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldCorrectlyAddLoggerParametersInRunSettings()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://DummyLoggerUri;Collection=http://localhost:8080/tfs/DefaultCollection;TeamProject=MyProject;BuildName=DailyBuild_20121130.1");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"">
+        <Configuration>
+          <Collection>http://localhost:8080/tfs/DefaultCollection</Collection>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName>DailyBuild_20121130.1</BuildName>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldCorrectlyAddLoggerWhenRunSettingsNotPassed()
+    {
+        _runSettingsManager.SetActiveRunSettings(new RunSettings());
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://DummyLoggerUri;Collection=http://localhost:8080/tfs/DefaultCollection;TeamProject=MyProject;BuildName=DailyBuild_20121130.1");
+
+        string expectedSettingsXml =
+            @"
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"">
+        <Configuration>
+          <Collection>http://localhost:8080/tfs/DefaultCollection</Collection>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName>DailyBuild_20121130.1</BuildName>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>";
+        Assert.Contains(expectedSettingsXml, _runSettingsManager.ActiveRunSettings!.SettingsXml!);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldCorrectlyAddLoggerInRunSettingsWhenOtherLoggersAlreadyPresent()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger uri=""logger://dummyloggeruriTemp/"" enabled=""False"">
+                        <Configuration>
+                          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+                          <TeamProject>MyProject</TeamProject>
+                          <BuildName1>DailyBuild_20121130.11</BuildName1>
+                        </Configuration>
+                      </Logger>
+                      <Logger friendlyName=""tempLogger1"" />
+                      <Logger friendlyName=""tempLogger2"" enabled=""False"">
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://DummyLoggerUri;Collection=http://localhost:8080/tfs/DefaultCollection;TeamProject=MyProject;BuildName=DailyBuild_20121130.1");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruritemp/"" enabled=""False"">
+        <Configuration>
+          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName1>DailyBuild_20121130.11</BuildName1>
+        </Configuration>
+      </Logger>
+      <Logger friendlyName=""tempLogger1"" enabled=""True"" />
+      <Logger friendlyName=""tempLogger2"" enabled=""False"" />
+      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"">
+        <Configuration>
+          <Collection>http://localhost:8080/tfs/DefaultCollection</Collection>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName>DailyBuild_20121130.1</BuildName>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreferCommandLineLoggerOverRunSettingsLoggerIfSame()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger uri=""logger://dummyloggeruriTemp/"" enabled=""False"">
+                        <Configuration>
+                          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+                          <TeamProject>MyProject</TeamProject>
+                          <BuildName1>DailyBuild_20121130.11</BuildName1>
+                        </Configuration>
+                      </Logger>
+                      <Logger friendlyName=""tempLogger1"" />
+                      <Logger friendlyName=""tempLogger2"" enabled=""False"">
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("tempLogger2");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruritemp/"" enabled=""False"">
+        <Configuration>
+          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName1>DailyBuild_20121130.11</BuildName1>
+        </Configuration>
+      </Logger>
+      <Logger friendlyName=""tempLogger1"" enabled=""True"" />
+      <Logger friendlyName=""tempLogger2"" enabled=""True"" />
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreferCommandLineLoggerOverRunSettingsLoggerEvenIfCaseMismatch()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger uri=""logger://dummyloggeruriTemp/"" enabled=""False"">
+                        <Configuration>
+                          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+                          <TeamProject>MyProject</TeamProject>
+                          <BuildName1>DailyBuild_20121130.11</BuildName1>
+                        </Configuration>
+                      </Logger>
+                      <Logger friendlyName=""tempLogger1"" />
+                      <Logger FRiendlyName=""tEMPLogger2"" enabled=""FaLse"">
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("tempLoggER2");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruritemp/"" enabled=""False"">
+        <Configuration>
+          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName1>DailyBuild_20121130.11</BuildName1>
+        </Configuration>
+      </Logger>
+      <Logger friendlyName=""tempLogger1"" enabled=""True"" />
+      <Logger friendlyName=""tempLoggER2"" enabled=""True"" />
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreferCommandLineLoggerWithParamsOverRunSettingsLoggerIfSame()
+    {
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <RunConfiguration>
+                  </RunConfiguration>
+                  <DataCollectionRunSettings>
+                    <DataCollectors>
+                      <DataCollector friendlyName=""Code Coverage"">
+                      </DataCollector>
+                    </DataCollectors>
+                  </DataCollectionRunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger uri=""logger://dummyloggeruriTemp/"" enabled=""False"">
+                        <Configuration>
+                          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+                          <TeamProject>MyProject</TeamProject>
+                          <BuildName1>DailyBuild_20121130.11</BuildName1>
+                        </Configuration>
+                      </Logger>
+                      <Logger friendlyName=""tempLogger1"" />
+                      <Logger friendlyName=""tempLogger2"" enabled=""False"">
+                      </Logger>
+                      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"">
+                        <Configuration>
+                          <Collection>http://localhost:8080/tfs/DefaultCollection</Collection>
+                          <TeamProject>MyProject</TeamProject>
+                          <BuildName>DailyBuild_20121130.1</BuildName>
+                          <NewAttr>value</NewAttr>
+                        </Configuration>
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://DummyLoggerUri;Collection=http://localhost:8080/tfs/DefaultCollectionOverride;TeamProjectOverride=MyProject;BuildName=DailyBuild_20121130.1Override;NewAttr=value");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName=""Code Coverage"">
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://dummyloggeruritemp/"" enabled=""False"">
+        <Configuration>
+          <Collection1>http://localhost:8080/tfs/DefaultCollection1</Collection1>
+          <TeamProject>MyProject</TeamProject>
+          <BuildName1>DailyBuild_20121130.11</BuildName1>
+        </Configuration>
+      </Logger>
+      <Logger friendlyName=""tempLogger1"" enabled=""True"" />
+      <Logger friendlyName=""tempLogger2"" enabled=""False"" />
+      <Logger uri=""logger://dummyloggeruri/"" enabled=""True"">
+        <Configuration>
+          <Collection>http://localhost:8080/tfs/DefaultCollectionOverride</Collection>
+          <TeamProjectOverride>MyProject</TeamProjectOverride>
+          <BuildName>DailyBuild_20121130.1Override</BuildName>
+          <NewAttr>value</NewAttr>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreserveExistingConfigurationWhenNoNewParametersAreProvided()
+    {
+        // When the MSBuild task adds "--logger:Console" (no verbosity) because a settings file
+        // is in use, the existing Configuration from the .runsettings LoggerRunSettings should
+        // be preserved, not silently discarded.
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger friendlyName=""console"" enabled=""True"">
+                        <Configuration>
+                          <Verbosity>normal</Verbosity>
+                        </Configuration>
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("console");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName=""console"" enabled=""True"">
+        <Configuration>
+          <Verbosity>normal</Verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldOverrideExistingConfigurationWhenNewParametersAreProvided()
+    {
+        // When the user explicitly passes "--logger:console;verbosity=quiet", the explicit
+        // CLI verbosity should override whatever is in the .runsettings file.
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger friendlyName=""console"" enabled=""True"">
+                        <Configuration>
+                          <Verbosity>normal</Verbosity>
+                        </Configuration>
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("console;verbosity=quiet");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName=""console"" enabled=""True"">
+        <Configuration>
+          <verbosity>quiet</verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreserveExistingLoggerAttributesAndEnableTheLogger()
+    {
+        // Naming a logger on the command line enables it, but must not drop the attributes that
+        // only the settings file knows about.
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger friendlyName=""console"" codeBase=""c:\temp\custom.dll"" enabled=""False"">
+                        <Configuration>
+                          <Verbosity>normal</Verbosity>
+                        </Configuration>
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("console");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName=""console"" codeBase=""c:\temp\custom.dll"" enabled=""True"">
+        <Configuration>
+          <Verbosity>normal</Verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+
+    [TestMethod]
+    public void ExecutorInitializeShouldPreserveExistingConfigurationWhenLoggerIsIdentifiedByUri()
+    {
+        // A settings file may identify the console logger by uri instead of friendlyName. The
+        // existing entry has to be reused in that form too, so the Configuration survives and we
+        // do not end up with a second console logger entry.
+        string settingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
+                <RunSettings>
+                  <LoggerRunSettings>
+                    <Loggers>
+                      <Logger uri=""logger://Microsoft/TestPlatform/ConsoleLogger/v1"" enabled=""True"">
+                        <Configuration>
+                          <Verbosity>normal</Verbosity>
+                        </Configuration>
+                      </Logger>
+                    </Loggers>
+                  </LoggerRunSettings>
+                </RunSettings>";
+
+        var runSettings = new RunSettings();
+        runSettings.LoadSettingsXml(settingsXml);
+        _runSettingsManager.SetActiveRunSettings(runSettings);
+
+        var executor = new EnableLoggerArgumentExecutor(_runSettingsManager);
+        executor.Initialize("logger://Microsoft/TestPlatform/ConsoleLogger/v1");
+
+        string expectedSettingsXml =
+            @"<?xml version=""1.0"" encoding=""utf-16""?>
+<RunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger uri=""logger://microsoft/TestPlatform/ConsoleLogger/v1"" enabled=""True"">
+        <Configuration>
+          <Verbosity>normal</Verbosity>
+        </Configuration>
+      </Logger>
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>";
+
+        Assert.AreEqual(expectedSettingsXml, _runSettingsManager.ActiveRunSettings?.SettingsXml);
+    }
+}

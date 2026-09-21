@@ -1,0 +1,950 @@
+// Task builder for F# that compiles to allocation-free paths for synchronous code.
+//
+// Originally written in 2016 by Robert Peele (humbobst@gmail.com)
+// New operator-based overload resolution for F# 4.0 compatibility by Gustavo Leon in 2018.
+// Revised for insertion into FSharp.Core by Microsoft, 2019.
+//
+// Original notice:
+// To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights
+// to this software to the public domain worldwide. This software is distributed without any warranty.
+//
+// Updates:
+// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
+
+namespace Microsoft.FSharp.Control
+
+open System
+open System.Runtime.CompilerServices
+open System.Threading
+open System.Threading.Tasks
+open Microsoft.FSharp.Core
+open Microsoft.FSharp.Core.CompilerServices
+open Microsoft.FSharp.Core.LanguagePrimitives.IntrinsicOperators
+open Microsoft.FSharp.Collections
+
+/// The extra data stored in ResumableStateMachine for tasks
+[<Struct; NoComparison; NoEquality>]
+type TaskStateMachineData<'T> =
+
+    [<DefaultValue(false)>]
+    val mutable Result: 'T
+
+    [<DefaultValue(false)>]
+    val mutable MethodBuilder: AsyncTaskMethodBuilder<'T>
+
+and TaskStateMachine<'TOverall> = ResumableStateMachine<TaskStateMachineData<'TOverall>>
+and TaskResumptionFunc<'TOverall> = ResumptionFunc<TaskStateMachineData<'TOverall>>
+and TaskResumptionDynamicInfo<'TOverall> = ResumptionDynamicInfo<TaskStateMachineData<'TOverall>>
+and TaskCode<'TOverall, 'T> = ResumableCode<TaskStateMachineData<'TOverall>, 'T>
+
+type TaskBuilderBase() =
+
+    member inline _.Delay(generator: unit -> TaskCode<'TOverall, 'T>) : TaskCode<'TOverall, 'T> =
+        TaskCode<'TOverall, 'T>(fun sm -> (generator ()).Invoke(&sm))
+
+    /// Used to represent no-ops like the implicit empty "else" branch of an "if" expression.
+    [<DefaultValue>]
+    member inline _.Zero() : TaskCode<'TOverall, unit> =
+        ResumableCode.Zero()
+
+    member inline _.Return(value: 'T) : TaskCode<'T, 'T> =
+        TaskCode<'T, _>(fun sm ->
+            sm.Data.Result <- value
+            true)
+
+    /// Chains together a step with its following step.
+    /// Note that this requires that the first step has no result.
+    /// This prevents constructs like `task { return 1; return 2; }`.
+    member inline _.Combine
+        (task1: TaskCode<'TOverall, unit>, task2: TaskCode<'TOverall, 'T>)
+        : TaskCode<'TOverall, 'T> =
+        ResumableCode.Combine(task1, task2)
+
+    /// Builds a step that executes the body while the condition predicate is true.
+    member inline _.While
+        ([<InlineIfLambda>] condition: unit -> bool, body: TaskCode<'TOverall, unit>)
+        : TaskCode<'TOverall, unit> =
+        ResumableCode.While(condition, body)
+
+    /// Wraps a step in a try/with. This catches exceptions both in the evaluation of the function
+    /// to retrieve the step, and in the continuation of the step (if any).
+    member inline _.TryWith
+        (body: TaskCode<'TOverall, 'T>, catch: exn -> TaskCode<'TOverall, 'T>)
+        : TaskCode<'TOverall, 'T> =
+        ResumableCode.TryWith(body, catch)
+
+    /// Wraps a step in a try/finally. This catches exceptions both in the evaluation of the function
+    /// to retrieve the step, and in the continuation of the step (if any).
+    member inline _.TryFinally
+        (body: TaskCode<'TOverall, 'T>, [<InlineIfLambda>] compensation: unit -> unit)
+        : TaskCode<'TOverall, 'T> =
+        ResumableCode.TryFinally(
+            body,
+            ResumableCode<_, _>(fun _sm ->
+                compensation ()
+                true)
+        )
+
+    member inline _.For(sequence: seq<'T>, body: 'T -> TaskCode<'TOverall, unit>) : TaskCode<'TOverall, unit> =
+        ResumableCode.For(sequence, body)
+
+#if NETSTANDARD2_1 || NET
+    member inline internal this.TryFinallyAsync
+        (body: TaskCode<'TOverall, 'T>, compensation: unit -> ValueTask)
+        : TaskCode<'TOverall, 'T> =
+        ResumableCode.TryFinallyAsync(
+            body,
+            ResumableCode<_, _>(fun sm ->
+                if __useResumableCode then
+                    let mutable __stack_condition_fin = true
+                    let __stack_vtask = compensation ()
+
+                    if not __stack_vtask.IsCompleted then
+                        let mutable awaiter = __stack_vtask.GetAwaiter()
+                        let __stack_yield_fin = ResumableCode.Yield().Invoke(&sm)
+                        __stack_condition_fin <- __stack_yield_fin
+
+                        if not __stack_condition_fin then
+                            sm.Data.MethodBuilder.AwaitUnsafeOnCompleted(&awaiter, &sm)
+
+                    __stack_condition_fin
+                else
+                    let vtask = compensation ()
+                    let mutable awaiter = vtask.GetAwaiter()
+
+                    let cont =
+                        TaskResumptionFunc<'TOverall>(fun sm ->
+                            awaiter.GetResult()
+                            true)
+
+                    // shortcut to continue immediately
+                    if awaiter.IsCompleted then
+                        true
+                    else
+                        sm.ResumptionDynamicInfo.ResumptionData <- (awaiter :> ICriticalNotifyCompletion)
+                        sm.ResumptionDynamicInfo.ResumptionFunc <- cont
+                        false)
+        )
+
+    member inline this.Using<'Resource, 'TOverall, 'T when 'Resource :> IAsyncDisposable | null>
+        (resource: 'Resource, body: 'Resource -> TaskCode<'TOverall, 'T>)
+        : TaskCode<'TOverall, 'T> =
+        this.TryFinallyAsync(
+            (fun sm -> (body resource).Invoke(&sm)),
+            (fun () ->
+                if not (isNull (box resource)) then
+                    resource.DisposeAsync()
+                else
+                    ValueTask())
+        )
+#endif
+
+type TaskBuilder() =
+
+    inherit TaskBuilderBase()
+
+    // This is the dynamic implementation - this is not used
+    // for statically compiled tasks.  An executor (resumptionFuncExecutor) is
+    // registered with the state machine, plus the initial resumption.
+    // The executor stays constant throughout the execution, it wraps each step
+    // of the execution in a try/with.  The resumption is changed at each step
+    // to represent the continuation of the computation.
+    static member RunDynamic(code: TaskCode<'T, 'T>) : Task<'T> =
+        let mutable sm = TaskStateMachine<'T>()
+        let initialResumptionFunc = TaskResumptionFunc<'T>(fun sm -> code.Invoke(&sm))
+
+        let resumptionInfo =
+            { new TaskResumptionDynamicInfo<'T>(initialResumptionFunc) with
+                member info.MoveNext(sm) =
+                    let mutable savedExn = null
+
+                    try
+                        sm.ResumptionDynamicInfo.ResumptionData <- null
+                        let step = info.ResumptionFunc.Invoke(&sm)
+
+                        if step then
+                            sm.Data.MethodBuilder.SetResult(sm.Data.Result)
+                        else
+                            let mutable awaiter =
+                                sm.ResumptionDynamicInfo.ResumptionData :?> ICriticalNotifyCompletion
+
+                            assert not (isNull awaiter)
+                            sm.Data.MethodBuilder.AwaitUnsafeOnCompleted(&awaiter, &sm)
+
+                    with exn ->
+                        savedExn <- exn
+                    // Run SetException outside the stack unwind, see https://github.com/dotnet/roslyn/issues/26567
+                    match savedExn with
+                    | null -> ()
+                    | exn -> sm.Data.MethodBuilder.SetException exn
+
+                member _.SetStateMachine(sm, state) =
+                    sm.Data.MethodBuilder.SetStateMachine(state)
+            }
+
+        sm.ResumptionDynamicInfo <- resumptionInfo
+        sm.Data.MethodBuilder <- AsyncTaskMethodBuilder<'T>.Create()
+        sm.Data.MethodBuilder.Start(&sm)
+        sm.Data.MethodBuilder.Task
+
+    member inline _.Run(code: TaskCode<'T, 'T>) : Task<'T> =
+        if __useResumableCode then
+            __stateMachine<TaskStateMachineData<'T>, Task<'T>>
+                (MoveNextMethodImpl<_>(fun sm ->
+                    //-- RESUMABLE CODE START
+                    __resumeAt sm.ResumptionPoint
+                    let mutable __stack_exn: Exception = null
+
+                    try
+                        let __stack_code_fin = code.Invoke(&sm)
+
+                        if __stack_code_fin then
+                            sm.Data.MethodBuilder.SetResult(sm.Data.Result)
+                    with exn ->
+                        __stack_exn <- exn
+                    // Run SetException outside the stack unwind, see https://github.com/dotnet/roslyn/issues/26567
+                    match __stack_exn with
+                    | null -> ()
+                    | exn -> sm.Data.MethodBuilder.SetException exn
+                //-- RESUMABLE CODE END
+                ))
+                (SetStateMachineMethodImpl<_>(fun sm state -> sm.Data.MethodBuilder.SetStateMachine(state)))
+                (AfterCode<_, _>(fun sm ->
+                    sm.Data.MethodBuilder <- AsyncTaskMethodBuilder<'T>.Create()
+                    sm.Data.MethodBuilder.Start(&sm)
+                    sm.Data.MethodBuilder.Task))
+        else
+            TaskBuilder.RunDynamic(code)
+
+type BackgroundTaskBuilder() =
+
+    inherit TaskBuilderBase()
+
+    static member RunDynamic(code: TaskCode<'T, 'T>) : Task<'T> =
+        // backgroundTask { .. } escapes to a background thread where necessary
+        // See spec of ConfigureAwait(false) at https://devblogs.microsoft.com/dotnet/configureawait-faq/
+        if
+            isNull SynchronizationContext.Current
+            && obj.ReferenceEquals(TaskScheduler.Current, TaskScheduler.Default)
+        then
+            TaskBuilder.RunDynamic(code)
+        else
+            Task.Run<'T>(fun () -> TaskBuilder.RunDynamic(code))
+
+    //// Same as TaskBuilder.Run except the start is inside Task.Run if necessary
+    member inline _.Run(code: TaskCode<'T, 'T>) : Task<'T> =
+        if __useResumableCode then
+            __stateMachine<TaskStateMachineData<'T>, Task<'T>>
+                (MoveNextMethodImpl<_>(fun sm ->
+                    //-- RESUMABLE CODE START
+                    __resumeAt sm.ResumptionPoint
+
+                    try
+                        let __stack_code_fin = code.Invoke(&sm)
+
+                        if __stack_code_fin then
+                            sm.Data.MethodBuilder.SetResult(sm.Data.Result)
+                    with exn ->
+                        sm.Data.MethodBuilder.SetException exn
+                //-- RESUMABLE CODE END
+                ))
+                (SetStateMachineMethodImpl<_>(fun sm state -> sm.Data.MethodBuilder.SetStateMachine(state)))
+                (AfterCode<_, Task<'T>>(fun sm ->
+                    // backgroundTask { .. } escapes to a background thread where necessary
+                    // See spec of ConfigureAwait(false) at https://devblogs.microsoft.com/dotnet/configureawait-faq/
+                    if
+                        isNull SynchronizationContext.Current
+                        && obj.ReferenceEquals(TaskScheduler.Current, TaskScheduler.Default)
+                    then
+                        sm.Data.MethodBuilder <- AsyncTaskMethodBuilder<'T>.Create()
+                        sm.Data.MethodBuilder.Start(&sm)
+                        sm.Data.MethodBuilder.Task
+                    else
+                        let sm = sm // copy contents of state machine so we can capture it
+
+                        Task.Run<'T>(fun () ->
+                            let mutable sm = sm // host local mutable copy of contents of state machine on this thread pool thread
+                            sm.Data.MethodBuilder <- AsyncTaskMethodBuilder<'T>.Create()
+                            sm.Data.MethodBuilder.Start(&sm)
+                            sm.Data.MethodBuilder.Task)))
+        else
+            BackgroundTaskBuilder.RunDynamic(code)
+
+module TaskBuilder =
+
+    let task = TaskBuilder()
+    let backgroundTask = BackgroundTaskBuilder()
+
+namespace Microsoft.FSharp.Control.TaskBuilderExtensions
+
+open Microsoft.FSharp.Control
+open System
+open System.Runtime.CompilerServices
+open System.Threading.Tasks
+open Microsoft.FSharp.Core
+open Microsoft.FSharp.Core.CompilerServices
+open Microsoft.FSharp.Core.LanguagePrimitives.IntrinsicOperators
+
+module LowPriority =
+    // Low priority extensions
+    type TaskBuilderBase with
+
+        [<NoEagerConstraintApplication>]
+        static member inline BindDynamic< ^TaskLike, 'TResult1, 'TResult2, ^Awaiter, 'TOverall
+            when ^TaskLike: (member GetAwaiter: unit -> ^Awaiter)
+            and ^Awaiter :> ICriticalNotifyCompletion
+            and ^Awaiter: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter: (member GetResult: unit -> 'TResult1)>
+            (sm: byref<_>, task: ^TaskLike, continuation: 'TResult1 -> TaskCode<'TOverall, 'TResult2>)
+            : bool =
+
+            let mutable awaiter = (^TaskLike: (member GetAwaiter: unit -> ^Awaiter) task)
+
+            let cont =
+                TaskResumptionFunc<'TOverall>(fun sm ->
+                    let result = (^Awaiter: (member GetResult: unit -> 'TResult1) awaiter)
+                    (continuation result).Invoke(&sm))
+
+            // shortcut to continue immediately
+            if (^Awaiter: (member get_IsCompleted: unit -> bool) awaiter) then
+                cont.Invoke(&sm)
+            else
+                sm.ResumptionDynamicInfo.ResumptionData <- (awaiter :> ICriticalNotifyCompletion)
+                sm.ResumptionDynamicInfo.ResumptionFunc <- cont
+                false
+
+        [<NoEagerConstraintApplication>]
+        member inline _.Bind< ^TaskLike, 'TResult1, 'TResult2, ^Awaiter, 'TOverall
+            when ^TaskLike: (member GetAwaiter: unit -> ^Awaiter)
+            and ^Awaiter :> ICriticalNotifyCompletion
+            and ^Awaiter: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter: (member GetResult: unit -> 'TResult1)>
+            (task: ^TaskLike, continuation: 'TResult1 -> TaskCode<'TOverall, 'TResult2>)
+            : TaskCode<'TOverall, 'TResult2> =
+
+            TaskCode<'TOverall, _>(fun sm ->
+                if __useResumableCode then
+                    //-- RESUMABLE CODE START
+                    // Get an awaiter from the awaitable
+                    let mutable awaiter = (^TaskLike: (member GetAwaiter: unit -> ^Awaiter) task)
+
+                    let mutable __stack_fin = true
+
+                    if not (^Awaiter: (member get_IsCompleted: unit -> bool) awaiter) then
+                        // This will yield with __stack_yield_fin = false
+                        // This will resume with __stack_yield_fin = true
+                        let __stack_yield_fin = ResumableCode.Yield().Invoke(&sm)
+                        __stack_fin <- __stack_yield_fin
+
+                    if __stack_fin then
+                        let result = (^Awaiter: (member GetResult: unit -> 'TResult1) awaiter)
+                        (continuation result).Invoke(&sm)
+                    else
+                        sm.Data.MethodBuilder.AwaitUnsafeOnCompleted(&awaiter, &sm)
+                        false
+                else
+                    TaskBuilderBase.BindDynamic< ^TaskLike, 'TResult1, 'TResult2, ^Awaiter, 'TOverall>(
+                        &sm,
+                        task,
+                        continuation
+                    )
+            //-- RESUMABLE CODE END
+            )
+
+        [<NoEagerConstraintApplication>]
+        member inline this.ReturnFrom< ^TaskLike, ^Awaiter, 'T
+            when ^TaskLike: (member GetAwaiter: unit -> ^Awaiter)
+            and ^Awaiter :> ICriticalNotifyCompletion
+            and ^Awaiter: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter: (member GetResult: unit -> 'T)>
+            (task: ^TaskLike)
+            : TaskCode<'T, 'T> =
+
+            this.Bind(task, this.Return)
+
+        member inline _.Using<'Resource, 'TOverall, 'T when 'Resource :> IDisposable | null>
+            (resource: 'Resource, body: 'Resource -> TaskCode<'TOverall, 'T>)
+            =
+            ResumableCode.Using(resource, body)
+
+    type TaskBuilder with
+        member inline this.MergeSources< ^TaskLike1, ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter1, ^Awaiter2
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> ^TResult1)
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> ^TResult2)>
+            (task1: ^TaskLike1, task2: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+    type BackgroundTaskBuilder with
+        member inline this.MergeSources< ^TaskLike1, ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter1, ^Awaiter2
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> ^TResult1)
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> ^TResult2)>
+            (task1: ^TaskLike1, task2: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+module HighPriority =
+
+    // High priority extensions
+    type TaskBuilderBase with
+
+        static member BindDynamic
+            (sm: byref<_>, task: Task<'TResult1>, continuation: 'TResult1 -> TaskCode<'TOverall, 'TResult2>)
+            : bool =
+            let mutable awaiter = task.GetAwaiter()
+
+            let cont =
+                TaskResumptionFunc<'TOverall>(fun sm ->
+                    let result = awaiter.GetResult()
+                    (continuation result).Invoke(&sm))
+
+            // shortcut to continue immediately
+            if awaiter.IsCompleted then
+                cont.Invoke(&sm)
+            else
+                sm.ResumptionDynamicInfo.ResumptionData <- (awaiter :> ICriticalNotifyCompletion)
+                sm.ResumptionDynamicInfo.ResumptionFunc <- cont
+                false
+
+        member inline _.Bind
+            (task: Task<'TResult1>, continuation: 'TResult1 -> TaskCode<'TOverall, 'TResult2>)
+            : TaskCode<'TOverall, 'TResult2> =
+
+            TaskCode<'TOverall, _>(fun sm ->
+                if __useResumableCode then
+                    //-- RESUMABLE CODE START
+                    // Get an awaiter from the task
+                    let mutable awaiter = task.GetAwaiter()
+
+                    let mutable __stack_fin = true
+
+                    if not awaiter.IsCompleted then
+                        // This will yield with __stack_yield_fin = false
+                        // This will resume with __stack_yield_fin = true
+                        let __stack_yield_fin = ResumableCode.Yield().Invoke(&sm)
+                        __stack_fin <- __stack_yield_fin
+
+                    if __stack_fin then
+                        let result = awaiter.GetResult()
+                        (continuation result).Invoke(&sm)
+                    else
+                        sm.Data.MethodBuilder.AwaitUnsafeOnCompleted(&awaiter, &sm)
+                        false
+                else
+                    TaskBuilderBase.BindDynamic(&sm, task, continuation)
+            //-- RESUMABLE CODE END
+            )
+
+        member inline this.ReturnFrom(task: Task<'T>) : TaskCode<'T, 'T> =
+            this.Bind(task, this.Return)
+
+    type TaskBuilder with
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources
+            (task1: Task< ^TResult1 >, task2: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+    type BackgroundTaskBuilder with
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources
+            (task1: Task< ^TResult1 >, task2: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+module MediumPriority =
+    open LowPriority
+    open HighPriority
+
+    // Medium priority extensions
+    type TaskBuilderBase with
+
+        member inline this.Bind
+            (computation: Async<'TResult1>, continuation: 'TResult1 -> TaskCode<'TOverall, 'TResult2>)
+            : TaskCode<'TOverall, 'TResult2> =
+            this.Bind(Async.StartImmediateAsTask computation, continuation)
+
+        member inline this.ReturnFrom(computation: Async<'T>) : TaskCode<'T, 'T> =
+            this.ReturnFrom(Async.StartImmediateAsTask computation)
+
+    type TaskBuilder with
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources< ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter2
+            when ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> 'TResult2)>
+            (task1: Task< ^TResult1 >, task2: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources< ^TaskLike1, ^TResult1, ^TResult2, ^Awaiter1
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> 'TResult1)>
+            (task1: ^TaskLike1, task2: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources
+            (computation1: Async< ^TResult1 >, computation2: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in task + async cases
+        member inline this.MergeSources
+            (task: Task< ^TResult1 >, computation: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async + task case
+        member inline this.MergeSources
+            (computation: Async< ^TResult1 >, task: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+    type BackgroundTaskBuilder with
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources< ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter2
+            when ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> 'TResult2)>
+            (task1: Task< ^TResult1 >, task2: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in tasks cases
+        member inline this.MergeSources< ^TaskLike1, ^TResult1, ^TResult2, ^Awaiter1
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> 'TResult1)>
+            (task1: ^TaskLike1, task2: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources
+            (computation1: Async< ^TResult1 >, computation2: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation1,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation2, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in task + async cases
+        member inline this.MergeSources
+            (task: Task< ^TResult1 >, computation: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async + task case
+        member inline this.MergeSources
+            (computation: Async< ^TResult1 >, task: Task< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+module LowPlusPriority =
+    open LowPriority
+    open MediumPriority
+
+    type TaskBuilder with
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources< ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter2
+            when ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> 'TResult2)>
+            (computation: Async< ^TResult1 >, task: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources< ^TaskLike1, ^TResult1, ^TResult2, ^Awaiter1
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> 'TResult1)>
+            (task: ^TaskLike1, computation: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+    type BackgroundTaskBuilder with
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources< ^TaskLike2, ^TResult1, ^TResult2, ^Awaiter2
+            when ^TaskLike2: (member GetAwaiter: unit -> ^Awaiter2)
+            and ^Awaiter2 :> ICriticalNotifyCompletion
+            and ^Awaiter2: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter2: (member GetResult: unit -> 'TResult2)>
+            (computation: Async< ^TResult1 >, task: ^TaskLike2)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    computation,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(task, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+        // This overload is required for type inference in async cases
+        member inline this.MergeSources< ^TaskLike1, ^TResult1, ^TResult2, ^Awaiter1
+            when ^TaskLike1: (member GetAwaiter: unit -> ^Awaiter1)
+            and ^Awaiter1 :> ICriticalNotifyCompletion
+            and ^Awaiter1: (member get_IsCompleted: unit -> bool)
+            and ^Awaiter1: (member GetResult: unit -> 'TResult1)>
+            (task: ^TaskLike1, computation: Async< ^TResult2 >)
+            : Task<struct (^TResult1 * ^TResult2)> =
+            this.Run(
+                this.Bind(
+                    task,
+                    fun (result1: ^TResult1) ->
+                        this.Bind(computation, fun (result2: ^TResult2) -> this.Return struct (result1, result2))
+                )
+            )
+
+namespace Microsoft.FSharp.Control
+
+open System.Threading
+open System.Threading.Tasks
+open Microsoft.FSharp.Core
+open Microsoft.FSharp.Core.CompilerServices
+open Microsoft.FSharp.Core.LanguagePrimitives.IntrinsicOperators
+open Microsoft.FSharp.Collections
+open Microsoft.FSharp.Control.TaskBuilder
+open Microsoft.FSharp.Control.TaskBuilderExtensions.LowPriority
+open Microsoft.FSharp.Control.TaskBuilderExtensions.HighPriority
+
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Task =
+
+    [<CompiledName("Result")>]
+    let inline result (value: 'T) : Task<'T> =
+        Task.FromResult value
+
+    [<CompiledName("Empty")>]
+    let empty: Task<unit> = result ()
+
+    [<CompiledName("Bind")>]
+    let inline bind ([<InlineIfLambda>] binder: 'T -> Task<'U>) (task: Task<'T>) : Task<'U> =
+        if task.Status = TaskStatus.RanToCompletion then
+            try
+                binder task.Result
+            with e ->
+                Task.FromException<'U>(e)
+        else
+            TaskBuilder.task {
+                let! v = task
+                return! binder v
+            }
+
+    [<CompiledName("Map")>]
+    let inline map ([<InlineIfLambda>] mapping: 'T -> 'U) (task: Task<'T>) : Task<'U> =
+        if task.Status = TaskStatus.RanToCompletion then
+            try
+                mapping task.Result |> result
+            with e ->
+                Task.FromException<'U>(e)
+        else
+            TaskBuilder.task {
+                let! v = task
+                return mapping v
+            }
+
+    [<CompiledName("Ignore")>]
+    [<RequiresExplicitTypeArguments>]
+    let inline ignore<'T> (task: Task<'T>) : Task<unit> =
+        if task.Status = TaskStatus.RanToCompletion then
+            empty
+        else
+            map ignore task
+
+    [<CompiledName("CatchWith")>]
+    let inline catchWith ([<InlineIfLambda>] handler: exn -> 'T) (task: Task<'T>) : Task<'T> =
+        if task.Status = TaskStatus.RanToCompletion then
+            task
+        else
+            TaskBuilder.task {
+                try
+                    return! task
+                with
+                | :? System.OperationCanceledException as e -> return! raise e
+                | e -> return handler e
+            }
+
+    [<CompiledName("Catch")>]
+    let catch (task: Task<'T>) : Task<Result<'T, exn>> =
+        task |> map Ok |> catchWith Error
+
+    [<CompiledName("Sequential")>]
+    let sequential (ct: CancellationToken) (computations: seq<CancellationToken -> Task<'T>>) : Task<'T[]> =
+        task {
+            let mutable results = ArrayCollector<'T>()
+
+            for f in computations do
+                let! result = f ct
+                results.Add result
+
+            return results.Close()
+        }
+
+    [<CompiledName("SequentialDo")>]
+    let sequentialDo (ct: CancellationToken) (computations: seq<CancellationToken -> Task<unit>>) : Task<unit> =
+        task {
+            for f in computations do
+                do! f ct
+        }
+
+    [<CompiledName("ParallelLimit")>]
+    let parallelLimit
+        (maxDegreeOfParallelism: int)
+        (ct: CancellationToken)
+        (computations: seq<CancellationToken -> Task<'T>>)
+        : Task<'T[]> =
+        if maxDegreeOfParallelism < 1 then
+            System.String.Format(SR.GetString(SR.maxDegreeOfParallelismNotPositive), maxDegreeOfParallelism)
+            |> invalidArg (nameof maxDegreeOfParallelism)
+        // materialize first so exceptions from enumeration can't trigger ObjectDisposedException
+        // from started children touching semaphore or innerCts
+        match Seq.toArray computations with
+        | _ when ct.IsCancellationRequested -> Task.FromCanceled<'T[]> ct
+        | [||] -> result [||]
+        | req when maxDegreeOfParallelism = 1 || req.Length = 1 -> sequential ct req
+        | req ->
+            task {
+                let mutable pos = -1
+                let res = Array.zeroCreate<'T> req.Length
+
+                use innerCts = CancellationTokenSource.CreateLinkedTokenSource ct
+
+                let worker () =
+                    backgroundTask {
+                        let mutable index = Interlocked.Increment &pos
+
+                        while index < req.Length && not innerCts.IsCancellationRequested do
+                            let mutable completed = false
+
+                            try
+                                let! r = req.[index] innerCts.Token
+                                completed <- true
+                                res[index] <- r
+                            finally
+                                if not completed then
+                                    innerCts.Cancel()
+
+                            index <- Interlocked.Increment &pos
+                    }
+
+                // Awaits completion of all workers (whether through success, cancellation or faulting)
+                do! Task.WhenAll [| for _ in 1 .. min req.Length maxDegreeOfParallelism -> worker () :> Task |]
+                // Where cancellation was requested on the outer ct, but none of the inners saw and/or honored it by throwing TCE,
+                // res may only be partially complete so we certainly can't return it
+                // we instead yield a TaskCanceledException to honor standard Task Cancellation semantics
+                innerCts.Token.ThrowIfCancellationRequested()
+                return res
+            }
+
+    [<CompiledName("ParallelDoLimit")>]
+    let parallelDoLimit
+        (maxDegreeOfParallelism: int)
+        (ct: CancellationToken)
+        (computations: seq<CancellationToken -> Task<unit>>)
+        : Task<unit> =
+        parallelLimit maxDegreeOfParallelism ct computations |> ignore<unit[]>
+
+    [<CompiledName("StartAsyncImmediate")>]
+    let startAsyncImmediate (ct: CancellationToken) (computation: Async<'T>) : Task<'T> =
+        Async.StartImmediateAsTask(computation, cancellationToken = ct)
+
+#if NETSTANDARD2_1 || NET
+    [<CompiledName("OfValueTask")>]
+    let inline ofValueTask (valueTask: ValueTask<'T>) : Task<'T> =
+        valueTask.AsTask()
+#endif
+
+#if NETSTANDARD2_1 || NET
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module ValueTask =
+
+    [<CompiledName("Result")>]
+    let inline result (value: 'T) : ValueTask<'T> =
+        ValueTask<'T>(value)
+
+    [<CompiledName("Empty")>]
+    let empty: ValueTask<unit> = result ()
+
+    [<CompiledName("OfTask")>]
+    let inline ofTask (task: Task<'T>) : ValueTask<'T> =
+        ValueTask<'T>(task)
+
+    [<CompiledName("Bind")>]
+    let inline bind ([<InlineIfLambda>] binder: 'T -> ValueTask<'U>) (task: ValueTask<'T>) : ValueTask<'U> =
+        if task.IsCompletedSuccessfully then
+            try
+                binder task.Result
+            with e ->
+                Task.FromException<'U>(e) |> ofTask
+        else
+            let t: Task<'U> =
+                TaskBuilder.task {
+                    let! v = task
+                    return! binder v
+                }
+
+            ValueTask<'U>(t)
+
+    [<CompiledName("Map")>]
+    let inline map ([<InlineIfLambda>] mapping: 'T -> 'U) (task: ValueTask<'T>) : ValueTask<'U> =
+        if task.IsCompletedSuccessfully then
+            try
+                mapping task.Result |> result
+            with e ->
+                Task.FromException<'U>(e) |> ofTask
+        else
+            let t: Task<'U> =
+                TaskBuilder.task {
+                    let! v = task
+                    return mapping v
+                }
+
+            ValueTask<'U>(t)
+
+    [<CompiledName("Ignore")>]
+    [<RequiresExplicitTypeArguments>]
+    let inline ignore<'T> (task: ValueTask<'T>) : ValueTask<unit> =
+        map ignore task
+
+    [<CompiledName("CatchWith")>]
+    let inline catchWith ([<InlineIfLambda>] handler: exn -> 'T) (task: ValueTask<'T>) : ValueTask<'T> =
+        if task.IsCompletedSuccessfully then
+            task
+        else
+            let t: Task<'T> =
+                TaskBuilder.task {
+                    try
+                        return! task
+                    with
+                    | :? System.OperationCanceledException as e -> return! raise e
+                    | e -> return handler e
+                }
+
+            ValueTask<'T>(t)
+
+    [<CompiledName("Catch")>]
+    let catch (task: ValueTask<'T>) : ValueTask<Result<'T, exn>> =
+        task |> map Ok |> catchWith Error
+#endif

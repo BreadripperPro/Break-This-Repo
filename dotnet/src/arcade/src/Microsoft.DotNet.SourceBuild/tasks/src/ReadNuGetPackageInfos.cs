@@ -1,0 +1,57 @@
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+using NuGet.Packaging;
+using NuGet.Packaging.Core;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Microsoft.DotNet.SourceBuild.Tasks;
+
+[MSBuildMultiThreadableTask]
+public class ReadNuGetPackageInfos : Task, IMultiThreadableTask
+{
+    /// <summary>Injected by MSBuild so paths resolve against the project directory in multithreaded builds.</summary>
+    public TaskEnvironment TaskEnvironment { get; set; } = TaskEnvironment.Fallback;
+
+    [Required]
+    public string[] PackagePaths { get; set; }
+
+    /// <summary>
+    /// %(Identity): Path to the original nupkg.
+    /// %(PackageId): Identity of the package.
+    /// %(PackageVersion): Version of the package.
+    /// </summary>
+    [Output]
+    public ITaskItem[] PackageInfoItems { get; set; }
+
+    public override bool Execute()
+    {
+        PackageInfoItems = PackagePaths
+            .Select(p =>
+            {
+                // Read through the resolved path, but keep the original spec as the item identity.
+                PackageIdentity identity = ReadIdentity(TaskEnvironment.GetAbsolutePath(p));
+                return new TaskItem(
+                    p,
+                    new Dictionary<string, string>
+                    {
+                        ["PackageId"] = identity.Id,
+                        ["PackageVersion"] = identity.Version.OriginalVersion
+                    });
+            })
+            .ToArray();
+
+        return !Log.HasLoggedErrors;
+    }
+
+    public static PackageIdentity ReadIdentity(string nupkgFile)
+    {
+        using (var reader = new PackageArchiveReader(nupkgFile))
+        {
+            return reader.GetIdentity();
+        }
+    }
+}

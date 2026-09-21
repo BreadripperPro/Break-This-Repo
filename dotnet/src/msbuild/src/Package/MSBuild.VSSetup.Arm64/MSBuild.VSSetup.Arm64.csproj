@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(FullFrameworkTFM)</TargetFramework>
+    <!-- VS Insertion -->
+    <TargetVsixContainerName>Microsoft.Build.Arm64.vsix</TargetVsixContainerName>
+    <VisualStudioInsertionComponent>Microsoft.Build.Arm64</VisualStudioInsertionComponent>
+
+    <ExcludeFromBuild Condition="'$(MSBuildRuntimeType)' != 'Full'">true</ExcludeFromBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Build\Microsoft.Build.csproj" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <SwrProperty Include="ThirdPartyNotice=$(ThirdPartyNotice)" />
+    <SwrProperty Include="SourceDir=$(RepoRoot)\src\" />
+
+    <!-- Only add the swr file when building on full framework msbuild, otherwise,
+    this triggers a build of the swixproj, which is not supported in core msbuild. -->
+    <SwrFile Include="files.arm64.swr" Condition=" '$(MSBuildRuntimeType)' == 'Full' " />
+  </ItemGroup>
+
+  <Import Project="..\GetBinPaths.Arm64.targets" Condition="'$(ExcludeFromBuild)' != 'true'" />
+
+  <Target Name="SetVsixProperties" BeforeTargets="Build" DependsOnTargets="SetBinPathsArm64" Condition="'$(ExcludeFromBuild)' != 'true'">
+    <ItemGroup>
+      <SwrProperty Include="Version=$(VsixVersion)" />
+      <SwrProperty Include="FrameworkBinPath=$(FrameworkBinPath)" />
+      <SwrProperty Include="Arm64BinPath=$(Arm64BinPath)" />
+      <SwrProperty Include="CoordinatorArm64BinPath=$(CoordinatorArm64BinPath)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

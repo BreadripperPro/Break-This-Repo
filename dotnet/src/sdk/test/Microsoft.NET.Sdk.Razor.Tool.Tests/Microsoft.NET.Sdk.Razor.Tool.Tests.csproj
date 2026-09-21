@@ -1,0 +1,53 @@
+﻿<Project>
+
+  <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <OutDirName>Tests\$(MSBuildProjectName)</OutDirName>
+    <StrongNameKeyId>MicrosoftAspNetCore</StrongNameKeyId>
+    <MSTestParallelizeScope>ClassLevel</MSTestParallelizeScope>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Disable this analyzer due to NullReferenceException it throws: https://github.com/dotnet/roslyn-analyzers/issues/7652 -->
+    <NoWarn>$(NoWarn);CA2025</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="Sdk.props" Sdk="MSTest.Sdk" />
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>testSdkRazorTool</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Css.Parser" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Moq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RazorSdk\Tool\Microsoft.NET.Sdk.Razor.Tool.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(ArtifactsBinDir)\Microsoft.NET.Sdk.Razor.Tool\$(Configuration)\$(SdkTargetFramework)\rzc.dll"
+      Targets="Publish"
+      ReferenceOutputAssembly="false"
+      SkipGetTargetFrameworkProperties="true"
+      UndefineProperties="TargetFramework;TargetFrameworks;RuntimeIdentifier;PublishDir;SelfContained" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Microsoft.NET.TestFramework.MSTest\Microsoft.NET.TestFramework.MSTest.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="$(GlobalExclude)" />
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="MSTest.Sdk" />
+
+</Project>

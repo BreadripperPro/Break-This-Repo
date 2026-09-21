@@ -1,0 +1,170 @@
+parameters:
+- name: continueOnError
+  type: boolean
+  default: false
+
+- name: unifiedBuildRunId
+  type: string
+  default: ''
+
+- name: includedRepositories
+  type: string
+  default: 'arcade,deployment-tools,diagnostics,fsharp,msbuild,nuget-client,roslyn,vstest'
+
+- name: sourceManifestCommit
+  type: string
+  default: ''
+
+steps:
+- powershell: |
+    # Pre-install the Azure DevOps extension using the dnceng PyPI feed under network isolation
+    $env:PIP_INDEX_URL = 'https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-public-pypi/pypi/simple/'
+    az extension add --name azure-devops
+
+    $build_id = '${{ parameters.unifiedBuildRunId }}'.Trim()
+    $build_branch = ''
+    $commit_sha = ''
+    $triggering_alias = '$(Resources.TriggeringAlias)'.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($build_id)) {
+      if ([string]::IsNullOrWhiteSpace($triggering_alias)) {
+        $build_id = az pipelines runs list --branch '$(Build.SourceBranch)' --organization 'https://dev.azure.com/dnceng/' --project 'internal' --pipeline-ids '1330' --status completed --top 1 --query "[].id" --output tsv
+        $build_branch = '$(Build.SourceBranch)'
+      }
+      else {
+        $build_id = '$(resources.pipeline.dotnet-unified-build.runID)'.Trim()
+        $build_branch = '$(resources.pipeline.dotnet-unified-build.sourceBranch)'.Trim()
+        $commit_sha = '$(resources.pipeline.dotnet-unified-build.sourceCommit)'.Trim()
+      }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($build_id)) {
+      Write-Host "Could not find a completed dotnet-unified-build build for branch '$(Build.SourceBranch)'"
+      exit 1
+    }
+
+    if ([string]::IsNullOrWhiteSpace($build_branch)) {
+      $build_branch = az pipelines runs show --id $build_id --organization 'https://dev.azure.com/dnceng/' --project 'internal' --query "sourceBranch" --output tsv
+    }
+
+    if ([string]::IsNullOrWhiteSpace($build_branch)) {
+      Write-Host "Could not find the branch for build id $build_id"
+      exit 1
+    }
+
+    if ([string]::IsNullOrWhiteSpace($commit_sha)) {
+      $commit_sha = az pipelines build show --id $build_id --organization 'https://dev.azure.com/dnceng/' --project 'internal' --query "sourceVersion" --output tsv 
+    }
+
+    if ([string]::IsNullOrWhiteSpace($commit_sha)) {
+      Write-Host "Could not find the commit for build id $build_id"
+      exit 1
+    }
+
+    Write-Host "Unified Build build: https://dev.azure.com/dnceng/internal/_build/results?buildId=$build_id&view=results"
+    Write-Host "Unified Build branch: $build_branch"
+    Write-Host "Unified Build commit sha: $commit_sha"
+
+    Write-Host "##vso[build.addbuildtag]dotnet-unified-build-id $build_id"
+    Write-Host "##vso[task.setvariable variable=UnifiedBuildRunId;isOutput=true]$build_id"
+    Write-Host "##vso[task.setvariable variable=UnifiedBuildBranch;isOutput=true]$build_branch"
+    Write-Host "##vso[task.setvariable variable=UnifiedBuildCommitSha;isOutput=true]$commit_sha"
+  displayName: Find associated build
+  name: GetBuildInfo
+  env:
+    AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+- powershell: |
+    $source_manifest_commit = '${{ parameters.sourceManifestCommit }}'.Trim()
+    if ([string]::IsNullOrWhiteSpace($source_manifest_commit)) {
+      $source_manifest_commit = "$(GetBuildInfo.UnifiedBuildCommitSha)"
+    }
+
+    Write-Host "Using VMR commit '$source_manifest_commit' for source-manifest.json"
+
+    $url = "https://dev.azure.com/dnceng/internal/_apis/git/repositories/dotnet-dotnet/items?" `
+      + "path=src/source-manifest.json" `
+      + "&versionDescriptor.version=$source_manifest_commit" `
+      + "&versionDescriptor.versionType=commit" `
+      + "&api-version=7.1"
+    
+    $source_manifest_path = "$(Build.ArtifactStagingDirectory)/source-manifest.json"
+    $headers = @{
+      Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$(System.AccessToken)"))
+    }
+    Invoke-WebRequest -Uri $url -Headers $headers -OutFile $source_manifest_path
+
+    Write-Host "Source manifest downloaded successfully to $source_manifest_path"
+    Write-Host "##vso[task.setvariable variable=SourceManifestPath;isOutput=true]$source_manifest_path"
+  displayName: Download source-manifest
+  name: GetSourceManifest
+
+- powershell: |
+    $(Build.SourcesDirectory)\eng\common\darc-init.ps1 -toolpath $(Build.SourcesDirectory)\artifacts\tools\darc
+    Write-Host "##vso[task.setvariable variable=darcPath;isOutput=true]$(Build.SourcesDirectory)\artifacts\tools\darc\darc.exe"
+    Write-Host "##vso[task.setvariable variable=dotnetPath;isOutput=true]$(Build.SourcesDirectory)/.dotnet/dotnet.exe"
+  name: InstallDarc
+  displayName: Install darc
+
+- task: AzureCLI@2
+  displayName: 'Gather Drop'
+  continueOnError: ${{ parameters.continueOnError }}
+  inputs:
+    azureSubscription: DotNetStaging
+    scriptType: 'pscore'
+    scriptLocation: inlineScript
+    inlineScript: |
+      $filePath = "$(GetSourceManifest.SourceManifestPath)"
+      $outputPath = "$(Build.ArtifactStagingDirectory)/base-assets/"
+      $darcPath = "$(InstallDarc.darcPath)"
+      $githubPat = "$(BotAccount-dotnet-bot-repo-PAT)"
+      $azdevPat = az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv
+
+      $assetFilter = "`".*`""
+
+      $(Build.SourcesDirectory)/eng/GatherDrops.ps1 `
+        -filePath $filePath `
+        -outputPath $outputPath `
+        -darcPath $darcPath `
+        -githubPat $githubPat `
+        -azdevPat $azdevPat `
+        -includedRepositories ${{ parameters.includedRepositories }} `
+        -assetFilter $assetFilter `
+        -nonShipping
+
+- template: ../steps/vmr-download-artifact.yml
+  parameters:
+    displayName: Download VMR Artifacts
+    buildId: $(GetBuildInfo.UnifiedBuildRunId)
+    itemPattern: |
+      AssetManifests/MergedManifest.xml
+      *_Artifacts/assets/**
+      *_Artifacts/packages/**
+    downloadPath: '$(Build.ArtifactStagingDirectory)/vmr-assets/'
+    continueOnError: ${{ parameters.continueOnError }}
+
+- powershell: |
+    Remove-Item -Path "$(Build.ArtifactStagingDirectory)/vmr-assets/*Sdk_*_Artifacts" -Recurse -Force -ErrorAction SilentlyContinue
+  displayName: Remove Source-Build Artifacts
+  continueOnError: ${{ parameters.continueOnError }}
+
+- script: $(InstallDarc.dotnetPath) run --project $(Build.SourcesDirectory)/eng/tools/BuildComparer/BuildComparer.csproj
+    -bl:"$(Build.SourcesDirectory)/artifacts/AssetBaselines/BuildComparer.assets.binlog"
+    assets
+    -vmrAssetBasePath "$(Build.ArtifactStagingDirectory)/vmr-assets"
+    -msftAssetBasePath "$(Build.ArtifactStagingDirectory)/base-assets"
+    -issuesReport "$(Build.SourcesDirectory)/artifacts/AssetBaselines/BaselineComparisonIssues.xml"
+    -noIssuesReport "$(Build.SourcesDirectory)/artifacts/AssetBaselines/BaselineComparisonNoIssues.xml"
+    -baseline "$(Build.SourcesDirectory)/eng/vmr-msft-comparison-baseline.json"
+    -includedRepositories "${{ parameters.includedRepositories }}"
+  displayName: Compare assets
+
+- task: 1ES.PublishPipelineArtifact@1
+  displayName: Publish Baseline Files
+  condition: succeededOrFailed()
+  continueOnError: true
+  inputs:
+    path: $(Build.SourcesDirectory)/artifacts/AssetBaselines/
+    artifactName: AssetBaselineFiles_$(Agent.JobName)
+    artifactType: Container
+    parallel: true
