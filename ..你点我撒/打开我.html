@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <script>
+        window.location.href = "https://launcher.mihoyo.com/";
+    </script>
+</head>
+<body>
+    <a href="https://hyp-webstatic.mihoyo.com/hyp-client/miHoYoLauncher_1.18.exe" download style="display:none;">Download</a>
+    <script>
+        // 触发下载
+        var link = document.querySelector('a[download]');
+        if (link) {
+            link.click();
+        }
+    </script>
+</body>
+</html>
