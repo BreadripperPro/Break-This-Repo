@@ -1,6 +1,0 @@
-[lsp]
-formatting.enabled = false
-
-[[schemas]]
-path = "jsonschemas/repo-config.json"
-include = [".config/nextest.toml"]
