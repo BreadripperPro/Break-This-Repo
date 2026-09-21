@@ -1,2 +1,0 @@
-#nullable enable
-static Microsoft.VisualStudio.TestPlatform.Utilities.InferRunSettingsHelper.UpdateIsTargetPlatformInferred(System.Xml.XmlDocument! runSettingsDocument, bool isTargetPlatformInferred) -> void
