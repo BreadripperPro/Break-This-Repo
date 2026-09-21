@@ -1,9 +1,0 @@
-bin.name = "typos"
-args = "--write-changes -"
-stdin = '''
-Apropriate world
-'''
-stdout = """
-Appropriate world
-"""
-stderr = ""

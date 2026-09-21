@@ -1,5 +1,0 @@
-[files]
-extend-exclude = ["file.ignore", "ignore"]
-
-[default.extend-identifiers]
-hello = "goodbye"
