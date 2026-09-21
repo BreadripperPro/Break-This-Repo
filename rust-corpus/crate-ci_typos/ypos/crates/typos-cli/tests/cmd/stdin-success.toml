@@ -1,7 +1,0 @@
-bin.name = "typos"
-args = "-"
-stdin = '''
-Hello world
-'''
-stdout = ""
-stderr = ""
