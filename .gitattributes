@@ -1,3 +1,0 @@
-# Rebalance GitHub language stats drowned by mega Rust trees.
-*.rs linguist-vendored
-**/target/** linguist-vendored
