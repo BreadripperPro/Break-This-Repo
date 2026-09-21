@@ -1,8 +1,0 @@
-changelog:
-  exclude:
-    authors:
-      - dotnet-bot
-      - dotnet-maestro
-      - dotnet-maestro[bot]
-      - dependabot
-      - dependabot[bot]
