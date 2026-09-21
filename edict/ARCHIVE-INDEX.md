@@ -16,8 +16,8 @@
 
 | 序号 | 文件 | 文件编号 | 语种 | 状态 |
 |---|---|---|---|---|
-| 1 | `edict/GCCC-EDICT-2026-001.md` | DS/EDICT/2026-001 | 中文 | 正本，生效 |
-| 2 | `edict/GCCC-EDICT-2026-001.en.md` | DS/EDICT/2026-001 | 英文 | 正本，生效 |
+| 1 | `edict/DS-EDICT-2026-001.md` | DS/EDICT/2026-001 | 中文 | 正本，生效 |
+| 2 | `edict/DS-EDICT-2026-001.en.md` | DS/EDICT/2026-001 | 英文 | 正本，生效 |
 | 3 | `edict/ARCHIVE-INDEX.md` | DS/ARC/2026-0001 | 中文 | 本索引 |
 
 ---
