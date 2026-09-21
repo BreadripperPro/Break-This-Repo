@@ -1,8 +1,0 @@
-[package]
-name = "oxideterm-terminal-recording"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-serde_json.workspace = true
