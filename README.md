@@ -2445,6 +2445,7 @@ https://admincmd.xyz/
 
 # Debian --通用操作系统
 [![Debian Logo](https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f365.png)](https://www.debian.org/)
+![Debian installation media](./assets/debian.jpg)
 ## Debian 是自由软件。
 Debian 是由自由和开放源代码的软件组成的，并将始终保持 100% 自由。每个人都能自由使用、修改，以及分发。这是我们对我们的用户的主要承诺。它也是免费的。
 ## Debian 稳定且安全。
