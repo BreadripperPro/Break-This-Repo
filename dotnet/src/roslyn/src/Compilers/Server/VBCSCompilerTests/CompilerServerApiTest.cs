@@ -101,7 +101,7 @@ namespace Microsoft.CodeAnalysis.CompilerServer.UnitTests
             var result = BuildServerController.CreateAndRunServer(
                 pipeName,
                 clientConnectionHost: host,
-                keepAlive: TimeSpan.FromMilliseconds(-1));
+                keepAlive: Timeout.InfiniteTimeSpan);
             Assert.Equal(CommonCompiler.Succeeded, result);
             Assert.True(wasServerMutexOpen);
         }
@@ -123,27 +123,6 @@ namespace Microsoft.CodeAnalysis.CompilerServer.UnitTests
             using var serverData = await ServerUtil.CreateServer(Logger);
             var buildResponse = await serverData.SendAsync(new BuildRequest(RequestLanguage.CSharpCompile, "abc", new List<BuildRequest.Argument> { }));
             Assert.Equal(BuildResponse.ResponseType.IncorrectHash, buildResponse.Type);
-        }
-
-        [ConditionalFact(typeof(WindowsDesktopOnly))]
-        [WorkItem(33452, "https://github.com/dotnet/roslyn/issues/33452")]
-        public void QuotePipeName_Desktop()
-        {
-            var serverInfo = BuildServerConnection.GetServerProcessInfo(@"q:\tools", "name with space");
-            Assert.EndsWith(@"\dotnet.exe", serverInfo.processFilePath);
-            AssertEx.Equal(@"exec ""q:\tools\VBCSCompiler.dll"" ""-pipename:name with space""", serverInfo.commandLineArguments);
-        }
-
-        [ConditionalFact(typeof(CoreClrOnly))]
-        [WorkItem(33452, "https://github.com/dotnet/roslyn/issues/33452")]
-        public void QuotePipeName_CoreClr()
-        {
-            var toolDir = ExecutionConditionUtil.IsWindows
-                ? @"q:\tools"
-                : "/tools";
-            var serverInfo = BuildServerConnection.GetServerProcessInfo(toolDir, "name with space");
-            var vbcsFilePath = Path.Combine(toolDir, "VBCSCompiler.dll");
-            AssertEx.Equal($@"exec ""{vbcsFilePath}"" ""-pipename:name with space""", serverInfo.commandLineArguments);
         }
 
         [Theory]

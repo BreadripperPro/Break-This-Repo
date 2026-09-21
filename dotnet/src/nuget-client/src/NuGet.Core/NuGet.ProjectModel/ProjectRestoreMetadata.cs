@@ -147,7 +147,20 @@ namespace NuGet.ProjectModel
         /// </summary>
         public bool UsingMicrosoftNETSdk { get; set; }
 
+        /// <summary>
+        /// Whether analyzer assets are tracked in the assets file. This is a project-wide opt-in
+        /// (the <c>RestoreEnableAnalyzerAssets</c> MSBuild property); when enabled, analyzer assets
+        /// are honored for every target framework.
+        /// </summary>
+        public bool RestoreEnableAnalyzerAssets { get; set; }
+
         public bool UseLegacyDependencyResolver { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether or not the dependency graph spec file should not be written during restore.
+        /// The default value is <see langword="false" />.
+        /// </summary>
+        public bool RestoreDoNotWriteDependencyGraphSpec { get; set; }
 
         public override int GetHashCode()
         {
@@ -180,8 +193,10 @@ namespace NuGet.ProjectModel
             hashCode.AddObject(CentralPackageTransitivePinningEnabled);
             hashCode.AddObject(RestoreAuditProperties);
             hashCode.AddObject(UsingMicrosoftNETSdk);
+            hashCode.AddObject(RestoreEnableAnalyzerAssets);
             hashCode.AddObject(SdkAnalysisLevel);
             hashCode.AddObject(UseLegacyDependencyResolver);
+            hashCode.AddObject(RestoreDoNotWriteDependencyGraphSpec);
 
             return hashCode.CombinedHash;
         }
@@ -229,8 +244,10 @@ namespace NuGet.ProjectModel
                    EqualityUtility.EqualsWithNullCheck(CentralPackageTransitivePinningEnabled, other.CentralPackageTransitivePinningEnabled) &&
                    RestoreAuditProperties == other.RestoreAuditProperties &&
                    UsingMicrosoftNETSdk == other.UsingMicrosoftNETSdk &&
-                   EqualityUtility.EqualsWithNullCheck(SdkAnalysisLevel, other.SdkAnalysisLevel) &&
-                   UseLegacyDependencyResolver == other.UseLegacyDependencyResolver;
+                   RestoreEnableAnalyzerAssets == other.RestoreEnableAnalyzerAssets &&
+                    EqualityUtility.EqualsWithNullCheck(SdkAnalysisLevel, other.SdkAnalysisLevel) &&
+                    UseLegacyDependencyResolver == other.UseLegacyDependencyResolver &&
+                    RestoreDoNotWriteDependencyGraphSpec == other.RestoreDoNotWriteDependencyGraphSpec;
         }
 
         private HashSet<string> GetSources(IList<PackageSource> sources)
@@ -283,7 +300,9 @@ namespace NuGet.ProjectModel
             clone.RestoreAuditProperties = RestoreAuditProperties?.Clone();
             clone.SdkAnalysisLevel = SdkAnalysisLevel;
             clone.UsingMicrosoftNETSdk = UsingMicrosoftNETSdk;
+            clone.RestoreEnableAnalyzerAssets = RestoreEnableAnalyzerAssets;
             clone.UseLegacyDependencyResolver = UseLegacyDependencyResolver;
+            clone.RestoreDoNotWriteDependencyGraphSpec = RestoreDoNotWriteDependencyGraphSpec;
         }
     }
 }

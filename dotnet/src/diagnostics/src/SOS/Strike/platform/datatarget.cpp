@@ -8,13 +8,28 @@
 #include "dacprivate.h"
 #include "sospriv.h"
 #include "corerror.h"
+#include "remotememoryservice.h"
 
 #define IMAGE_FILE_MACHINE_AMD64             0x8664  // AMD64 (K8)
 
-DataTarget::DataTarget(ULONG64 baseAddress) :
+DataTarget::DataTarget(ULONG64 baseAddress, ULONG64 contractDescriptorAddress) :
     m_ref(0),
-    m_baseAddress(baseAddress)
+    m_baseAddress(baseAddress),
+    m_contractDescriptorAddress(contractDescriptorAddress),
+    m_debuggerServices(GetDebuggerServices())
 {
+    if (m_debuggerServices != nullptr)
+    {
+        m_debuggerServices->AddRef();
+    }
+}
+
+DataTarget::~DataTarget()
+{
+    if (m_debuggerServices != nullptr)
+    {
+        m_debuggerServices->Release();
+    }
 }
 
 STDMETHODIMP
@@ -55,6 +70,12 @@ DataTarget::QueryInterface(
         AddRef();
         return S_OK;
     }
+    else if (InterfaceId == IID_ICLRContractLocator)
+    {
+        *Interface = (ICLRContractLocator*)this;
+        AddRef();
+        return S_OK;
+    }
     else
     {
         *Interface = NULL;
@@ -88,11 +109,11 @@ HRESULT STDMETHODCALLTYPE
 DataTarget::GetMachineType(
     /* [out] */ ULONG32 *machine)
 {
-    if (g_ExtControl == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
-    return g_ExtControl->GetExecutingProcessorType((PULONG)machine);
+    return m_debuggerServices->GetProcessorType((PULONG)machine);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -115,7 +136,7 @@ DataTarget::GetImageBase(
     /* [string][in] */ LPCWSTR name,
     /* [out] */ CLRDATA_ADDRESS *base)
 {
-    if (g_ExtSymbols == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
@@ -133,7 +154,7 @@ DataTarget::GetImageBase(
         *lp = '\0';
     }
 #endif
-    return g_ExtSymbols->GetModuleByModuleName(lpstr, 0, NULL, base);
+    return m_debuggerServices->GetModuleByModuleName(lpstr, 0, NULL, base);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -143,7 +164,7 @@ DataTarget::ReadVirtual(
     /* [in] */ ULONG32 request,
     /* [optional][out] */ ULONG32 *done)
 {
-    if (g_ExtData == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
@@ -164,7 +185,7 @@ DataTarget::ReadVirtual(
         }
     }
 #endif
-    HRESULT hr = g_ExtData->ReadVirtual(address, (PVOID)buffer, request, (PULONG)done);
+    HRESULT hr = m_debuggerServices->ReadVirtual(address, (PVOID)buffer, request, (PULONG)done);
     if (FAILED(hr)) 
     {
         ExtDbgOut("DataTarget::ReadVirtual FAILED %08x address %08llx size %08x\n", hr, address, request);
@@ -179,11 +200,11 @@ DataTarget::WriteVirtual(
     /* [in] */ ULONG32 request,
     /* [optional][out] */ ULONG32 *done)
 {
-    if (g_ExtData == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
-    return g_ExtData->WriteVirtual(address, (PVOID)buffer, request, (PULONG)done);
+    return m_debuggerServices->WriteVirtual(address, (PVOID)buffer, request, (PULONG)done);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -208,11 +229,11 @@ HRESULT STDMETHODCALLTYPE
 DataTarget::GetCurrentThreadID(
     /* [out] */ ULONG32 *threadID)
 {
-    if (g_ExtSystem == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
-    return g_ExtSystem->GetCurrentThreadSystemId((PULONG)threadID);
+    return m_debuggerServices->GetCurrentThreadSystemId((PULONG)threadID);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -222,55 +243,11 @@ DataTarget::GetThreadContext(
     /* [in] */ ULONG32 contextSize,
     /* [out, size_is(contextSize)] */ PBYTE context)
 {
-    HRESULT hr;
-#ifdef FEATURE_PAL
-    if (g_ExtServices == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
-    hr = g_ExtServices->GetThreadContextBySystemId(threadID, contextFlags, contextSize, context);
-#else
-    if (g_ExtSystem == NULL || g_ExtAdvanced == NULL)
-    {
-        return E_UNEXPECTED;
-    }
-    ULONG ulThreadIDOrig;
-    ULONG ulThreadIDRequested;
-
-    hr = g_ExtSystem->GetCurrentThreadId(&ulThreadIDOrig);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-
-    hr = g_ExtSystem->GetThreadIdBySystemId(threadID, &ulThreadIDRequested);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-
-    hr = g_ExtSystem->SetCurrentThreadId(ulThreadIDRequested);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-
-    // Prepare context structure
-    ZeroMemory(context, contextSize);
-    g_targetMachine->SetContextFlags(context, contextFlags);
-
-    // Ok, do it!
-    hr = g_ExtAdvanced->GetThreadContext((LPVOID) context, contextSize);
-
-    // This is cleanup; failure here doesn't mean GetThreadContext should fail
-    // (that's determined by hr).
-    g_ExtSystem->SetCurrentThreadId(ulThreadIDOrig);
-#endif
-
-    // GetThreadContext clears ContextFlags or sets them incorrectly and DBI needs it set to know what registers to copy
-    g_targetMachine->SetContextFlags(context, contextFlags);
-
-    return hr;
+    return m_debuggerServices->GetThreadContextBySystemId(threadID, contextFlags, contextSize, context);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -303,21 +280,16 @@ DataTarget::AllocVirtual(
     /* [in] */ ULONG32 protectFlags,
     /* [out] */ CLRDATA_ADDRESS* virt)
 {
-#ifdef FEATURE_PAL
-    return E_NOTIMPL;
-#else
-    ULONG64 hProcess;
-    HRESULT hr = g_ExtSystem->GetCurrentProcessHandle(&hProcess);
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    ReleaseHolder<IRemoteMemoryService> remoteMemoryService;
+    HRESULT hr = m_debuggerServices->QueryInterface(__uuidof(IRemoteMemoryService), (void**)&remoteMemoryService);
     if (FAILED(hr)) {
-        return hr;
+        return E_NOTIMPL;
     }
-    LPVOID allocation = ::VirtualAllocEx((HANDLE)hProcess, (LPVOID)addr, size, typeFlags, protectFlags);
-    if (allocation == NULL) {
-        return HRESULT_FROM_WIN32(::GetLastError());
-    }
-    *virt = (CLRDATA_ADDRESS)allocation;
-    return S_OK;
-#endif
+    return remoteMemoryService->AllocVirtual(addr, size, typeFlags, protectFlags, virt);
 }
         
 HRESULT STDMETHODCALLTYPE 
@@ -326,17 +298,16 @@ DataTarget::FreeVirtual(
     /* [in] */ ULONG32 size,
     /* [in] */ ULONG32 typeFlags)
 {
-#ifdef FEATURE_PAL
-    return E_NOTIMPL;
-#else
-    ULONG64 hProcess;
-    HRESULT hr = g_ExtSystem->GetCurrentProcessHandle(&hProcess);
-    if (FAILED(hr)) {
-        return hr;
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
     }
-    ::VirtualFreeEx((HANDLE)hProcess, (LPVOID)addr, size, typeFlags);
-    return S_OK;
-#endif
+    ReleaseHolder<IRemoteMemoryService> remoteMemoryService;
+    HRESULT hr = m_debuggerServices->QueryInterface(__uuidof(IRemoteMemoryService), (void**)&remoteMemoryService);
+    if (FAILED(hr)) {
+        return E_NOTIMPL;
+    }
+    return remoteMemoryService->FreeVirtual(addr, size, typeFlags);
 }
 
 // ICorDebugDataTarget4
@@ -348,11 +319,11 @@ DataTarget::VirtualUnwind(
     /* [in, out, size_is(contextSize)] */ PBYTE context)
 {
 #ifdef FEATURE_PAL
-    if (g_ExtServices == NULL)
+    if (m_debuggerServices == nullptr)
     {
         return E_UNEXPECTED;
     }
-    return g_ExtServices->VirtualUnwind(threadId, contextSize, context);
+    return m_debuggerServices->VirtualUnwind(threadId, contextSize, context);
 #else
     return E_NOTIMPL;
 #endif
@@ -383,5 +354,26 @@ DataTarget::GetRuntimeBase(
     /* [out] */ CLRDATA_ADDRESS* baseAddress)
 {
     *baseAddress = m_baseAddress;
+    return S_OK;
+}
+
+// ICLRContractLocator
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetContractDescriptor(
+    /* [out] */ CLRDATA_ADDRESS* contractAddress)
+{
+    if (contractAddress == nullptr)
+    {
+        return E_INVALIDARG;
+    }
+    // The contract descriptor address is resolved by the runtime (which knows the target OS, the
+    // runtime module index, and has a memory-reading callback) and handed to us at construction.
+    // The cDAC requires it via ICLRContractLocator; the legacy DAC never queries this interface.
+    if (m_contractDescriptorAddress == 0)
+    {
+        return E_FAIL;
+    }
+    *contractAddress = m_contractDescriptorAddress;
     return S_OK;
 }

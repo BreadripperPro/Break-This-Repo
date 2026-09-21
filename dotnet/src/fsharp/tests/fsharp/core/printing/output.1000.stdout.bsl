@@ -1105,6 +1105,7 @@ type 'a T4063 = | AT4063 of 'a
     #r "nuget:FSharp.Data, 3.1.2";;               // Load Nuget Package 'FSharp.Data' version '3.1.2'
     #r "nuget:FSharp.Data";;                      // Load Nuget Package 'FSharp.Data' with the highest version
     #clear;;                                      // Clear screen
+    #version;;                                    // Display F# Interactive version and environment information
     #quit;;                                       // Exit
     #exit;;                                       // Exit
 
@@ -2809,7 +2810,7 @@ val it: unit = ()
 > {"AnonRecordField2":10}
 val it: unit = ()
 
-> val it: {| AnonRecordField2: int |} = { AnonRecordField2 = 11 }
+> val it: {| AnonRecordField2: int |} = {| AnonRecordField2 = 11 |}
 
 module FSI_0326.Project.fsproj
 
@@ -2836,10 +2837,10 @@ val test4a: string = "{"MutableField4":15}"
 > type R5 = {| AnonRecordField5: int |}
 val test5a: string = "{"AnonRecordField5":17}"
 
-> val test5b: R5 = { AnonRecordField5 = 17 }
+> val test5b: R5 = {| AnonRecordField5 = 17 |}
 
 > val test5c: string = "{"AnonRecordField5":18}"
 
-> val test5d: R5 = { AnonRecordField5 = 18 }
+> val test5d: R5 = {| AnonRecordField5 = 18 |}
 
 > > > 

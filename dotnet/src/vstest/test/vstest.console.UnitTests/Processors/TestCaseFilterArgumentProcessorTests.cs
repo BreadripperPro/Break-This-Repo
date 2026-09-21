@@ -11,17 +11,18 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class TestCaseFilterArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     [TestMethod]
     public void GetMetadataShouldReturnTestCaseFilterArgumentProcessorCapabilities()
     {
-        TestCaseFilterArgumentProcessor processor = new();
+        TestCaseFilterArgumentProcessor processor = new(_commandLineOptions);
         Assert.IsTrue(processor.Metadata.Value is TestCaseFilterArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecutorShouldReturnTestCaseFilterArgumentProcessorCapabilities()
     {
-        TestCaseFilterArgumentProcessor processor = new();
+        TestCaseFilterArgumentProcessor processor = new(_commandLineOptions);
         Assert.IsTrue(processor.Executor!.Value is TestCaseFilterArgumentExecutor);
     }
 
@@ -32,7 +33,7 @@ public class TestCaseFilterArgumentProcessorTests
     {
         TestCaseFilterArgumentProcessorCapabilities capabilities = new();
         Assert.AreEqual("/TestCaseFilter", capabilities.CommandName);
-        StringAssert.Contains(capabilities.HelpContentResourceName, "/TestCaseFilter:<Expression>" + Environment.NewLine + "      Run tests that match the given expression." + Environment.NewLine + "      <Expression> is of the format <property>Operator<value>[|&<Expression>]");
+        Assert.Contains("/TestCaseFilter:<Expression>" + Environment.NewLine + "      Run tests that match the given expression." + Environment.NewLine + "      <Expression> is of the format <property>Operator<value>[|&<Expression>]", capabilities.HelpContentResourceName);
 
         Assert.AreEqual(HelpContentPriority.TestCaseFilterArgumentProcessorHelpPriority, capabilities.HelpPriority);
         Assert.IsFalse(capabilities.IsAction);
@@ -48,24 +49,17 @@ public class TestCaseFilterArgumentProcessorTests
     [TestMethod]
     public void ExecutorInitializeWithNullOrEmptyTestCaseFilterShouldThrowCommandLineException()
     {
-        var options = CommandLineOptions.Instance;
+        var options = new CommandLineOptions();
         TestCaseFilterArgumentExecutor executor = new(options);
 
-        try
-        {
-            executor.Initialize(null);
-        }
-        catch (Exception ex)
-        {
-            Assert.IsTrue(ex is CommandLineException);
-            StringAssert.Contains(ex.Message, @"The /TestCaseFilter argument requires the filter value.");
-        }
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => executor.Initialize(null));
+        Assert.Contains(@"The /TestCaseFilter argument requires the filter value.", ex.Message);
     }
 
     [TestMethod]
     public void ExecutorInitializeWithNullOrEmptyTestCaseFilterShouldNotThrowWhenTestFilterWasSpecifiedByPreviousStep()
     {
-        var options = CommandLineOptions.Instance;
+        var options = new CommandLineOptions();
         options.TestCaseFilterValue = "Test=FilterFromPreviousStep";
         TestCaseFilterArgumentExecutor executor = new(options);
 
@@ -75,7 +69,7 @@ public class TestCaseFilterArgumentProcessorTests
     [TestMethod]
     public void ExecutorInitializeWithTestCaseFilterShouldMergeWithTheValueProvidedByPreviousStep()
     {
-        var options = CommandLineOptions.Instance;
+        var options = new CommandLineOptions();
         var defaultValue = "Test=FilterFromPreviousStep";
         options.TestCaseFilterValue = defaultValue;
         Assert.AreEqual(defaultValue, options.TestCaseFilterValue);
@@ -91,7 +85,7 @@ public class TestCaseFilterArgumentProcessorTests
     [TestMethod]
     public void ExecutorExecutoreturnArgumentProcessorResultSuccess()
     {
-        var executor = new TestCaseFilterArgumentExecutor(CommandLineOptions.Instance);
+        var executor = new TestCaseFilterArgumentExecutor(_commandLineOptions);
         var result = executor.Execute();
         Assert.AreEqual(ArgumentProcessorResult.Success, result);
     }

@@ -152,8 +152,6 @@ NuGet.Common.MSBuildStringUtility
 NuGet.Common.Migrations.MigrationRunner
 NuGet.Common.NetworkProtocolUtility
 NuGet.Common.NuGetEnvironment
-NuGet.Common.NuGetEventSource
-NuGet.Common.NuGetEventSource.Keywords
 NuGet.Common.NuGetFolderPath
 NuGet.Common.NuGetFolderPath.DefaultMsBuildPath = 5 -> NuGet.Common.NuGetFolderPath
 NuGet.Common.NuGetFolderPath.HttpCacheDirectory = 3 -> NuGet.Common.NuGetFolderPath
@@ -182,6 +180,8 @@ NuGet.Common.NuGetLogCode.NU1014 = 1014 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1015 = 1015 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1016 = 1016 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1017 = 1017 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU1018 = 1018 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU1019 = 1019 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1100 = 1100 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1101 = 1101 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1102 = 1102 -> NuGet.Common.NuGetLogCode
@@ -218,6 +218,7 @@ NuGet.Common.NuGetLogCode.NU1508 = 1508 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1509 = 1509 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1510 = 1510 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1511 = 1511 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU1512 = 1512 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1601 = 1601 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1602 = 1602 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU1603 = 1603 -> NuGet.Common.NuGetLogCode
@@ -328,6 +329,8 @@ NuGet.Common.NuGetLogCode.NU5047 = 5047 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5048 = 5048 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5049 = 5049 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5050 = 5050 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU5051 = 5051 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU5052 = 5052 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5100 = 5100 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5101 = 5101 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5102 = 5102 -> NuGet.Common.NuGetLogCode
@@ -363,6 +366,7 @@ NuGet.Common.NuGetLogCode.NU5132 = 5132 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5133 = 5133 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5500 = 5500 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.NU5501 = 5501 -> NuGet.Common.NuGetLogCode
+NuGet.Common.NuGetLogCode.NU5502 = 5502 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetLogCode.Undefined = 0 -> NuGet.Common.NuGetLogCode
 NuGet.Common.NuGetOperationStatus
 NuGet.Common.NuGetOperationStatus.Cancelled = 3 -> NuGet.Common.NuGetOperationStatus
@@ -510,12 +514,6 @@ const NuGet.Common.LogMessageProperties.START_COLUMN_NUMBER = "startColumnNumber
 const NuGet.Common.LogMessageProperties.START_LINE_NUMBER = "startLineNumber" -> string!
 const NuGet.Common.LogMessageProperties.TARGET_GRAPHS = "targetGraphs" -> string!
 const NuGet.Common.LogMessageProperties.WARNING_LEVEL = "warningLevel" -> string!
-const NuGet.Common.NuGetEventSource.Keywords.Common = (System.Diagnostics.Tracing.EventKeywords)1 -> System.Diagnostics.Tracing.EventKeywords
-const NuGet.Common.NuGetEventSource.Keywords.Configuration = (System.Diagnostics.Tracing.EventKeywords)2 -> System.Diagnostics.Tracing.EventKeywords
-const NuGet.Common.NuGetEventSource.Keywords.Logging = (System.Diagnostics.Tracing.EventKeywords)4 -> System.Diagnostics.Tracing.EventKeywords
-const NuGet.Common.NuGetEventSource.Keywords.Performance = (System.Diagnostics.Tracing.EventKeywords)8 -> System.Diagnostics.Tracing.EventKeywords
-const NuGet.Common.NuGetEventSource.Keywords.Restore = (System.Diagnostics.Tracing.EventKeywords)32 -> System.Diagnostics.Tracing.EventKeywords
-const NuGet.Common.NuGetEventSource.Keywords.SdkResolver = (System.Diagnostics.Tracing.EventKeywords)16 -> System.Diagnostics.Tracing.EventKeywords
 override NuGet.Common.LogMessage.ToString() -> string!
 override NuGet.Common.NullLogger.Log(NuGet.Common.ILogMessage! message) -> void
 override NuGet.Common.NullLogger.Log(NuGet.Common.LogLevel level, string! data) -> void
@@ -576,7 +574,7 @@ static NuGet.Common.LoggingExtensions.GetName(this NuGet.Common.NuGetLogCode cod
 static NuGet.Common.LoggingExtensions.TryGetName(this NuGet.Common.NuGetLogCode code, out string? codeString) -> bool
 static NuGet.Common.MSBuildStringUtility.Convert(string? value) -> string?
 static NuGet.Common.MSBuildStringUtility.GetBooleanOrNull(string? value) -> bool?
-static NuGet.Common.MSBuildStringUtility.GetNuGetLogCodes(string! s) -> System.Collections.Immutable.ImmutableArray<NuGet.Common.NuGetLogCode>
+static NuGet.Common.MSBuildStringUtility.GetNuGetLogCodes(string? s) -> System.Collections.Immutable.ImmutableArray<NuGet.Common.NuGetLogCode>
 static NuGet.Common.MSBuildStringUtility.IsTrue(string? value) -> bool
 static NuGet.Common.MSBuildStringUtility.IsTrueOrEmpty(string? value) -> bool
 static NuGet.Common.MSBuildStringUtility.Split(string? s) -> string![]!
@@ -587,8 +585,6 @@ static NuGet.Common.Migrations.MigrationRunner.Run() -> void
 static NuGet.Common.NetworkProtocolUtility.SetConnectionLimit() -> void
 ~static NuGet.Common.NuGetEnvironment.GetDotNetLocation() -> string
 ~static NuGet.Common.NuGetEnvironment.GetFolderPath(NuGet.Common.NuGetFolderPath folder) -> string
-static NuGet.Common.NuGetEventSource.Instance.get -> System.Diagnostics.Tracing.EventSource!
-static NuGet.Common.NuGetEventSource.IsEnabled.get -> bool
 static NuGet.Common.NullLogger.Instance.get -> NuGet.Common.ILogger!
 static NuGet.Common.PackagingLogMessage.CreateError(string! message, NuGet.Common.NuGetLogCode code) -> NuGet.Common.PackagingLogMessage!
 static NuGet.Common.PackagingLogMessage.CreateMessage(string! message, NuGet.Common.LogLevel logLevel) -> NuGet.Common.PackagingLogMessage!

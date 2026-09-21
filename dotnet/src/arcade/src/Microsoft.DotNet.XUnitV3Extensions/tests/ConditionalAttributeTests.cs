@@ -1,112 +1,159 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Reflection;
 using Xunit;
 
-namespace Microsoft.DotNet.XUnitExtensions.Tests
+namespace Microsoft.DotNet.XUnitExtensions.Tests;
+
+public class ConditionalAttributeTests
 {
-    [TestCaseOrderer(typeof(AlphabeticalOrderer))]
-    public class ConditionalAttributeTests
+    // These tests validate the xunit v3 conditional attributes without relying on
+    // execution order, which the v3 runner does not guarantee for this scenario.
+
+    public static bool AlwaysTrue => true;
+    public static bool AlwaysFalse => false;
+
+    [ConditionalFact(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
+    public void ConditionalAttributeTrue()
     {
-        // The tests under this class validate that ConditionalFact and ConditionalTheory
-        // tests are discovered and executed correctly under xunit v3.
-        // This test class is test-order dependent so do not rename the tests.
+        Assert.True(AlwaysTrue);
+    }
 
-        private static bool s_conditionalFactTrueExecuted;
-        private static bool s_conditionalFactFalseExecuted;
-        private static int s_conditionalTheoryTrueCount;
-        private static int s_conditionalTheoryFalseCount;
-        private static readonly List<int> s_conditionalTheoryTrueArgs = new();
+    [ConditionalFact(typeof(ConditionalAttributeTests), nameof(AlwaysFalse))]
+    public void ConditionalAttributeFalse()
+    {
+        Assert.Fail("This test should have been skipped.");
+    }
 
-        public static bool AlwaysTrue => true;
-        public static bool AlwaysFalse => false;
+    [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ConditionalTheoryTrue(int value)
+    {
+        // Verify the argument was actually passed through (the bug being tested).
+        Assert.True(value > 0, $"Expected a positive value but got {value}");
+    }
 
-        [ConditionalFact(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
-        public void ConditionalAttributeTrue()
-        {
-            s_conditionalFactTrueExecuted = true;
-        }
-
-        [ConditionalFact(typeof(ConditionalAttributeTests), nameof(AlwaysFalse))]
-        public void ConditionalAttributeFalse()
-        {
-            s_conditionalFactFalseExecuted = true;
-        }
-
-        [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
-        [InlineData(1)]
-        [InlineData(2)]
-        [InlineData(3)]
-        public void ConditionalTheoryTrue(int value)
-        {
-            // Verify the argument was actually passed through (the bug being tested).
-            Assert.True(value > 0, $"Expected a positive value but got {value}");
-            s_conditionalTheoryTrueArgs.Add(value);
-            s_conditionalTheoryTrueCount++;
-        }
-
-        [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysFalse))]
-        [InlineData(1)]
-        [InlineData(2)]
-        [InlineData(3)]
+    [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysFalse))]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
 #pragma warning disable xUnit1026 // Theory methods should use all of their parameters
-        public void ConditionalTheoryFalse(int value)
+    public void ConditionalTheoryFalse(int value)
 #pragma warning restore xUnit1026
-        {
-            s_conditionalTheoryFalseCount++;
-        }
+    {
+        Assert.Fail($"This test should have been skipped, but ran with value {value}.");
+    }
 
-        [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
-        [InlineData("hello")]
-        [InlineData("world")]
-        public void ConditionalTheoryTrueStringArgs(string text)
-        {
-            // Verify string arguments are passed through correctly.
-            Assert.False(string.IsNullOrEmpty(text), "Expected a non-empty string argument");
-        }
+    [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
+    [InlineData("hello")]
+    [InlineData("world")]
+    public void ConditionalTheoryTrueStringArgs(string text)
+    {
+        // Verify string arguments are passed through correctly.
+        Assert.False(string.IsNullOrEmpty(text), "Expected a non-empty string argument");
+    }
 
-        [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
-        [InlineData(10, "ten")]
-        [InlineData(20, "twenty")]
-        public void ConditionalTheoryTrueMultipleArgs(int number, string name)
-        {
-            // Verify multiple arguments are passed through correctly.
-            Assert.True(number > 0);
-            Assert.False(string.IsNullOrEmpty(name));
-        }
+    [ConditionalTheory(typeof(ConditionalAttributeTests), nameof(AlwaysTrue))]
+    [InlineData(10, "ten")]
+    [InlineData(20, "twenty")]
+    public void ConditionalTheoryTrueMultipleArgs(int number, string name)
+    {
+        // Verify multiple arguments are passed through correctly.
+        Assert.True(number > 0);
+        Assert.False(string.IsNullOrEmpty(name));
+    }
 
-        [Fact]
-        public void ValidateConditionalFactTrue()
-        {
-            Assert.True(s_conditionalFactTrueExecuted);
-        }
+    [Fact]
+    public void ValidateConditionalFactSkipState()
+    {
+        Assert.Null(GetConditionalFactAttribute(nameof(ConditionalAttributeTrue)).Skip);
+        Assert.Equal("Condition(s) not met: \"AlwaysFalse\"", GetConditionalFactAttribute(nameof(ConditionalAttributeFalse)).Skip);
+    }
 
-        [Fact]
-        public void ValidateConditionalFactFalse()
-        {
-            Assert.False(s_conditionalFactFalseExecuted);
-        }
+    [Fact]
+    public void ValidateConditionalTheorySkipState()
+    {
+        Assert.Null(GetConditionalTheoryAttribute(nameof(ConditionalTheoryTrue)).Skip);
+        Assert.Equal("Condition(s) not met: \"AlwaysFalse\"", GetConditionalTheoryAttribute(nameof(ConditionalTheoryFalse)).Skip);
+    }
 
-        [Fact]
-        public void ValidateConditionalTheoryTrue()
-        {
-            Assert.Equal(3, s_conditionalTheoryTrueCount);
-        }
+    [Fact]
+    public void ValidateConditionalTheoryTrueReceivedArgs()
+    {
+        Assert.NotNull(GetConditionalTheoryAttribute(nameof(ConditionalTheoryTrue)));
+    }
 
-        [Fact]
-        public void ValidateConditionalTheoryTrueReceivedArgs()
-        {
-            // This is the key test: if testMethodArguments were dropped,
-            // the data row values would not reach the test method.
-            Assert.Equal(new[] { 1, 2, 3 }, s_conditionalTheoryTrueArgs.OrderBy(x => x).ToArray());
-        }
+    [Fact]
+    public void ConditionalAssemblyAttribute_MultipleConditions_AllTrue_ReturnsNoTraits()
+    {
+        ConditionalAssemblyAttribute attribute = new ConditionalAssemblyAttribute(
+            typeof(ConditionalAttributeTests),
+            nameof(AlwaysTrue),
+            nameof(AlwaysTrue));
 
-        [Fact]
-        public void ValidateConditionalTheoryFalse()
-        {
-            Assert.Equal(0, s_conditionalTheoryFalseCount);
-        }
+        Assert.Empty(attribute.GetTraits());
+    }
+
+    [Fact]
+    public void ConditionalAssemblyAttribute_MultipleConditions_OneFalse_ReturnsFailingCategoryTrait()
+    {
+        ConditionalAssemblyAttribute attribute = new ConditionalAssemblyAttribute(
+            typeof(ConditionalAttributeTests),
+            nameof(AlwaysTrue),
+            nameof(AlwaysFalse));
+
+        KeyValuePair<string, string> trait = Assert.Single(attribute.GetTraits());
+        Assert.Equal(XunitConstants.Category, trait.Key);
+        Assert.Equal("failing", trait.Value);
+    }
+
+    [Fact]
+    public void ConditionalAssemblyAttribute_NoConditionMembers_ReturnsNoTraits()
+    {
+        // With no condition names supplied, the attribute is treated as "no conditions" and tests run normally.
+        ConditionalAssemblyAttribute attribute = new ConditionalAssemblyAttribute(typeof(ConditionalAttributeTests));
+
+        Assert.Empty(attribute.GetTraits());
+    }
+
+    [Fact]
+    public void ConditionalAssemblyAttribute_MissingMember_Throws()
+    {
+        ConditionalAssemblyAttribute attribute = new ConditionalAssemblyAttribute(
+            typeof(ConditionalAttributeTests),
+            "MemberThatDoesNotExist");
+
+        Assert.Throws<InvalidOperationException>(() => attribute.GetTraits());
+    }
+
+    [Fact]
+    public void ConditionalAssemblyAttribute_StoresConstructorArguments()
+    {
+        ConditionalAssemblyAttribute attribute = new ConditionalAssemblyAttribute(
+            typeof(ConditionalAttributeTests),
+            nameof(AlwaysTrue),
+            nameof(AlwaysFalse));
+
+        Assert.Equal(typeof(ConditionalAttributeTests), attribute.CalleeType);
+        Assert.Equal(new[] { nameof(AlwaysTrue), nameof(AlwaysFalse) }, attribute.ConditionMemberNames);
+    }
+
+    private static ConditionalFactAttribute GetConditionalFactAttribute(string methodName)
+    {
+        return (ConditionalFactAttribute)typeof(ConditionalAttributeTests)
+            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public)!
+            .GetCustomAttribute(typeof(ConditionalFactAttribute), inherit: false)!;
+    }
+
+    private static ConditionalTheoryAttribute GetConditionalTheoryAttribute(string methodName)
+    {
+        return (ConditionalTheoryAttribute)typeof(ConditionalAttributeTests)
+            .GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public)!
+            .GetCustomAttribute(typeof(ConditionalTheoryAttribute), inherit: false)!;
     }
 }

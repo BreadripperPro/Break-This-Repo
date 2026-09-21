@@ -23,6 +23,8 @@ namespace Dotnet.Integration.Test
 {
     public class DotnetIntegrationTestFixture : IDisposable
     {
+        private const string PreferredSdkMajorVersionMetadataKey = "PreferredSdkMajorVersion";
+
         /// <summary>
         /// A value indicating if the test is running on a hosted agent with diagnostics enabled.
         /// </summary>
@@ -43,8 +45,8 @@ namespace Dotnet.Integration.Test
 
         public DotnetIntegrationTestFixture()
         {
-            string testAssemblyPath = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
-            _cliDirectory = TestDotnetCLiUtility.CopyAndPatchLatestDotnetCli(testAssemblyPath);
+            int preferredMajorVersion = GetPreferredSdkMajorVersion();
+            _cliDirectory = TestDotnetCLiUtility.CopyAndPatchLatestDotnetCli(preferredMajorVersion);
             var dotnetExecutableName = RuntimeEnvironmentHelper.IsWindows ? "dotnet.exe" : "dotnet";
             TestDotnetCli = Path.Combine(_cliDirectory, dotnetExecutableName);
 
@@ -66,6 +68,23 @@ namespace Dotnet.Integration.Test
 
             // This is for pre-release packages.
             AddPackageSource("dotnet", Constants.DotNetPackageSource.AbsoluteUri);
+        }
+
+        private static int GetPreferredSdkMajorVersion()
+        {
+            string preferredSdkMajorVersion = Assembly.GetExecutingAssembly()
+                .GetCustomAttributes<AssemblyMetadataAttribute>()
+                .Where(attribute => StringComparer.Ordinal.Equals(attribute.Key, PreferredSdkMajorVersionMetadataKey))
+                .Select(attribute => attribute.Value)
+                .SingleOrDefault();
+
+            if (!int.TryParse(preferredSdkMajorVersion, out int preferredMajorVersion))
+            {
+                throw new InvalidOperationException(
+                    $"Could not determine {PreferredSdkMajorVersionMetadataKey} from assembly metadata.");
+            }
+
+            return preferredMajorVersion;
         }
 
         private void AddPackageSource(string name, string source)
@@ -133,20 +152,20 @@ namespace Dotnet.Integration.Test
         internal CommandRunnerResult RestoreToolProjectExpectSuccess(string workingDirectory, string projectName, string args = "", ITestOutputHelper testOutputHelper = null)
             => RunDotnetExpectSuccess(workingDirectory, $"restore {projectName}.csproj {args}", testOutputHelper: testOutputHelper);
 
-        internal CommandRunnerResult RestoreProjectExpectFailure(string workingDirectory, string projectName, string args = "", ITestOutputHelper testOutputHelper = null)
-            => RestoreProjectOrSolution(workingDirectory, $"{projectName}.csproj", args, expectSuccess: false, testOutputHelper: testOutputHelper);
+        internal CommandRunnerResult RestoreProjectExpectFailure(string workingDirectory, string projectName, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+            => RestoreProjectOrSolution(workingDirectory, $"{projectName}.csproj", args, expectSuccess: false, environmentVariables: environmentVariables, testOutputHelper: testOutputHelper);
 
-        internal CommandRunnerResult RestoreProjectExpectSuccess(string workingDirectory, string projectName, string args = "", ITestOutputHelper testOutputHelper = null)
-            => RestoreProjectOrSolution(workingDirectory, $"{projectName}.csproj", args, expectSuccess: true, testOutputHelper: testOutputHelper);
+        internal CommandRunnerResult RestoreProjectExpectSuccess(string workingDirectory, string projectName, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+            => RestoreProjectOrSolution(workingDirectory, $"{projectName}.csproj", args, expectSuccess: true, environmentVariables: environmentVariables, testOutputHelper: testOutputHelper);
 
-        internal CommandRunnerResult RestoreSolutionExpectFailure(string workingDirectory, string solutionName, string args = "", ITestOutputHelper testOutputHelper = null)
-            => RestoreProjectOrSolution(workingDirectory, $"{solutionName}.slnx", args, expectSuccess: false, testOutputHelper: testOutputHelper);
+        internal CommandRunnerResult RestoreSolutionExpectFailure(string workingDirectory, string solutionName, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+            => RestoreProjectOrSolution(workingDirectory, $"{solutionName}.slnx", args, expectSuccess: false, environmentVariables: environmentVariables, testOutputHelper: testOutputHelper);
 
-        internal CommandRunnerResult RestoreSolutionExpectSuccess(string workingDirectory, string solutionName, string args = "", ITestOutputHelper testOutputHelper = null)
-            => RestoreProjectOrSolution(workingDirectory, $"{solutionName}.slnx", args, expectSuccess: true, testOutputHelper: testOutputHelper);
+        internal CommandRunnerResult RestoreSolutionExpectSuccess(string workingDirectory, string solutionName, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+            => RestoreProjectOrSolution(workingDirectory, $"{solutionName}.slnx", args, expectSuccess: true, environmentVariables: environmentVariables, testOutputHelper: testOutputHelper);
 
-        private CommandRunnerResult RestoreProjectOrSolution(string workingDirectory, string fileName, string args, bool expectSuccess, ITestOutputHelper testOutputHelper = null)
-            => RunDotnet(workingDirectory, $"restore {fileName} {args ?? string.Empty} -nodereuse:false", expectSuccess, testOutputHelper: testOutputHelper);
+        private CommandRunnerResult RestoreProjectOrSolution(string workingDirectory, string fileName, string args, bool expectSuccess, IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+            => RunDotnet(workingDirectory, $"restore {fileName} {args ?? string.Empty} -nodereuse:false", expectSuccess, environmentVariables: environmentVariables, testOutputHelper: testOutputHelper);
 
         /// <summary>
         /// Runs dotnet with the specified arguments and expects the command to succeed. If dotnet returns a non-zero exit code, an assertion is thrown with diagnostic information.
@@ -154,8 +173,8 @@ namespace Dotnet.Integration.Test
         /// <param name="workingDirectory">The working directory to use when executing the command.</param>
         /// <param name="args">The command-line arguments to pass to dotnet.</param>
         /// <param name="environmentVariables">An optional <see cref="IReadOnlyDictionary{TKey, TValue}" /> containing environment variables to use when executing the command.</param>
-        internal CommandRunnerResult RunDotnetExpectSuccess(string workingDirectory, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
-            => RunDotnet(workingDirectory, args, expectSuccess: true, environmentVariables, testOutputHelper: testOutputHelper);
+        internal CommandRunnerResult RunDotnetExpectSuccess(string workingDirectory, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null, Action<StreamWriter> inputAction = null)
+            => RunDotnet(workingDirectory, args, expectSuccess: true, environmentVariables, testOutputHelper, inputAction);
 
         /// <summary>
         /// Runs dotnet with the specified arguments and expects the command to fail. If dotnet returns an exit code of zero, an assertion is thrown with diagnostic information.
@@ -163,10 +182,10 @@ namespace Dotnet.Integration.Test
         /// <param name="workingDirectory">The working directory to use when executing the command.</param>
         /// <param name="args">The command-line arguments to pass to dotnet.</param>
         /// <param name="environmentVariables">An optional <see cref="IReadOnlyDictionary{TKey, TValue}" /> containing environment variables to use when executing the command.</param>
-        internal CommandRunnerResult RunDotnetExpectFailure(string workingDirectory, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
-            => RunDotnet(workingDirectory, args, expectSuccess: false, environmentVariables, testOutputHelper);
+        internal CommandRunnerResult RunDotnetExpectFailure(string workingDirectory, string args = "", IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null, Action<StreamWriter> inputAction = null)
+            => RunDotnet(workingDirectory, args, expectSuccess: false, environmentVariables, testOutputHelper, inputAction);
 
-        internal CommandRunnerResult RunDotnet(string workingDirectory, string args = "", bool expectSuccess = true, IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null)
+        internal CommandRunnerResult RunDotnet(string workingDirectory, string args = "", bool expectSuccess = true, IReadOnlyDictionary<string, string> environmentVariables = null, ITestOutputHelper testOutputHelper = null, Action<StreamWriter> inputAction = null)
         {
             bool enableDiagnostics = CIDebug && !string.IsNullOrWhiteSpace(BinLogDirectory);
 
@@ -182,7 +201,8 @@ namespace Dotnet.Integration.Test
                 // We need to ensure that this points to the correct SDK directory because this value
                 // is used to locate many Tasks - especially those located by relative path or name.
                 ["MSBuildExtensionsPath"] = SdkDirectory.FullName,
-                ["PATH"] = $"{_cliDirectory}{Path.PathSeparator}{Environment.GetEnvironmentVariable("PATH")}"
+                ["PATH"] = $"{_cliDirectory}{Path.PathSeparator}{Environment.GetEnvironmentVariable("PATH")}",
+                ["DOTNET_CLI_ENABLEAOT"] = "false"
             };
 
             if (enableDiagnostics)
@@ -217,7 +237,7 @@ namespace Dotnet.Integration.Test
             {
                 Stopwatch stopwatch = Stopwatch.StartNew();
 
-                result = CommandRunner.Run(TestDotnetCli, workingDirectory, args, environmentVariables: finalEnvironmentVariables, testOutputHelper: testOutputHelper);
+                result = CommandRunner.Run(TestDotnetCli, workingDirectory, args, inputAction: inputAction, environmentVariables: finalEnvironmentVariables, testOutputHelper: testOutputHelper);
 
                 stopwatch.Stop();
 

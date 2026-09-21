@@ -12,11 +12,12 @@ namespace Microsoft.DotNet.Cli;
 
 internal static class CommonOptions
 {
-    public static Option<bool> CreateYesOption() => new("--yes", "-y")
+    public static Option<bool> CreateYesOption(bool hidden = false) => new("--yes", "-y")
     {
         Description = CommandDefinitionStrings.YesOptionDescription,
         Arity = ArgumentArity.Zero,
-        IsDynamic = true
+        IsDynamic = true,
+        Hidden = hidden
     };
 
     public static Option<ReadOnlyDictionary<string, string>?> CreatePropertyOption() =>
@@ -200,7 +201,12 @@ internal static class CommonOptions
         {
             Description = description,
             HelpName = CommandDefinitionStrings.ConfigurationArgumentName,
-            IsDynamic = true
+            IsDynamic = true,
+            DefaultValueFactory = _ =>
+            {
+                string? configuration = Environment.GetEnvironmentVariable("Configuration");
+                return string.IsNullOrWhiteSpace(configuration) ? null : configuration;
+            }
         }.ForwardAsSingle(o => $"--property:Configuration={o}");
 
     public static Option<string> CreateVersionSuffixOption() =>
@@ -277,9 +283,11 @@ internal static class CommonOptions
     public static Option<bool> CreateSelfContainedOption() =>
         new Option<bool>("--self-contained", "--sc")
         {
-            Description = CommandDefinitionStrings.SelfContainedOptionDescription
+            Description = CommandDefinitionStrings.SelfContainedOptionDescription,
+            Arity = ArgumentArity.ZeroOrOne
         }
-        .ForwardIfEnabled([$"--property:SelfContained=true", "--property:_CommandLineDefinedSelfContained=true"]);
+        .ForwardAsMany(o => [$"--property:SelfContained={(o ? "true" : "false")}", "--property:_CommandLineDefinedSelfContained=true"])
+        .IfExplicitlyProvided();
 
     public static Option<bool> CreateNoSelfContainedOption() =>
         new Option<bool>("--no-self-contained")
@@ -346,15 +354,17 @@ internal static class CommonOptions
     /// </list>
     /// Finally, if neither the option nor the environment variable is set, the option will default to the provided <paramref name="defaultValue"/>.
     /// </summary>
-    public static Option<bool> CreateNoLogoOption(bool defaultValue = true, string forwardAs = "--nologo", string? description = null)
+    public static Option<bool> CreateNoLogoOption(bool defaultValue = true, string? forwardAs = "--nologo", string? description = null)
     {
-        return new Option<bool>("--no-logo", "--nologo", "-nologo", "/nologo")
+        Option<bool> option = new("--no-logo", "--nologo", "-nologo", "/nologo")
         {
             Description = description ?? CommandDefinitionStrings.NoLogoOptionDescription,
             DefaultValueFactory = (ar) => EnvironmentVariableParser.ParseBool(Environment.GetEnvironmentVariable("DOTNET_NOLOGO"), defaultValue),
             CustomParser = (ar) => true,
             Arity = ArgumentArity.Zero
-        }.ForwardIfEnabled(forwardAs);
+        };
+
+        return forwardAs is null ? option : option.ForwardIfEnabled(forwardAs);
     }
 
     public static void ValidateSelfContainedOptions(bool hasSelfContainedOption, bool hasNoSelfContainedOption)
@@ -375,5 +385,3 @@ internal static class CommonOptions
         Arity = ArgumentArity.Zero
     };
 }
-
-

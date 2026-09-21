@@ -15,9 +15,9 @@ namespace NuGet.CommandLine.Test
 {
     public class NuGetSignCommandTest
     {
-        private const string InvalidArgException = "Invalid value provided for '{0}'. For a list of accepted values, please visit https://docs.nuget.org/docs/reference/command-line-reference";
-        private const string NoPackageException = "No package was provided. For a list of accepted ways to provide a package, please visit https://docs.nuget.org/docs/reference/command-line-reference";
-        private const string MultipleCertificateException = "Multiple options were used to specify a certificate. For a list of accepted ways to provide a certificate, please visit https://docs.nuget.org/docs/reference/command-line-reference";
+        private const string InvalidArgException = "Invalid value provided for '{0}'. For a list of accepted values, visit https://docs.nuget.org/docs/reference/command-line-reference";
+        private const string NoPackageException = "No package was provided. For a list of accepted ways to provide a package, visit https://docs.nuget.org/docs/reference/command-line-reference";
+        private const string MultipleCertificateException = "Multiple options were used to specify a certificate. For a list of accepted ways to provide a certificate, visit https://docs.nuget.org/docs/reference/command-line-reference";
         private const string InvalidCertificateFingerprintException = "Invalid value for 'CertificateFingerprint' option. The value must be a SHA-256, SHA-384, or SHA-512 certificate fingerprint (in hexadecimal).";
         private const string Sha256Hash = "A591A6D40BF420404A011733CFB7B190D62C65BF0BCDA32B56C92B409B0F9DCA";
 
@@ -504,6 +504,57 @@ namespace NuGet.CommandLine.Test
             signCommand.Arguments.Add(packagePath);
 
             return signCommand;
+        }
+
+        [Fact]
+        public void SignCommandArgParsing_AllowUntrustedRoot_SetsAllowUntrustedRoot()
+        {
+            // Arrange
+            var packagePath = @"\\path\package.nupkg";
+            var certificateFingerprint = Sha256Hash;
+            var mockConsole = new Mock<IConsole>();
+            mockConsole.Setup(c => c.Verbosity).Returns(Verbosity.Detailed);
+
+            var signCommand = new SignCommand
+            {
+                Console = mockConsole.Object,
+                CertificateFingerprint = certificateFingerprint,
+                NonInteractive = true,
+                AllowUntrustedRoot = true,
+            };
+
+            signCommand.Arguments.Add(packagePath);
+
+            // Act
+            var signArgs = signCommand.GetSignArgs();
+
+            // Assert
+            Assert.True(signArgs.AllowUntrustedRoot);
+        }
+
+        [Fact]
+        public void SignCommandArgParsing_DefaultAllowUntrustedRoot_IsFalse()
+        {
+            // Arrange
+            var packagePath = @"\\path\package.nupkg";
+            var certificateFingerprint = Sha256Hash;
+            var mockConsole = new Mock<IConsole>();
+            mockConsole.Setup(c => c.Verbosity).Returns(Verbosity.Detailed);
+
+            var signCommand = new SignCommand
+            {
+                Console = mockConsole.Object,
+                CertificateFingerprint = certificateFingerprint,
+                NonInteractive = true,
+            };
+
+            signCommand.Arguments.Add(packagePath);
+
+            // Act
+            var signArgs = signCommand.GetSignArgs();
+
+            // Assert
+            Assert.False(signArgs.AllowUntrustedRoot);
         }
     }
 }

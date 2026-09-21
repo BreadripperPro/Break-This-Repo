@@ -20,33 +20,25 @@ public class TelemetryTests : AcceptanceTestBase
     private const string LOG_TELEMETRY_PATH = "VSTEST_LOGTELEMETRY_PATH";
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSourceAttribute(inIsolation: true, inProcess: true)]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void RunTestsShouldPublishMetrics(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
-        RunTests(runnerInfo);
+        RunTests();
     }
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSourceAttribute(inIsolation: true, inProcess: true)]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void DiscoverTestsShouldPublishMetrics(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
-        DiscoverTests(runnerInfo);
+        DiscoverTests();
     }
 
-    private void RunTests(RunnerInfo runnerInfo)
+    private void RunTests()
     {
-        if (runnerInfo.IsNetRunner)
-        {
-            Assert.Inconclusive("Telemetry API is not supported for .NetCore runner");
-            return;
-        }
-
         var assemblyPaths = GetAssetFullPath("SimpleTestProject2.dll");
 
         var env = new Dictionary<string, string?>
@@ -60,14 +52,8 @@ public class TelemetryTests : AcceptanceTestBase
         ValidateOutput("Execution", TempDirectory);
     }
 
-    private void DiscoverTests(RunnerInfo runnerInfo)
+    private void DiscoverTests()
     {
-        if (runnerInfo.IsNetRunner)
-        {
-            Assert.Inconclusive("Telemetry API is not supported for .NetCore runner");
-            return;
-        }
-
         var assemblyPaths = GetAssetFullPath("SimpleTestProject2.dll");
 
         var env = new Dictionary<string, string?>
@@ -85,7 +71,7 @@ public class TelemetryTests : AcceptanceTestBase
     {
         if (!Directory.Exists(tempDirectory.Path))
         {
-            Assert.Fail("Could not find the telemetry logs folder at {0}", tempDirectory.Path);
+            Assert.Fail($"Could not find the telemetry logs folder at {tempDirectory.Path}");
         }
 
         bool isValid = false;

@@ -8,7 +8,6 @@ using Microsoft.Deployment.DotNet.Releases;
 using Microsoft.DotNet.Cli.Commands.Workload.Install;
 using Microsoft.DotNet.Cli.NuGetPackageDownloader;
 using Microsoft.DotNet.Cli.Utils;
-using Microsoft.Extensions.EnvironmentAbstractions;
 using Microsoft.NET.Sdk.WorkloadManifestReader;
 
 namespace Microsoft.DotNet.Cli.Commands.Workload.Repair;
@@ -32,10 +31,7 @@ internal sealed class WorkloadRepairCommand : WorkloadCommandBase<WorkloadRepair
         INuGetPackageDownloader nugetPackageDownloader = null)
         : base(parseResult, reporter: reporter, nugetPackageDownloader: nugetPackageDownloader)
     {
-        var configOption = parseResult.GetValue(Definition.ConfigOption);
-        var sourceOption = parseResult.GetValue(Definition.SourceOption);
-        _packageSourceLocation = string.IsNullOrEmpty(configOption) && (sourceOption == null || !sourceOption.Any()) ? null :
-            new PackageSourceLocation(string.IsNullOrEmpty(configOption) ? null : new FilePath(configOption), sourceFeedOverrides: sourceOption);
+        _packageSourceLocation = parseResult.ToPackageSourceLocation(Definition.ConfigOption, Definition.SourceOption);
 
         _workloadResolverFactory = workloadResolverFactory ?? new WorkloadResolverFactory();
 
@@ -70,7 +66,8 @@ internal sealed class WorkloadRepairCommand : WorkloadCommandBase<WorkloadRepair
             {
                 Reporter.WriteLine();
 
-                var workloadIds = _workloadInstaller.GetWorkloadInstallationRecordRepository().GetInstalledWorkloads(new SdkFeatureBand(_sdkVersion));
+                var sdkFeatureBand = new SdkFeatureBand(_sdkVersion);
+                var workloadIds = _workloadInstaller.GetWorkloadInstallationRecordRepository().GetInstalledWorkloads(sdkFeatureBand);
 
                 if (!workloadIds.Any())
                 {
@@ -80,7 +77,7 @@ internal sealed class WorkloadRepairCommand : WorkloadCommandBase<WorkloadRepair
 
                 Reporter.WriteLine(string.Format(CliCommandStrings.RepairingWorkloads, string.Join(" ", workloadIds)));
 
-                ReinstallWorkloadsBasedOnCurrentManifests(workloadIds, new SdkFeatureBand(_sdkVersion));
+                ReinstallWorkloadsBasedOnCurrentManifests(workloadIds, sdkFeatureBand);
 
                 WorkloadInstallCommand.TryRunGarbageCollection(_workloadInstaller, Reporter, Verbosity, workloadSetVersion => _workloadResolverFactory.CreateForWorkloadSet(_dotnetPath, _sdkVersion.ToString(), _userProfileDir, workloadSetVersion));
 
@@ -106,4 +103,5 @@ internal sealed class WorkloadRepairCommand : WorkloadCommandBase<WorkloadRepair
     {
         _workloadInstaller.RepairWorkloads(workloadIds, sdkFeatureBand);
     }
+
 }

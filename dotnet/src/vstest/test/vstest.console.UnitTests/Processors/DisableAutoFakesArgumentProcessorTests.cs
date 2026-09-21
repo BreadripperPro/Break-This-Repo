@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.VisualStudio.TestPlatform.CommandLine.Processors;
@@ -10,11 +10,12 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class DisableAutoFakesArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private readonly DisableAutoFakesArgumentProcessor _disableAutoFakesArgumentProcessor;
 
     public DisableAutoFakesArgumentProcessorTests()
     {
-        _disableAutoFakesArgumentProcessor = new DisableAutoFakesArgumentProcessor();
+        _disableAutoFakesArgumentProcessor = new DisableAutoFakesArgumentProcessor(_commandLineOptions);
     }
 
     [TestMethod]
@@ -34,20 +35,20 @@ public class DisableAutoFakesArgumentProcessorTests
     [TestMethod]
     public void DisableAutoFakesArgumentProcessorExecutorShouldThrowIfArgumentIsNullOrEmpty()
     {
-        Assert.ThrowsException<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize(string.Empty));
-        Assert.ThrowsException<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize(" "));
+        Assert.ThrowsExactly<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize(string.Empty));
+        Assert.ThrowsExactly<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize(" "));
     }
 
     [TestMethod]
     public void DisableAutoFakesArgumentProcessorExecutorShouldThrowIfArgumentIsNotBooleanString()
     {
-        Assert.ThrowsException<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize("DisableAutoFakes"));
+        Assert.ThrowsExactly<CommandLineException>(() => _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize("DisableAutoFakes"));
     }
 
     [TestMethod]
     public void DisableAutoFakesArgumentProcessorExecutorShouldSetCommandLineDisableAutoFakeValueAsPerArgumentProvided()
     {
         _disableAutoFakesArgumentProcessor.Executor!.Value.Initialize("true");
-        Assert.IsTrue(CommandLineOptions.Instance.DisableAutoFakes);
+        Assert.IsTrue(_commandLineOptions.DisableAutoFakes);
     }
 }

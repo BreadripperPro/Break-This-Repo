@@ -237,6 +237,7 @@ namespace System.IO.Pipelines
 
 #if NET
             [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+            [RuntimeAsyncMethodGeneration(false)]
 #endif
             static async ValueTask<ReadResult> Core(StreamPipeReader reader, int? minimumSize, CancellationTokenSource tokenSource, CancellationToken cancellationToken)
             {
@@ -357,6 +358,11 @@ namespace System.IO.Pipelines
                         {
                             AdvanceTo(segment, segment.End, segment, segment.End);
                         }
+                        else if (_readTail != null)
+                        {
+                            // All buffered segments were successfully written - advance past them
+                            AdvanceTo(_readTail, _readTail.End, _readTail, _readTail.End);
+                        }
                     }
 
                     await InnerStream.CopyToAsync(destination, tokenSource.Token).ConfigureAwait(false);
@@ -412,6 +418,11 @@ namespace System.IO.Pipelines
                         if (segment != null)
                         {
                             AdvanceTo(segment, segment.End, segment, segment.End);
+                        }
+                        else if (_readTail != null)
+                        {
+                            // All buffered segments were successfully written - advance past them
+                            AdvanceTo(_readTail, _readTail.End, _readTail, _readTail.End);
                         }
                     }
 

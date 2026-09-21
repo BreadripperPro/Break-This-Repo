@@ -8,6 +8,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 
 namespace Microsoft.CodeAnalysis
 {
@@ -142,6 +143,33 @@ namespace Microsoft.CodeAnalysis
         /// Returns false for record structs in metadata since they don't have any distinctive marker.
         /// </remarks>
         bool IsRecord { get; }
+
+        /// <summary>
+        /// True if language treats the type as a Union.
+        /// </summary>
+        bool IsUnion
+        {
+            get;
+        }
+
+        /// <summary>
+        /// When <see cref="IsUnion"/> is true, returns the case types of the union. Otherwise, returns an empty array.
+        /// </summary>
+        ImmutableArray<ITypeSymbol> UnionCaseTypes
+        {
+            get;
+        }
+
+        /// <summary>
+        /// Indicates that the type is restricted from being inherited from outside its containing module.
+        /// </summary>
+        bool IsClosed { get; }
+
+        /// <summary>
+        /// Gets the direct derived types of a closed type.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">If this is not a closed type.</exception>
+        ClosedDerivedTypeInfo GetClosedDerivedTypeInfo(CancellationToken cancellationToken);
 
         /// <summary>
         /// Converts an <c>ITypeSymbol</c> and a nullable flow state to a string representation.

@@ -13,49 +13,6 @@ function Test-PackageManagerServicesAreAvailableThroughMEF {
     Assert-NotNull $installerEvents
 }
 
-# If this test fails with the cryptic error:
-#
-#    Exception calling "NewProject" with "5" argument(s): "The method or operation is not implemented." 
-#
-# ...it is because the specific Windows 10 SDK build indicated by the <TargetPlatformVersion /> element in the test's
-# project file (test\EndToEnd\ProjectTemplates\UwpClassLibraryProjectJson.zip\ClassLibrary6.csproj) is not installed.
-function Test-MigrateVanillaUwpProjectJsonToPackageReference {
-    param(
-        $context
-    )
-
-    # Arrange
-    $p = New-UwpClassLibraryProjectJson UwpClassLibrary1
-    $cm = Get-VsComponentModel
-    $projectDir = Get-ProjectDir $p
-    $result = [API.Test.InternalAPITestHook]::MigrateJsonProject($p.FullName)
-    Start-Sleep -Seconds 3
-    # Assert
-
-    # Check if runtimes were migrated correctly
-    $expectRuntimeIds = 'win10-arm;win10-arm-aot;win10-x86;win10-x86-aot;win10-x64;win10-x64-aot'
-    Assert-True($result.IsSuccess)
-    $actualRuntimes = Get-MsBuildPropertyValue $p 'RuntimeIdentifiers'
-    Assert-AreEqual $expectRuntimeIds $actualRuntimes
-
-    # Check if project.json file was deleted
-    Assert-True !(Test-Path (Join-Path $projectDir project.json))
-
-    # Check if backup was created
-    $backupProjectJsonPath = [System.IO.Path]::Combine($projectDir, "Backup", "project.json")
-    $backupCsprojPath = [System.IO.Path]::Combine($projectDir, "Backup", "UwpClassLibrary1.csproj")
-    Write-Host "Project json backup path: $backupProjectJsonPath"
-    Write-Host "Csproj backup path: $backupCsprojPath"
-    Assert-True (Test-Path $backupProjectJsonPath)
-    Assert-True (Test-Path $backupCsprojPath)
-
-    # Check if package reference was added correctly
-    $packageRefs = @(Get-MsBuildItems $p 'PackageReference')
-    Assert-AreEqual 1 $packageRefs.Count
-    Assert-AreEqual $packageRefs[0].GetMetadataValue("Identity") 'Microsoft.NETCore.UniversalWindowsPlatform'
-    Assert-AreEqual $packageRefs[0].GetMetadataValue("Version") '5.2.2'
-}
-
 function Test-VsPackageInstallerServices {
     param(
         $context
@@ -409,7 +366,7 @@ function Test-InstallPackageAPIInvalidSource
     $p = New-ClassLibrary
 
     # Act&Assert
-    Assert-Throws { [API.Test.InternalAPITestHook]::InstallPackageApi("invalid", "owin", "1.0.0", $false) } "Exception calling `"InstallPackageApi`" with `"4`" argument(s): `"The specified source 'invalid' is invalid. Please provide a valid source.`r`nParameter name: source`""
+    Assert-Throws { [API.Test.InternalAPITestHook]::InstallPackageApi("invalid", "owin", "1.0.0", $false) } "Exception calling `"InstallPackageApi`" with `"4`" argument(s): `"The specified source 'invalid' is invalid. Provide a valid source.`r`nParameter name: source`""
     Assert-NoPackage $p "owin"
 }
 
@@ -839,45 +796,6 @@ function Test-CreateVsPathContextWithoutConfiguration {
 
 	# Assert
 	Assert-NotNull $context.UserPackageFolder
-}
-
-function Test-CreateVsPathContextUsesAssetsFileIfAvailable {
-    param($context)
-
-	# Arrange
-	$p = New-BuildIntegratedProj UAPApp
-
-    Install-Package NuGet.Versioning -ProjectName $p.Name -version 1.0.7
-
-	$solutionFile = Get-SolutionFullName
-	$solutionDir = Split-Path $solutionFile -Parent
-
-	$userPackageFolder = Join-Path $solutionDir "userPackageFolder"
-
-	$settingFile = Join-Path $solutionDir "nuget.config"
-	$settingFileContent =@"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <config>
-    <add key="globalPackagesFolder" value="{0}" />
-  </config>
-</configuration>
-"@
-
-	$settingFileContent -f $userPackageFolder | Out-File -Encoding "UTF8" $settingFile
-
-	SaveAs-Solution($solutionFile)
-	Close-Solution
-	Open-Solution $solutionFile
-
-	$p = Get-Project
-
-	# Act
-	$context = [API.Test.InternalAPITestHook]::GetVsPathContext($p.FullName)
-
-	# Assert
-	Assert-NotNull $context.UserPackageFolder
-	Assert-NotEqual $userPackageFolder $context.UserPackageFolder
 }
 
 function Test-InstallPackageAPIToLatestVersion

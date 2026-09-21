@@ -15,8 +15,6 @@ public class VSTestTask : Task, ITestTask
 {
     private int _activeProcessId;
 
-    private const string DotnetExe = "dotnet";
-
     [Required]
     public ITaskItem? TestFileFullPath { get; set; }
     public string? VSTestSetting { get; set; }
@@ -27,7 +25,7 @@ public class VSTestTask : Task, ITestTask
     public string[]? VSTestLogger { get; set; }
     public bool VSTestListTests { get; set; }
     public string? VSTestDiag { get; set; }
-    public string[]? VSTestCLIRunSettings { get; set; }
+    public string? VSTestCLIRunSettings { get; set; }
     [Required]
     public ITaskItem? VSTestConsolePath { get; set; }
     public ITaskItem? VSTestResultsDirectory { get; set; }
@@ -73,7 +71,7 @@ public class VSTestTask : Task, ITestTask
 
         var processInfo = new ProcessStartInfo
         {
-            FileName = DotnetExe,
+            FileName = TestTaskUtils.ResolveDotnetPath() ?? "dotnet",
             Arguments = TestTaskUtils.CreateCommandLineArguments(this),
             UseShellExecute = false,
         };

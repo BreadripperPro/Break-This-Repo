@@ -28,6 +28,7 @@ SET_DEFAULT_DEBUG_CHANNEL(THREAD); // some headers have code with asserts, so do
 #include "pal/virtual.h"
 
 #include <minipal/thread.h>
+#include <minipal/cpucount.h>
 
 #if defined(__NetBSD__) && !HAVE_PTHREAD_GETCPUCLOCKID
 #include <sys/cdefs.h>
@@ -100,10 +101,7 @@ CObjectType CorUnix::otThread(
                 NULL,   // No immutable data copy routine
                 NULL,   // No immutable data cleanup routine
                 sizeof(CThreadProcessLocalData),
-                NULL,   // No process local data cleanup routine
-                CObjectType::WaitableObject,
-                CObjectType::SingleTransitionObject,
-                CObjectType::ThreadReleaseHasNoSideEffects
+                NULL    // No process local data cleanup routine
                 );
 
 CAllowedObjectTypes aotThread(otiThread);
@@ -347,7 +345,6 @@ CreateThread(
         lpStartAddress,
         lpParameter,
         dwCreationFlags,
-        UserCreatedThread,
         &osThreadId,
         &hNewThread
         );
@@ -405,7 +402,6 @@ PAL_CreateThread64(
         lpStartAddress,
         lpParameter,
         dwCreationFlags,
-        UserCreatedThread,
         pThreadId,
         &hNewThread
     );
@@ -429,15 +425,14 @@ CorUnix::InternalCreateThread(
     LPTHREAD_START_ROUTINE lpStartAddress,
     LPVOID lpParameter,
     DWORD dwCreationFlags,
-    PalThreadType eThreadType,
     SIZE_T* pThreadId,
     HANDLE *phThread
     )
 {
-#ifdef FEATURE_SINGLE_THREADED
+#ifndef FEATURE_MULTITHREADING
     ERROR("Threads are not supported in single-threaded mode.\n");
     return ERROR_NOT_SUPPORTED;
-#else // FEATURE_SINGLE_THREADED
+#else // !FEATURE_MULTITHREADING
     PAL_ERROR palError;
     CPalThread *pNewThread = NULL;
     CObjectAttributes oa;
@@ -506,7 +501,6 @@ CorUnix::InternalCreateThread(
     pNewThread->m_lpStartAddress = lpStartAddress;
     pNewThread->m_lpStartParameter = lpParameter;
     pNewThread->m_bCreateSuspended = (dwCreationFlags & CREATE_SUSPENDED) == CREATE_SUSPENDED;
-    pNewThread->m_eThreadType = eThreadType;
 
     if (0 != pthread_attr_init(&pthreadAttr))
     {
@@ -633,7 +627,7 @@ EXIT:
     }
 
     return palError;
-#endif // FEATURE_SINGLE_THREADED
+#endif // !FEATURE_MULTITHREADING
 }
 
 
@@ -661,10 +655,16 @@ ExitThread(
     pThread->SetExitCode(dwExitCode);
 
     /* kill the thread (itself), resulting in a call to InternalEndCurrentThread */
+#if defined(TARGET_WASI)
+    // wasi-libc pthread_exit is a _Static_assert stub. PAL only reaches here
+    // on the orderly-shutdown path which is not exercised on WASI.
+    abort();
+#else
     pthread_exit(NULL);
 
     ASSERT("pthread_exit should not return!\n");
     while (true);
+#endif
 }
 
 /*++
@@ -680,9 +680,6 @@ CorUnix::InternalEndCurrentThread(
     CPalThread *pThread
     )
 {
-    PAL_ERROR palError = NO_ERROR;
-    ISynchStateController *pSynchStateController = NULL;
-
     //
     // Need to synchronize setting the thread state to TS_DONE since
     // this is checked for in InternalSuspendThreadFromData.
@@ -690,32 +687,8 @@ CorUnix::InternalEndCurrentThread(
     //
 
     pThread->suspensionInfo.AcquireSuspensionLock(pThread);
-    pThread->synchronizationInfo.SetThreadState(TS_DONE);
+    pThread->SetThreadState(TS_DONE);
     pThread->suspensionInfo.ReleaseSuspensionLock(pThread);
-
-    //
-    // Mark the thread object as signaled
-    //
-
-    palError = pThread->GetThreadObject()->GetSynchStateController(
-        pThread,
-        &pSynchStateController
-        );
-
-    if (NO_ERROR == palError)
-    {
-        palError = pSynchStateController->SetSignalCount(1);
-        if (NO_ERROR != palError)
-        {
-            ASSERT("Unable to mark thread object as signaled");
-        }
-
-        pSynchStateController->ReleaseController();
-    }
-    else
-    {
-        ASSERT("Unable to obtain state controller for thread");
-    }
 
     //
     // Add a reference to the thread data before releasing the
@@ -915,7 +888,7 @@ CorUnix::InternalSetThreadPriority(
     }
 
     /* check if the thread is still running */
-    if (TS_DONE == pTargetThread->synchronizationInfo.GetThreadState())
+    if (TS_DONE == pTargetThread->GetThreadState())
     {
         /* the thread has exited, set the priority in the thread structure
            and exit */
@@ -925,6 +898,14 @@ CorUnix::InternalSetThreadPriority(
 
     /* get the previous thread schedule parameters.  We need to know the
        scheduling policy to determine the priority range */
+#if defined(TARGET_WASI)
+    // wasi-libc replaces pthread scheduling functions with _Static_assert
+    // stubs (single-threaded). Record the requested priority but skip the
+    // pthread plumbing.
+    pTargetThread->m_iThreadPriority = iNewPriority;
+    palError = NO_ERROR;
+    goto InternalSetThreadPriorityExit;
+#else
     if (pthread_getschedparam(
             pTargetThread->GetPThreadSelf(),
             &policy,
@@ -1020,6 +1001,7 @@ CorUnix::InternalSetThreadPriority(
     }
 
     pTargetThread->m_iThreadPriority = iNewPriority;
+#endif // !TARGET_WASI
 
 InternalSetThreadPriorityExit:
 
@@ -1268,6 +1250,12 @@ CorUnix::GetThreadTimesInternal(
     close(fd);
 
     ts = status.pr_utime;
+#elif defined(TARGET_WASI)
+    // WASI 0.2.8 has no per-thread CPU time clock. Report zero rather than
+    // fail the build.
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
 #else // HAVE_PTHREAD_GETCPUCLOCKID || HAVE_CLOCK_THREAD_CPUTIME
 #error "Don't know how to obtain user cpu time on this platform."
 #endif // HAVE_PTHREAD_GETCPUCLOCKID || HAVE_CLOCK_THREAD_CPUTIME
@@ -1357,7 +1345,7 @@ SetThreadDescription(
     return HRESULT_FROM_WIN32(palError);
 }
 
-#ifndef FEATURE_SINGLE_THREADED
+#ifdef FEATURE_MULTITHREADING
 void *
 CPalThread::ThreadEntry(
     void *pvParam
@@ -1369,7 +1357,6 @@ CPalThread::ThreadEntry(
     LPVOID pvPar;
     DWORD retValue;
 #if HAVE_SCHED_GETAFFINITY && HAVE_SCHED_SETAFFINITY
-    cpu_set_t cpuSet;
     int st;
 #endif
 
@@ -1396,24 +1383,56 @@ CPalThread::ThreadEntry(
     // - https://github.com/dotnet/runtime/issues/1634
     // - https://forum.snapcraft.io/t/requesting-autoconnect-for-interfaces-in-pigmeat-process-control-home/17987/13
 
-    CPU_ZERO(&cpuSet);
-
-    st = sched_getaffinity(gPID, sizeof(cpu_set_t), &cpuSet);
-    if (st != 0)
     {
-        ASSERT("sched_getaffinity failed!\n");
-        // The sched_getaffinity should never fail for getting affinity of the current process
-        palError = ERROR_INTERNAL_ERROR;
-        goto fail;
-    }
+        int configuredCpuCount = minipal_get_cpu_max_possible_count();
+        if (configuredCpuCount == -1)
+        {
+            // In the unlikely event that minipal_get_cpu_max_possible_count() fails, just assume a reasonable default maximum number of CPUs to avoid failing thread creation.
+            configuredCpuCount = CPU_SETSIZE;
+        }
 
-    st = sched_setaffinity(0, sizeof(cpu_set_t), &cpuSet);
-    if (st != 0)
-    {
-        ASSERT("sched_setaffinity failed!\n");
-        // The sched_setaffinity should never fail when passed the mask extracted using sched_getaffinity
-        palError = ERROR_INTERNAL_ERROR;
-        goto fail;
+        int cpusToAllocate = std::max(configuredCpuCount, CPU_SETSIZE);
+        cpu_set_t* pCpuSet = CPU_ALLOC(cpusToAllocate);
+        if (pCpuSet == nullptr)
+        {
+            ASSERT("CPU_ALLOC failed!\n");
+            palError = ERROR_OUTOFMEMORY;
+            goto fail;
+        }
+
+        size_t cpuSetSize = CPU_ALLOC_SIZE(cpusToAllocate);
+        CPU_ZERO_S(cpuSetSize, pCpuSet);
+
+        st = sched_getaffinity(gPID, cpuSetSize, pCpuSet);
+        if (st == 0)
+        {
+            st = sched_setaffinity(0, cpuSetSize, pCpuSet);
+            if (st != 0)
+            {
+                if (errno == EPERM || errno == EACCES)
+                {
+                    // Some sandboxed or restricted environments (snap strict confinement,
+                    // vendor-modified Android kernels with strict SELinux policy) block
+                    // sched_setaffinity even when passed a mask extracted via sched_getaffinity.
+                    // Treat this as non-fatal — the thread will continue running on any
+                    // available CPU rather than the originally affinitized one.
+                    WARN("sched_setaffinity failed with EPERM/EACCES, ignoring\n");
+                }
+                else
+                {
+                    ASSERT("sched_setaffinity failed!\n");
+                    CPU_FREE(pCpuSet);
+                    palError = ERROR_INTERNAL_ERROR;
+                    goto fail;
+                }
+            }
+        }
+        else
+        {
+            // Treat failure to get the affinity mask in release build as non-fatal.
+            ASSERT("sched_getaffinity failed!\n");
+        }
+        CPU_FREE(pCpuSet);
     }
 #endif // HAVE_SCHED_GETAFFINITY && HAVE_SCHED_SETAFFINITY
 
@@ -1465,15 +1484,12 @@ CPalThread::ThreadEntry(
         pThread->SetStartStatus(TRUE);
     }
 
-    pThread->synchronizationInfo.SetThreadState(TS_RUNNING);
+    pThread->SetThreadState(TS_RUNNING);
 
-    if (UserCreatedThread == pThread->GetThreadType())
-    {
-        /* Inform all loaded modules that a thread has been created */
-        /* note : no need to take a critical section to serialize here; the loader
-           will take the module critical section */
-        LOADCallDllMain(DLL_THREAD_ATTACH, NULL);
-    }
+    /* Inform all loaded modules that a thread has been created */
+    /* note : no need to take a critical section to serialize here; the loader
+       will take the module critical section */
+    LOADCallDllMain(DLL_THREAD_ATTACH, NULL);
 
     /* call the startup routine */
     pfnStartRoutine = pThread->GetStartAddress();
@@ -1494,7 +1510,7 @@ fail:
 
     if (NULL != pThread)
     {
-        pThread->synchronizationInfo.SetThreadState(TS_FAILED);
+        pThread->SetThreadState(TS_FAILED);
         pThread->SetStartStatus(FALSE);
     }
 
@@ -1503,7 +1519,7 @@ fail:
        above should release all resources */
     return NULL;
 }
-#endif // !FEATURE_SINGLE_THREADED
+#endif // FEATURE_MULTITHREADING
 
 /*++
 Function:
@@ -1925,12 +1941,6 @@ CPalThread::RunPreCreateInitializers(
     // Call the pre-create initializers for embedded classes
     //
 
-    palError = synchronizationInfo.InitializePreCreate();
-    if (NO_ERROR != palError)
-    {
-        goto RunPreCreateInitializersExit;
-    }
-
     palError = suspensionInfo.InitializePreCreate();
     if (NO_ERROR != palError)
     {
@@ -2008,12 +2018,6 @@ CPalThread::RunPostCreateInitializers(
     {
         ASSERT("Unable to set the thread object key's value\n");
         palError = ERROR_INTERNAL_ERROR;
-        goto RunPostCreateInitializersExit;
-    }
-
-    palError = synchronizationInfo.InitializePostCreate(this, m_threadId, m_dwLwpId);
-    if (NO_ERROR != palError)
-    {
         goto RunPostCreateInitializersExit;
     }
 
@@ -2292,6 +2296,12 @@ CPalThread::GetStackBase()
 #ifdef TARGET_APPLE
     // This is a Mac specific method
     stackBase = pthread_get_stackaddr_np(pthread_self());
+#elif defined(TARGET_OPENBSD)
+    stack_t stack;
+    int status = pthread_stackseg_np(pthread_self(), &stack);
+    _ASSERT_MSG(status == 0, "pthread_stackseg_np call failed");
+
+    stackBase = stack.ss_sp;
 #else
     pthread_attr_t attr;
     void* stackAddr;
@@ -2303,7 +2313,14 @@ CPalThread::GetStackBase()
     status = pthread_attr_init(&attr);
     _ASSERT_MSG(status == 0, "pthread_attr_init call failed");
 
-#ifndef TARGET_BROWSER
+#if defined(TARGET_WASI)
+    // wasm-component-ld places the stack first with -Wl,-z,stack-size (see
+    // corerun CMakeLists.txt). Keep in sync with that value.
+    (void)thread; (void)stackAddr; (void)stackSize; (void)status;
+    pthread_attr_destroy(&attr);
+    constexpr size_t s_wasiStackSize = 8 * 1024 * 1024;
+    stackBase = (void*)s_wasiStackSize;
+#elif !defined(TARGET_BROWSER)
 #if HAVE_PTHREAD_ATTR_GET_NP
     status = pthread_attr_get_np(thread, &attr);
 #elif HAVE_PTHREAD_GETATTR_NP
@@ -2337,6 +2354,14 @@ CPalThread::GetStackLimit()
     // This is a Mac specific method
     stackLimit = ((BYTE *)pthread_get_stackaddr_np(pthread_self()) -
                    pthread_get_stacksize_np(pthread_self()));
+#elif defined(TARGET_OPENBSD)
+    stack_t stack;
+    int status = pthread_stackseg_np(pthread_self(), &stack);
+    _ASSERT_MSG(status == 0, "pthread_stackseg_np call failed");
+
+    // ss_sp is the stack base (highest address) and ss_size is the size, so the
+    // limit (lowest address) is ss_sp - ss_size. The stack grows down from ss_sp.
+    stackLimit = (void*)((size_t)stack.ss_sp - stack.ss_size);
 #else
     pthread_attr_t attr;
     size_t stackSize;
@@ -2347,7 +2372,13 @@ CPalThread::GetStackLimit()
     status = pthread_attr_init(&attr);
     _ASSERT_MSG(status == 0, "pthread_attr_init call failed");
 
-#ifndef TARGET_BROWSER
+#if defined(TARGET_WASI)
+    // See GetStackBase. CoreCLR rejects NULL stack limits, so return a
+    // small non-null placeholder.
+    (void)thread; (void)stackSize; (void)status;
+    pthread_attr_destroy(&attr);
+    stackLimit = (void*)4096;
+#elif !defined(TARGET_BROWSER)
 #if HAVE_PTHREAD_ATTR_GET_NP
     status = pthread_attr_get_np(thread, &attr);
 #elif HAVE_PTHREAD_GETATTR_NP

@@ -1,3 +1,7 @@
+# This yml is used by these pipelines:
+# - dotnet-unified-build-compare (internal)
+#   https://dev.azure.com/dnceng/internal/_build?definitionId=1447
+
 # Relies on dotnet-unified-build being in the same repo as this pipeline
 # https://learn.microsoft.com/en-us/azure/devops/pipelines/process/pipeline-triggers?view=azure-devops#branch-considerations
 
@@ -32,15 +36,6 @@ parameters:
   type: string
   default: ' '
 
-- name: comparisonType
-  displayName: 'Specific comparison type to run'
-  type: string
-  default: 'all'
-  values:
-    - assets
-    - signing
-    - all
-
 variables:
 - template: /eng/common/templates-official/variables/pool-providers.yml@self
 - template: /eng/pipelines/templates/variables/vmr-build.yml@self
@@ -48,6 +43,8 @@ variables:
 extends:
   template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
+    settings:
+      networkIsolationPolicy: Permissive, CFSClean, CFSClean2
     featureFlags:
       incrementalSDLBinaryAnalysis: true
     sdl:
@@ -59,11 +56,8 @@ extends:
         enabled: true
       policheck:
         enabled: true
-      tsa:
-        enabled: true
     stages:
     - template: /eng/pipelines/templates/stages/vmr-compare.yml@self
       parameters:
         unifiedBuildRunId: ${{ parameters.unifiedBuildRunId }}
         sourceManifestCommit: ${{ parameters.sourceManifestCommit }}
-        comparisonType: ${{ parameters.comparisonType }}

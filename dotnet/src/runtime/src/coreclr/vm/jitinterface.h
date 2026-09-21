@@ -15,7 +15,7 @@
 // TODO: Set this value to 0 for Wasm
 #define MAX_UNCHECKED_OFFSET_FOR_NULL_OBJECT (1024 - 1)
 #elif defined (TARGET_UNIX)
-#define MAX_UNCHECKED_OFFSET_FOR_NULL_OBJECT ((GetOsPageSize() / 2) - 1)
+#define MAX_UNCHECKED_OFFSET_FOR_NULL_OBJECT ((minipal_getpagesize() / 2) - 1)
 #else
 #define MAX_UNCHECKED_OFFSET_FOR_NULL_OBJECT ((32*1024)-1)   // when generating JIT code
 #endif
@@ -39,7 +39,6 @@ enum SignatureKind
     SK_STATIC_VIRTUAL_CODEPOINTER_CALLSITE,
 };
 
-class Stub;
 class MethodDesc;
 class NativeCodeVersion;
 class FieldDesc;
@@ -91,8 +90,8 @@ BOOL LoadDynamicInfoEntry(Module *currentModule,
                           BOOL mayUsePrecompiledPInvokeMethods = TRUE);
 
 // These must be implemented in assembly and generate a TransitionBlock then calling JIT_PatchpointWorkerWithPolicy in order to actually be used.
-EXTERN_C FCDECL2(void, JIT_Patchpoint, int* counter, int ilOffset);
-EXTERN_C FCDECL1(void, JIT_PatchpointForced, int ilOffset);
+EXTERN_C FCDECL2(PCODE, JIT_Patchpoint, int* counter, int ilOffset);
+EXTERN_C FCDECL1(PCODE, JIT_PatchpointForced, int ilOffset);
 
 //
 // JIT HELPER ALIASING FOR PORTABILITY.
@@ -101,18 +100,6 @@ EXTERN_C FCDECL1(void, JIT_PatchpointForced, int ilOffset);
 //
 
 EXTERN_C FCDECL0(void, JIT_PollGC);
-
-#ifndef JIT_GetGCStaticBase
-#define JIT_GetGCStaticBase NULL
-#else
-EXTERN_C FCDECL1(void*, JIT_GetGCStaticBase, DynamicStaticsInfo* pStaticsInfo);
-#endif
-
-#ifndef JIT_GetNonGCStaticBase
-#define JIT_GetNonGCStaticBase NULL
-#else
-EXTERN_C FCDECL1(void*, JIT_GetNonGCStaticBase, DynamicStaticsInfo* pStaticsInfo);
-#endif
 
 #ifndef JIT_GetGCStaticBaseNoCtor
 #define JIT_GetGCStaticBaseNoCtor JIT_GetGCStaticBaseNoCtor_Portable
@@ -125,18 +112,6 @@ EXTERN_C FCDECL1(void*, JIT_GetGCStaticBaseNoCtor_Portable, MethodTable *pMT);
 #endif
 EXTERN_C FCDECL1(void*, JIT_GetNonGCStaticBaseNoCtor, MethodTable *pMT);
 EXTERN_C FCDECL1(void*, JIT_GetNonGCStaticBaseNoCtor_Portable, MethodTable *pMT);
-
-#ifndef JIT_GetDynamicGCStaticBase
-#define JIT_GetDynamicGCStaticBase NULL
-#else
-EXTERN_C FCDECL1(void*, JIT_GetDynamicGCStaticBase, DynamicStaticsInfo* pStaticsInfo);
-#endif
-
-#ifndef JIT_GetDynamicNonGCStaticBase
-#define JIT_GetDynamicNonGCStaticBase NULL
-#else
-EXTERN_C FCDECL1(void*, JIT_GetDynamicNonGCStaticBase, DynamicStaticsInfo* pStaticsInfo);
-#endif
 
 #ifndef JIT_GetDynamicGCStaticBaseNoCtor
 #define JIT_GetDynamicGCStaticBaseNoCtor JIT_GetDynamicGCStaticBaseNoCtor_Portable
@@ -161,13 +136,6 @@ EXTERN_C FCDECL1(Object*, RhpNewFastMisalign, MethodTable* pMT);
 EXTERN_C FCDECL2(Object*, RhpNewArrayFastAlign8, MethodTable* pMT, INT_PTR size);
 #endif
 
-#if defined(TARGET_WINDOWS) && (defined(TARGET_AMD64) || defined(TARGET_X86))
-EXTERN_C FCDECL1(Object*, RhpNewFast_UP, MethodTable* pMT);
-EXTERN_C FCDECL2(Object*, RhpNewArrayFast_UP, MethodTable* pMT, INT_PTR size);
-EXTERN_C FCDECL2(Object*, RhpNewPtrArrayFast_UP, MethodTable* pMT, INT_PTR size);
-EXTERN_C FCDECL2(Object*, RhNewString_UP, MethodTable* pMT, INT_PTR stringLength);
-#endif
-
 EXTERN_C FCDECL1(Object*, RhpNew, MethodTable* pMT);
 EXTERN_C FCDECL2(Object*, RhpNewVariableSizeObject, MethodTable* pMT, INT_PTR size);
 EXTERN_C FCDECL1(Object*, RhpNewMaybeFrozen, MethodTable* pMT);
@@ -179,20 +147,13 @@ EXTERN_C FCDECL1(void*, JIT_GetGCStaticBase_Helper, MethodTable *pMT);
 EXTERN_C void DoJITFailFast();
 EXTERN_C FCDECL0(void, JIT_FailFast);
 
-FCDECL0(int, JIT_GetCurrentManagedThreadId);
-
 EXTERN_C void ReversePInvokeBadTransition();
 
-#if !defined(FEATURE_USE_ASM_GC_WRITE_BARRIERS) && defined(FEATURE_COUNT_GC_WRITE_BARRIERS)
-// Extra argument for the classification of the checked barriers.
-extern "C" FCDECL3(VOID, JIT_CheckedWriteBarrier, Object **dst, Object *ref, CheckedWriteBarrierKinds kind);
-#else
 // Regular checked write barrier.
-extern "C" FCDECL2(VOID, JIT_CheckedWriteBarrier, Object **dst, Object *ref);
+extern "C" FCDECL2_RAW(VOID, JIT_CheckedWriteBarrier, Object **dst, Object *ref);
 
 #ifdef TARGET_ARM64
 #define RhpCheckedAssignRef RhpCheckedAssignRefArm64
-#define RhpByRefAssignRef RhpByRefAssignRefArm64
 #define RhpAssignRef RhpAssignRefArm64
 #elif defined (TARGET_LOONGARCH64)
 #define RhpAssignRef RhpAssignRefLoongArch64
@@ -200,20 +161,10 @@ extern "C" FCDECL2(VOID, JIT_CheckedWriteBarrier, Object **dst, Object *ref);
 #define RhpAssignRef RhpAssignRefRiscV64
 #endif // TARGET_*
 
-#endif // FEATURE_USE_ASM_GC_WRITE_BARRIERS && defined(FEATURE_COUNT_GC_WRITE_BARRIERS)
+extern "C" FCDECL2_RAW(VOID, RhpCheckedAssignRef, Object **dst, Object *ref);
+extern "C" FCDECL2_RAW(VOID, RhpAssignRef, Object **dst, Object *ref);
 
-extern "C" FCDECL2(VOID, RhpCheckedAssignRef, Object **dst, Object *ref);
-extern "C" FCDECL2(VOID, RhpByRefAssignRef, Object **dst, Object *ref);
-extern "C" FCDECL2(VOID, RhpAssignRef, Object **dst, Object *ref);
-
-extern "C" FCDECL2(VOID, JIT_WriteBarrier, Object **dst, Object *ref);
-extern "C" FCDECL2(VOID, JIT_WriteBarrierEnsureNonHeapTarget, Object **dst, Object *ref);
-
-// ARM64 JIT_WriteBarrier uses special ABI and thus is not callable directly
-// Copied write barriers must be called at a different location
-extern "C" FCDECL2(VOID, JIT_WriteBarrier_Callable, Object **dst, Object *ref);
-
-#define WriteBarrier_Helper JIT_WriteBarrier_Callable
+extern "C" FCDECL2_RAW(VOID, JIT_WriteBarrier, Object **dst, Object *ref);
 
 EXTERN_C FCDECL2_VV(INT64, JIT_LMul, INT64 val1, INT64 val2);
 
@@ -266,8 +217,6 @@ void ValidateWriteBarrierHelpers();
 
 extern "C"
 {
-    void STDCALL JIT_ByRefWriteBarrier();      // JIThelp.asm/JIThelp.s
-
 #if defined(TARGET_X86) && !defined(UNIX_X86_ABI)
     void STDCALL JIT_TailCall();                    // JIThelp.asm
 #endif // defined(TARGET_X86) && !defined(UNIX_X86_ABI)
@@ -310,6 +259,7 @@ class CEEInfo : public ICorJitInfo
     void GetTypeContext(CORINFO_CONTEXT_HANDLE context, SigTypeContext* pTypeContext);
 
     void HandleException(struct _EXCEPTION_POINTERS* pExceptionPointers);
+
 public:
 #include "icorjitinfoimpl_generated.h"
     uint32_t getClassAttribsInternal (CORINFO_CLASS_HANDLE cls);
@@ -370,11 +320,12 @@ public:
                                       TypeHandle typeHnd = TypeHandle() /* optional in */,
                                       CORINFO_CLASS_HANDLE *clsRet = NULL /* optional out */ );
 
-    CEEInfo(MethodDesc * fd = NULL)
+    CEEInfo(MethodDesc * fd, PrepareCodeConfig *config)
         : m_pJitHandles(nullptr)
         , m_pMethodBeingCompiled(fd)
         , m_transientDetails(NULL)
         , m_pThread(GetThreadNULLOk())
+        , m_pPrepareCodeConfig(config)
         , m_hMethodForSecurity_Key(NULL)
         , m_pMethodForSecurity_Value(NULL)
 #if defined(FEATURE_GDBJIT)
@@ -419,6 +370,12 @@ public:
                                                    MethodDesc * pTemplateMD /* for method-based slots */,
                                                    MethodDesc * pCallerMD,
                                                    CORINFO_LOOKUP *pResultLookup);
+    void FinishComputeRuntimeLookup(
+        SigBuilder& sig,
+        MethodDesc* pCallerMD,
+        CORINFO_LOOKUP* pResultLookup);
+
+    void ComputeRuntimeLookupForAwaitCall(MethodDesc* pCallerMD, MethodDesc* pTypicalAwaitMD, CORINFO_LOOKUP* lookup);
 
 #if defined(FEATURE_GDBJIT)
     CalledMethod * GetCalledMethods() { return m_pCalledMethods; }
@@ -432,6 +389,7 @@ public:
 protected:
     COR_ILMETHOD_DECODER* getMethodInfoWorker(
         MethodDesc* ftn,
+        MethodDesc* ilFtn,
         COR_ILMETHOD_DECODER* header,
         CORINFO_METHOD_INFO* methInfo,
         CORINFO_CONTEXT_HANDLE exactContext = NULL);
@@ -441,6 +399,7 @@ protected:
     MethodDesc*             m_pMethodBeingCompiled; // Top-level method being compiled
     SArray<TransientMethodDetails, FALSE>* m_transientDetails;   // Transient details for dynamic codegen scenarios.
     Thread *                m_pThread;              // Cached current thread for faster JIT-EE transitions
+    PrepareCodeConfig*      m_pPrepareCodeConfig;
     CORJIT_FLAGS            m_jitFlags;
 
     CORINFO_METHOD_HANDLE getMethodBeingCompiled()
@@ -544,6 +503,8 @@ public:
     }
 
     // ICorDebugInfo stuff.
+    void getVars(CORINFO_METHOD_HANDLE ftn, ULONG32 *cVars, ICorDebugInfo::ILVarInfo **vars,
+                 bool *extendOthers) override final;
     void setBoundaries(CORINFO_METHOD_HANDLE ftn,
                        ULONG32 cMap, ICorDebugInfo::OffsetMapping *pMap) override final;
     void setVars(CORINFO_METHOD_HANDLE ftn, ULONG32 cVars,
@@ -974,7 +935,7 @@ public:
     void SetDebugInfo(PTR_BYTE pDebugInfo) override;
 
     LPVOID GetCookieForInterpreterCalliSig(CORINFO_SIG_INFO* szMetaSig) override;
-    
+
     virtual CORINFO_METHOD_HANDLE getAsyncResumptionStub(void** entryPoint) override final;
 };
 #endif // FEATURE_INTERPRETER
@@ -1005,13 +966,25 @@ struct VMHELPDEF
     bool IsDynamicHelper(DynamicCorInfoHelpFunc* dynamicFtnNum) const;
 };
 
+struct VMAUXILIARYSYMBOLDEF
+{
+    PCODE pfnAuxiliarySymbol;
+    PTR_CSTR name;
+};
+
+#define MAX_AUXILIARY_SYMBOLS 17
+
 #if defined(DACCESS_COMPILE)
 
 GARY_DECL(VMHELPDEF, hlpFuncTable, CORINFO_HELP_COUNT);
+GARY_DECL(VMAUXILIARYSYMBOLDEF, hlpAuxiliarySymbolTable, MAX_AUXILIARY_SYMBOLS);
+GVAL_DECL(DWORD, g_auxiliarySymbolCount);
 
 #else
 
 extern "C" const VMHELPDEF hlpFuncTable[CORINFO_HELP_COUNT];
+extern "C" VMAUXILIARYSYMBOLDEF hlpAuxiliarySymbolTable[MAX_AUXILIARY_SYMBOLS];
+extern "C" DWORD g_auxiliarySymbolCount;
 
 #ifdef FEATURE_PORTABLE_ENTRYPOINTS
 extern "C" PCODE hlpFuncEntryPoints[CORINFO_HELP_COUNT];
@@ -1027,6 +1000,7 @@ GARY_DECL(VMHELPDEF, hlpDynamicFuncTable, DYNAMIC_CORINFO_HELP_COUNT);
 
 #define SetJitHelperFunction(ftnNum, pFunc) _SetJitHelperFunction(DYNAMIC_##ftnNum, (void*)(pFunc))
 void    _SetJitHelperFunction(DynamicCorInfoHelpFunc ftnNum, void * pFunc);
+void SetAuxiliarySymbol(void* pFunc, const char* name);
 
 PCODE LoadDynamicJitHelper(DynamicCorInfoHelpFunc ftnNum);
 bool HasILBasedDynamicJitHelper(DynamicCorInfoHelpFunc ftnNum);

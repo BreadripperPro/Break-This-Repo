@@ -7,9 +7,6 @@
 #load "../FSharp.Test.Utilities/TestFramework.fs"
 #load "single-test.fs"
 #else
-// Disable parallel execution because this module contains FSI stdin tests
-// that can interfere with other FSI stdin tests in CoreTests
-[<Xunit.Collection(nameof FSharp.Test.NotThreadSafeResourceCollection)>]
 module FSharp.Test.FSharpSuite.TypeProviderTests
 #endif
 
@@ -73,7 +70,7 @@ let diamondAssembly () =
 
     exec cfg ("." ++ "test3.exe") ""
 
-    
+
 
     fsiCheckPassed cfg "%s" cfg.fsi_flags ["test3.fsx"]
 
@@ -227,7 +224,7 @@ let singleNegTest name =
                       .Replace("<FILEPATH>",dirp)
                       .Replace("<URIPATH>",sprintf "file:///%s" dirp)
                       |> fun txt -> FileSystem.OpenFileForWriteShim(sprintf "%s%s.%sbsl" dirp name pref).Write(txt)
-                      
+
         if name = "ProviderAttribute_EmptyConsume" || name = "providerAttributeErrorConsume" then ()
         else fsc cfg "--define:%s --out:provider_%s.dll -a" name name ["provider.fsx"]
 
@@ -288,14 +285,14 @@ let splitAssembly subdir project =
     fsc cfg "--out:test.exe -r:provider.dll" ["test.fsx"]
 
     begin
-        
+
 
         execAndCheckPassed cfg ("." ++ "test.exe") ""
 
     end
 
     begin
-        
+
 
         fsiCheckPassed cfg "%s" cfg.fsi_flags ["test.fsx"]
     end
@@ -326,14 +323,14 @@ let splitAssembly subdir project =
 
         fsc cfg "--out:test.exe -r:provider.dll" ["test.fsx"]
 
-        begin        
+        begin
 
             execAndCheckPassed cfg ("." ++ "test.exe") ""
 
         end
 
         begin
-            
+
 
             fsiCheckPassed cfg "%s" cfg.fsi_flags ["test.fsx"]
         end

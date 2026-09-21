@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#if !NET472_OR_GREATER
-
 #nullable enable
 
 using System;
@@ -71,7 +69,10 @@ public class DefaultIdentityTokenCredential : TokenCredential
         }
 
         // Add Managed Identity credential
-        tokenCredentials.Add(new ManagedIdentityCredential(options.ManagedIdentityClientId));
+        ManagedIdentityId managedIdentityId = string.IsNullOrEmpty(options.ManagedIdentityClientId)
+            ? ManagedIdentityId.SystemAssigned
+            : ManagedIdentityId.FromUserAssignedClientId(options.ManagedIdentityClientId);
+        tokenCredentials.Add(new ManagedIdentityCredential(managedIdentityId));
 
         // Add work load identity credential if the environment variables are set
         TokenCredential? workloadIdentityCredential = GetWorkloadIdentityCredentialForAzurePipelineTask();
@@ -161,18 +162,8 @@ public class DefaultIdentityTokenCredential : TokenCredential
             !string.IsNullOrEmpty(serviceConnectionId) &&
             !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SYSTEM_OIDCREQUESTURI")))
         {
-            var credentialOptions = new AzurePipelinesCredentialOptions
-            {
-                TokenCachePersistenceOptions = new TokenCachePersistenceOptions
-                {
-                    Name = $"TokenCache-AzurePipelinesCredential-{serviceConnectionId}",
-                    UnsafeAllowUnencryptedStorage = false
-                }
-            };
-            return new AzurePipelinesCredential(tenantId, clientId, serviceConnectionId, systemAccessToken, credentialOptions);
+            return new AzurePipelinesCredential(tenantId, clientId, serviceConnectionId, systemAccessToken);
         }
         return null;
     }
 }
-
-#endif

@@ -1,9 +1,7 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore.Query;
-
-#nullable disable
 
 public class NorthwindWhereQuerySqlServerTest : NorthwindWhereQueryRelationalTestBase<
     NorthwindQuerySqlServerFixture<NoopModelCustomizer>>
@@ -17,7 +15,7 @@ public class NorthwindWhereQuerySqlServerTest : NorthwindWhereQueryRelationalTes
         Fixture.TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Check_all_tests_overridden()
         => TestHelpers.AssertAllMethodsOverridden(GetType());
 
@@ -71,7 +69,7 @@ WHERE [c].[City] = @city
 """,
             queryString, ignoreLineEndingDifferences: true, ignoreWhiteSpaceDifferences: true);
 
-        return null;
+        return null!;
     }
 
     public override async Task Where_indexer_closure(bool async)
@@ -1689,7 +1687,7 @@ WHERE (
 """);
     }
 
-    [ConditionalTheory]
+    [Theory]
     public override async Task Using_same_parameter_twice_in_query_generates_one_sql_parameter(bool async)
     {
         await base.Using_same_parameter_twice_in_query_generates_one_sql_parameter(async);
@@ -1723,8 +1721,8 @@ WHERE [c].[CustomerID] = @customerId OR [c].[CustomerID] = @customerId1
     {
         await base.Two_parameters_with_same_case_insensitive_name_get_uniquified(async);
 
-AssertSql(
-"""
+        AssertSql(
+            """
 @customerID='ANATR' (Size = 5) (DbType = StringFixedLength)
 @customerId0='ALFKI' (Size = 5) (DbType = StringFixedLength)
 
@@ -2011,7 +2009,7 @@ WHERE [o].[OrderID] < 10300 AND (
     SELECT COUNT(*)
     FROM [Order Details] AS [o0]
     WHERE [o].[OrderID] = [o0].[OrderID]) = 4
-ORDER BY [o].[OrderID], [o1].[OrderID]
+ORDER BY [o].[OrderID], [o1].[OrderID], [o1].[ProductID]
 """);
     }
 
@@ -2047,7 +2045,7 @@ WHERE [o].[OrderID] < 10300 AND (
     SELECT COUNT(*)
     FROM [Order Details] AS [o0]
     WHERE [o].[OrderID] = [o0].[OrderID]) = 4
-ORDER BY [o].[OrderID], [o1].[OrderID]
+ORDER BY [o].[OrderID], [o1].[OrderID], [o1].[ProductID]
 """);
     }
 
@@ -2083,7 +2081,7 @@ WHERE [o].[OrderID] < 10300 AND (
     SELECT COUNT(*)
     FROM [Order Details] AS [o0]
     WHERE [o].[OrderID] = [o0].[OrderID]) = 5
-ORDER BY [o].[OrderID], [o1].[OrderID]
+ORDER BY [o].[OrderID], [o1].[OrderID], [o1].[ProductID]
 """);
     }
 
@@ -2119,7 +2117,7 @@ WHERE [o].[OrderID] < 10300 AND (
     SELECT COUNT(*)
     FROM [Order Details] AS [o0]
     WHERE [o].[OrderID] = [o0].[OrderID]) = 3
-ORDER BY [o].[OrderID], [o1].[OrderID]
+ORDER BY [o].[OrderID], [o1].[OrderID], [o1].[ProductID]
 """);
     }
 
@@ -2136,7 +2134,7 @@ WHERE [o].[OrderID] < 10300 AND (
     SELECT COUNT(*)
     FROM [Order Details] AS [o0]
     WHERE [o].[OrderID] = [o0].[OrderID]) = 3
-ORDER BY [o].[OrderID], [o1].[OrderID]
+ORDER BY [o].[OrderID], [o1].[OrderID], [o1].[ProductID]
 """);
     }
 

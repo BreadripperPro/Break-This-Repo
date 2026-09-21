@@ -6,28 +6,20 @@
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
-using System.CommandLine.Help;
 using System.CommandLine.Parsing;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.Extensions.CommandLineUtils;
+using NuGet.Common;
 using Spectre.Console;
 
 namespace NuGet.CommandLine.XPlat.Commands.Why
 {
     public static class WhyCommand
     {
-        internal static void Register(CommandLineApplication app)
+        internal static void Register(Command rootCommand, Lazy<IAnsiConsole> console, IVirtualProjectBuilder? virtualProjectBuilder = null)
         {
-            app.Command("why", whyCmd =>
-            {
-                whyCmd.Description = Strings.WhyCommand_Description;
-            });
-        }
-
-        internal static void Register(Command rootCommand, Lazy<IAnsiConsole> console)
-        {
-            Register(rootCommand, console, WhyCommandRunner.ExecuteCommand);
+            Register(rootCommand, console,
+                () => new WhyCommandRunner(new MSBuildAPIUtility(NullLogger.Instance, virtualProjectBuilder)));
         }
 
         /// <summary>
@@ -35,11 +27,23 @@ namespace NuGet.CommandLine.XPlat.Commands.Why
         /// For now, this allows the dotnet CLI to invoke why directly, instead of running NuGet.CommandLine.XPlat as a child process.
         /// </summary>
         /// <param name="rootCommand">The <c>dotnet nuget</c> command handler, to add <c>why</c> to.</param>
-        public static void GetWhyCommand(Command rootCommand)
+        /// <param name="virtualProjectBuilder">For handling file-based apps.</param>
+        public static void GetWhyCommand(Command rootCommand, IVirtualProjectBuilder? virtualProjectBuilder = null)
         {
             Register(rootCommand,
                 new Lazy<IAnsiConsole>(() => Spectre.Console.AnsiConsole.Console),
-                WhyCommandRunner.ExecuteCommand);
+                virtualProjectBuilder);
+        }
+
+        // For binary backcompat. To delete once the SDK starts using the other overload.
+        public static void GetWhyCommand(Command rootCommand)
+        {
+            GetWhyCommand(rootCommand, virtualProjectBuilder: null);
+        }
+
+        internal static void Register(Command rootCommand, Lazy<IAnsiConsole> console, Func<WhyCommandRunner> getCommandRunner)
+        {
+            Register(rootCommand, console, action: (args) => getCommandRunner().ExecuteCommand(args));
         }
 
         // console must be lazy, because Spectre.Console's AnsiConsole will send VT sequences to the output
@@ -48,7 +52,7 @@ namespace NuGet.CommandLine.XPlat.Commands.Why
         {
             var whyCommand = new DocumentedCommand("why", Strings.WhyCommand_Description, "https://aka.ms/dotnet/nuget/why");
 
-            Argument<string> path = new Argument<string>("PROJECT|SOLUTION")
+            Argument<string> path = new Argument<string>("PROJECT|SOLUTION|FILE")
             {
                 Description = Strings.WhyCommand_PathArgument_Description,
                 // We really want this to be zero or one, however, because this is the first argument, it doesn't work.
@@ -95,26 +99,23 @@ namespace NuGet.CommandLine.XPlat.Commands.Why
                 Arity = ArgumentArity.OneOrMore
             };
 
-            HelpOption help = new HelpOption()
-            {
-                Arity = ArgumentArity.Zero
-            };
-
             whyCommand.Arguments.Add(path);
             whyCommand.Arguments.Add(package);
             whyCommand.Options.Add(frameworks);
-            whyCommand.Options.Add(help);
 
             whyCommand.SetAction(async (parseResult, cancellationToken) =>
             {
                 try
                 {
-                    var whyCommandArgs = new WhyCommandArgs(
-                        parseResult.GetValue(path)!,
-                        parseResult.GetValue(package)!,
-                        parseResult.GetValue(frameworks)!,
-                        console.Value,
-                        cancellationToken);
+                    var whyCommandArgs = new WhyCommandArgs
+                    {
+                        Path = parseResult.GetValue(path)!,
+                        Package = parseResult.GetValue(package)!,
+                        Frameworks = parseResult.GetValue(frameworks)!,
+                        Logger = console.Value,
+                        CancellationToken = cancellationToken,
+                        DotnetVersionChecker = DotnetVersionChecker.Instance,
+                    };
 
                     int exitCode = await action(whyCommandArgs);
                     return exitCode;

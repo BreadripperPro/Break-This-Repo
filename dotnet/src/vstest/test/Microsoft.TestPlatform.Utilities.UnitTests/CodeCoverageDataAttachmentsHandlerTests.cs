@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 #if !NETFRAMEWORK
 using System.Runtime.InteropServices;
 #endif
@@ -53,13 +54,21 @@ public class CodeCoverageDataAttachmentsHandlerTests
     [ClassInitialize]
     public static void ClassInitialize(TestContext context)
     {
-        // Copying test files to correct place,
-        var assemblyPath = AppDomain.CurrentDomain.BaseDirectory;
-        var testFilesDirectory = Path.Combine(context.DeploymentDirectory!, "TestFiles");
-        Directory.CreateDirectory(testFilesDirectory);
-        var files = Directory.GetFiles(Path.Combine(assemblyPath, "TestFiles"));
-        foreach (var file in files)
-            File.Copy(file, Path.Combine(testFilesDirectory, Path.GetFileName(file)));
+        // Annoyingly those paths are the same, but one does not end with slash,
+        // no matter how you compare, e.g. new DirectoryInfo(...).FullName, the slashes are not
+        // removed. And then you get obscure error: File already exists, or File is used by other process
+        // when you try to copy the file and provide both paths the same.
+        var assemblyPath = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        var deploymentDirectory = context.DeploymentDirectory!.TrimEnd(Path.DirectorySeparatorChar);
+        if (new DirectoryInfo(deploymentDirectory).FullName != new DirectoryInfo(assemblyPath).FullName)
+        {
+            // Copying test files to deployment directory place,
+            var testFilesDirectory = Path.Combine(deploymentDirectory!, "TestFiles");
+            Directory.CreateDirectory(testFilesDirectory);
+            var files = Directory.GetFiles(Path.Combine(assemblyPath, "TestFiles"));
+            foreach (var file in files)
+                File.Copy(file, Path.Combine(testFilesDirectory, Path.GetFileName(file)), overwrite: true);
+        }
     }
 
     [TestMethod]
@@ -70,12 +79,12 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 0);
+        Assert.IsEmpty(resultAttachmentSets);
 
         resultAttachmentSets = await _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, null, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 0);
+        Assert.IsEmpty(resultAttachmentSets);
 
         _mockProgressReporter.Verify(p => p.Report(It.IsAny<int>()), Times.Never);
     }
@@ -91,8 +100,8 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 1);
+        Assert.HasCount(1, resultAttachmentSets);
+        Assert.HasCount(1, resultAttachmentSets.First().Attachments);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.First().Uri.AbsoluteUri);
         Assert.AreEqual("file:///C:/temp/aa.coverage", resultAttachmentSets.First().Attachments.First().Uri.AbsoluteUri);
     }
@@ -111,8 +120,8 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 2);
+        Assert.HasCount(1, resultAttachmentSets);
+        Assert.HasCount(2, resultAttachmentSets.First().Attachments);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.First().Uri.AbsoluteUri);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.Last().Uri.AbsoluteUri);
         Assert.AreEqual(_filePrefix + file1Path.Replace("\\", "/").Replace(" ", "%20"), resultAttachmentSets.First().Attachments.First().Uri.AbsoluteUri);
@@ -132,8 +141,8 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 1);
+        Assert.HasCount(1, resultAttachmentSets);
+        Assert.HasCount(1, resultAttachmentSets.First().Attachments);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.First().Uri.AbsoluteUri);
         Assert.AreEqual(_filePrefix + file1Path.Replace("\\", "/").Replace(" ", "%20"), resultAttachmentSets.First().Attachments.First().Uri.AbsoluteUri);
     }
@@ -149,8 +158,8 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 1);
+        Assert.HasCount(1, resultAttachmentSets);
+        Assert.HasCount(1, resultAttachmentSets.First().Attachments);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.First().Uri.AbsoluteUri);
         Assert.AreEqual("file:///C:/temp/aa.logs", resultAttachmentSets.First().Attachments.First().Uri.AbsoluteUri);
     }
@@ -170,9 +179,9 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 2);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.Last().Attachments.Count == 2);
+        Assert.HasCount(2, resultAttachmentSets);
+        Assert.HasCount(1, resultAttachmentSets.First().Attachments);
+        Assert.HasCount(2, resultAttachmentSets.Last().Attachments);
     }
 
     [TestMethod]
@@ -189,9 +198,9 @@ public class CodeCoverageDataAttachmentsHandlerTests
             attachmentSet
         ];
 
-        await Assert.ThrowsExceptionAsync<OperationCanceledException>(async () => await _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, cts.Token));
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(async () => await _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(_configurationElement, attachment, _mockProgressReporter.Object, null, cts.Token));
 
-        Assert.AreEqual(2, attachment.Count);
+        Assert.HasCount(2, attachment);
 
         _mockProgressReporter.Verify(p => p.Report(It.IsAny<int>()), Times.Never);
     }
@@ -212,8 +221,35 @@ public class CodeCoverageDataAttachmentsHandlerTests
             _coverageDataAttachmentsHandler.ProcessAttachmentSetsAsync(doc.DocumentElement!, attachment, _mockProgressReporter.Object, _messageLogger.Object, CancellationToken.None);
 
         Assert.IsNotNull(resultAttachmentSets);
-        Assert.IsTrue(resultAttachmentSets.Count == 1);
-        Assert.IsTrue(resultAttachmentSets.First().Attachments.Count == 1);
+        Assert.HasCount(1, resultAttachmentSets);
+        Assert.HasCount(1, resultAttachmentSets.First().Attachments);
         Assert.AreEqual("datacollector://microsoft/CodeCoverage/2.0", resultAttachmentSets.First().Uri.AbsoluteUri);
+    }
+
+    [TestMethod]
+    public void MergeCoverageReportsAsyncReturnsTaskOfIListOfString()
+    {
+        // The handler invokes this method through reflection and matches the result against
+        // Task<IList<string>>. Task<T> is invariant, so a version of Microsoft.CodeCoverage.IO that
+        // declared for example Task<List<string>> would stop matching, and coverage files would be
+        // returned unmerged instead of failing. Pin the shape so such a change is caught here.
+        var assemblyPath = Path.Combine(
+            Path.GetDirectoryName(typeof(CodeCoverageDataAttachmentsHandler).Assembly.Location)!,
+            "Microsoft.CodeCoverage.IO.dll");
+        Assert.IsTrue(File.Exists(assemblyPath), $"Expected '{assemblyPath}' to exist.");
+
+        var assembly = Assembly.LoadFrom(assemblyPath);
+        var coverageFileUtility = assembly.GetType("Microsoft.CodeCoverage.IO.CoverageFileUtility");
+        Assert.IsNotNull(coverageFileUtility);
+
+        var mergeOperation = Array.Find(assembly.GetTypes(), t => t.Name == "CoverageMergeOperation");
+        Assert.IsNotNull(mergeOperation);
+
+        var mergeMethod = coverageFileUtility.GetMethod(
+            "MergeCoverageReportsAsync",
+            [typeof(string), typeof(IList<string>), mergeOperation, typeof(bool), typeof(CancellationToken)]);
+        Assert.IsNotNull(mergeMethod);
+
+        Assert.AreEqual(typeof(Task<IList<string>>), mergeMethod.ReturnType);
     }
 }

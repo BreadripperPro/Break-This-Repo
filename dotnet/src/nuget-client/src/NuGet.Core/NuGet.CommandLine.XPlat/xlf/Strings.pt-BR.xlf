@@ -183,7 +183,7 @@
         <note />
       </trans-unit>
       <trans-unit id="Delete_MissingArguments">
-        <source>Please provide arguments for package id and package version.</source>
+        <source>Provide arguments for package id and package version.</source>
         <target state="translated">Forneça argumentos para a ID do pacote e para a versão do pacote.</target>
         <note />
       </trans-unit>
@@ -270,8 +270,8 @@
         <note>0 - package id</note>
       </trans-unit>
       <trans-unit id="Error_AssetsFileNotFound">
-        <source>No assets file was found for `{0}`. Please run restore before running this command.</source>
-        <target state="translated">Nenhum arquivo de ativos foi encontrado para '{0}'. Execute a restauração antes de executar este comando.</target>
+        <source>No assets file was found for `{0}`. Run restore before running this command.</source>
+        <target state="translated">Nenhum arquivo de ativos foi encontrado para `{0}`. Execute a restauração antes de executar este comando.</target>
         <note />
       </trans-unit>
       <trans-unit id="Error_CannotObtainSearchSource">
@@ -369,8 +369,8 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note>{0} - Project/csproj path</note>
       </trans-unit>
       <trans-unit id="Error_MultipleProjectOrSolutionFilesInDirectory">
-        <source>The directory '{0}' contains multiple project or solution files. Please specify which project or solution file to use.</source>
-        <target state="translated">O diretório "{0}" contém vários arquivos de projeto ou solução. Especifique qual arquivo de projeto ou solução usar.</target>
+        <source>The directory '{0}' contains multiple project or solution files. Specify which project or solution file to use.</source>
+        <target state="translated">O diretório "{0}" contém vários arquivos de projeto ou solução. Especifique qual projeto ou arquivo de solução usar.</target>
         <note>{0} - Directory</note>
       </trans-unit>
       <trans-unit id="Error_NoDgSpec">
@@ -394,14 +394,21 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note>{0} - PackageID</note>
       </trans-unit>
       <trans-unit id="Error_NotPRProject">
-        <source>The project `{0}` uses package.config for NuGet packages, while the command works only with package reference projects.</source>
-        <target state="translated">O projeto '{0}' usa package.config para pacotes do NuGet, enquanto o comando funciona somente com projetos de referência do pacote.</target>
-        <note />
+        <source>The project '{0}' is not a PackageReference project. This command only supports NuGet PackageReference projects.</source>
+        <target state="needs-review-translation">O projeto '{0}' usa package.config para pacotes do NuGet, enquanto o comando funciona somente com projetos de referência do pacote.</target>
+        <note>{0} - Path to the project with the error, {Locked="PackageReference"}</note>
       </trans-unit>
       <trans-unit id="Error_PackageDownload_VersionNotFound">
         <source>Unable to find a valid package version</source>
         <target state="translated">Não é possível localizar uma versão de pacote válida</target>
         <note />
+      </trans-unit>
+      <trans-unit id="Error_PackagePublishDateMissing">
+        <source>Package source '{0}' did not provide a publish date for package '{1}' version '{2}', which is required because the source has a minimum publish age configured.</source>
+        <target state="new">Package source '{0}' did not provide a publish date for package '{1}' version '{2}', which is required because the source has a minimum publish age configured.</target>
+        <note>{0} - package source name
+{1} - package ID
+{2} - package version</note>
       </trans-unit>
       <trans-unit id="Error_PackageSourceMappingNotFound">
         <source>Package source mapping is enabled, but no mapping for package {0} was found. See https://aka.ms/nuget/psm for more information.</source>
@@ -409,8 +416,8 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note>{0} - package id</note>
       </trans-unit>
       <trans-unit id="Error_PathIsMissingOrInvalid">
-        <source>Missing or invalid path '{0}'. Please provide a path to a project, solution file, or directory.</source>
-        <target state="translated">Caminho "{0}" ausente ou inválido. Forneça um caminho para um projeto, arquivo de solução ou diretório.</target>
+        <source>Missing or invalid path '{0}'. Provide a path to a project, solution file, file-based app, or project directory.</source>
+        <target state="translated">Caminho "{0}" ausente ou inválido. Forneça um caminho para um projeto, arquivo de solução, aplicativo baseado em arquivo ou diretório de projeto.</target>
         <note>{0} - Input path argument</note>
       </trans-unit>
       <trans-unit id="Error_PathNotFound">
@@ -557,13 +564,13 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note />
       </trans-unit>
       <trans-unit id="ListPkg_ErrorReadingAssetsFile">
-        <source>Unable to read the assets file `{0}`. Please make sure the file has the write format.</source>
-        <target state="translated">Não é possível ler o arquivo de ativos '{0}'. Verifique se o arquivo tem o formato de gravação.</target>
+        <source>Unable to read the assets file `{0}`. Make sure the file has the correct format.</source>
+        <target state="translated">Não é possível ler o arquivo de ativos `{0}`. Verifique se o arquivo tem o formato correto.</target>
         <note />
       </trans-unit>
       <trans-unit id="ListPkg_ErrorReadingReferenceFromProject">
-        <source>Unable to read a package reference from the project `{0}`. Please make sure that your project file and project.assets.json file are in sync by running restore.</source>
-        <target state="translated">Não é possível ler uma referência de pacote do projeto '{0}'. Verifique se seu arquivo de projeto e o arquivo de project.assets.json estão em sincronia executando a restauração.</target>
+        <source>Unable to read a package reference from the project `{0}`. Make sure that your project file and project.assets.json file are in sync by running restore.</source>
+        <target state="translated">Não é possível ler uma referência de pacote do projeto `{0}`. Verifique se o arquivo de projeto e o project.assets.json estão sincronizados executando a restauração.</target>
         <note />
       </trans-unit>
       <trans-unit id="ListPkg_FrameworkDescription">
@@ -582,9 +589,9 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note />
       </trans-unit>
       <trans-unit id="ListPkg_InvalidFramework">
-        <source>Failed to parse one of the given frameworks. Please make sure the given frameworks are valid.</source>
-        <target state="translated">Falha ao analisar uma das estruturas fornecidas. Verifique se as estruturas determinadas são válidas.</target>
-        <note />
+        <source>The specified TargetFramework '{0}' is not found in the project '{1}'.</source>
+        <target state="translated">O TargetFramework especificado '{0}' não foi encontrado no projeto '{1}'.</target>
+        <note>0 - alias, 1 - project path, {Locked="TargetFramework"}</note>
       </trans-unit>
       <trans-unit id="ListPkg_InvalidOptions">
         <source>Options '--outdated', '--deprecated' and '--vulnerable' cannot be combined.</source>
@@ -789,12 +796,12 @@ O NuGet requer fontes HTTPS. Para usar fontes HTTP, você deve definir explicita
         <note />
       </trans-unit>
       <trans-unit id="LocalsCommand_MultipleOperations">
-        <source>Both operations, --list and --clear, are not supported in the same command. Please specify only one operation.
+        <source>Both operations, --list and --clear, are not supported in the same command. Specify only one operation.
 usage: NuGet locals &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [--clear | -c | --list | -l]
 For more information, visit https://docs.nuget.org/docs/reference/command-line-reference</source>
         <target state="translated">Não há suporte para ambas as operações, --list e --clear, no mesmo comando. Especifique apenas uma operação.
 uso: NuGet locals &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [--clear | -c | --list | -l]
-Para obter mais informações, acesse https://docs.nuget.org/docs/reference/command-line-reference</target>
+Para obter mais informações, visite https://docs.nuget.org/docs/reference/command-line-reference</target>
         <note />
       </trans-unit>
       <trans-unit id="LocalsCommand_NoArguments">
@@ -807,12 +814,12 @@ Para obter mais informações, acesse https://docs.nuget.org/docs/reference/comm
         <note />
       </trans-unit>
       <trans-unit id="LocalsCommand_NoOperation">
-        <source>Please specify an operation i.e. --list or --clear.
+        <source>Specify an operation i.e. --list or --clear.
 usage: NuGet locals &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [--clear | -c | --list | -l]
 For more information, visit https://docs.nuget.org/docs/reference/command-line-reference</source>
-        <target state="translated">Especifique uma operação, isto é, --list ou --clear.
+        <target state="translated">Especifique uma operação, ou seja, --list ou --clear.
 uso: NuGet locals &lt;all | http-cache | global-packages | temp | plugins-cache&gt; [--clear | -c | --list | -l]
-Para obter mais informações, acesse https://docs.nuget.org/docs/reference/command-line-reference</target>
+Para obter mais informações, visite https://docs.nuget.org/docs/reference/command-line-reference</target>
         <note />
       </trans-unit>
       <trans-unit id="NoServiceEndpoint_Description">
@@ -972,8 +979,8 @@ Para obter mais informações, acesse https://docs.nuget.org/docs/reference/comm
         <note />
       </trans-unit>
       <trans-unit id="PackageUpdateCommand_ProjectOptionDescription">
-        <source>Path to a project or solution file, or a directory.</source>
-        <target state="translated">Caminho para um projeto ou arquivo de solução ou um diretório.</target>
+        <source>Path to a project or solution file or file-based app, or a project directory.</source>
+        <target state="translated">Caminho para um projeto ou arquivo de solução ou aplicativo baseado em arquivo ou um diretório de projeto.</target>
         <note />
       </trans-unit>
       <trans-unit id="PackageUpdateCommand_VulnerableOptionDescription">
@@ -1032,6 +1039,11 @@ Para obter mais informações, acesse https://docs.nuget.org/docs/reference/comm
         <target state="translated">Referência do pacote na forma de um identificador de pacote como 'Newtonsoft.Json' ou identificador e versão do pacote separados por '@', como 'Newtonsoft.Json\@13.0.3'.</target>
         <note />
       </trans-unit>
+      <trans-unit id="PackageUpdate_PackagesAwaitingCooldown">
+        <source>Packages with newer versions that have not reached the configured minimum publish age: {0}.</source>
+        <target state="new">Packages with newer versions that have not reached the configured minimum publish age: {0}.</target>
+        <note>{0}: Comma-separated package IDs with newer versions that have not reached the configured minimum publish age</note>
+      </trans-unit>
       <trans-unit id="PackageUpdate_PreviewRestore">
         <source>Running preview restore to check package compatibility.</source>
         <target state="translated">Executando a restauração de visualização para verificar a compatibilidade do pacote.</target>
@@ -1085,7 +1097,7 @@ Para obter mais informações, acesse https://docs.nuget.org/docs/reference/comm
         <note />
       </trans-unit>
       <trans-unit id="Push_MissingArguments">
-        <source>Please specify the path to the package.</source>
+        <source>Specify the path to the package.</source>
         <target state="translated">Especifique o caminho para o pacote.</target>
         <note />
       </trans-unit>
@@ -1132,6 +1144,11 @@ Para obter mais informações, acesse https://docs.nuget.org/docs/reference/comm
       <trans-unit id="Remove_Description">
         <source>Remove a NuGet source.</source>
         <target state="translated">Remover uma origem do NuGet.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="SignCommandAllowUntrustedRootDescription">
+        <source>Allow signing with certificates whose root certificate is not in a trusted root store. The certificate chain is still built and validated for structure, but UntrustedRoot status is treated as a warning.</source>
+        <target state="translated">Permitir a assinatura com certificados cujo certificado raiz não está em um repositório raiz confiável. A cadeia de certificados ainda é construída e validada quanto à estrutura, mas o status UntrustedRoot é tratado como um aviso.</target>
         <note />
       </trans-unit>
       <trans-unit id="SignCommandCertificateFingerprintDescription">
@@ -1198,8 +1215,8 @@ A pesquisa é uma comparação de cadeia de caracteres que não faz distinção 
         <note />
       </trans-unit>
       <trans-unit id="SignCommandNoTimestamperWarning">
-        <source>The '--timestamper' option was not provided. The signed package will not be timestamped. To learn more about this option, please visit https://docs.microsoft.com/dotnet/core/tools</source>
-        <target state="translated">A opção "--timestamper" não foi fornecida. O pacote assinado não será carimbado no prazo. Para saber mais sobre esta opção, visite https://docs.microsoft.com/dotnet/core/tools</target>
+        <source>The '--timestamper' option was not provided. The signed package will not be timestamped. To learn more about this option, visit https://docs.microsoft.com/dotnet/core/tools</source>
+        <target state="translated">A opção "--timestamper" não foi fornecida. O pacote assinado não receberá carimbo de data/hora. Para saber mais sobre essa opção, visite https://docs.microsoft.com/dotnet/core/tools</target>
         <note>Please don't localize '--timestamper'</note>
       </trans-unit>
       <trans-unit id="SignCommandOutputDirectoryDescription">
@@ -1388,7 +1405,7 @@ A pesquisa é uma comparação de cadeia de caracteres que não faz distinção 
         <note />
       </trans-unit>
       <trans-unit id="Unsupported_UpdatePackageWithDifferentPerTfmVersions">
-        <source>The package {0} references different versions of the package for different target frameworks. This is not supported by this command. Please edit the project file directly. ({1})</source>
+        <source>The package {0} references different versions of the package for different target frameworks. This is not supported by this command. Edit the project file directly. ({1})</source>
         <target state="translated">O pacote {0} faz referência a diferentes versões do pacote para diferentes estruturas de destino. Este comando não dá suporte a isso. Edite o arquivo de projeto diretamente. ({1})</target>
         <note>0 - The package id
 1 - The project path</note>
@@ -1443,6 +1460,11 @@ A pesquisa é uma comparação de cadeia de caracteres que não faz distinção 
         <target state="translated">Especificar o caminho para o pacote</target>
         <note />
       </trans-unit>
+      <trans-unit id="Warn_AddPkgNonCompliantPackageId">
+        <source>The package ID '{0}' does not meet NuGet package ID standards. Package IDs must be no more than 100 characters, start with a letter, digit, or underscore, and contain only ASCII letters, digits, dots (.), dashes (-), and underscores (_). Dots and dashes cannot appear consecutively or at the end.</source>
+        <target state="new">The package ID '{0}' does not meet NuGet package ID standards. Package IDs must be no more than 100 characters, start with a letter, digit, or underscore, and contain only ASCII letters, digits, dots (.), dashes (-), and underscores (_). Dots and dashes cannot appear consecutively or at the end.</target>
+        <note>{0} - Package Id</note>
+      </trans-unit>
       <trans-unit id="Warn_AddPkgWithoutRestore">
         <source>--no-restore|-n flag was used. No compatibility check will be done and the added package reference will be unconditional.</source>
         <target state="translated">O sinalizador --no-restore|-n foi usado. Nenhuma verificação de compatibilidade será executada e a referência do pacote adicionado será incondicional.</target>
@@ -1487,8 +1509,8 @@ A pesquisa é uma comparação de cadeia de caracteres que não faz distinção 
         <note />
       </trans-unit>
       <trans-unit id="WhyCommand_Error_InvalidAssetsFile_WithProject">
-        <source>The file '{0}' does not appear to be a NuGet assets file. Please run restore for project '{1}' before running this command.</source>
-        <target state="translated">O arquivo "{0}"não parece ser um arquivo de ativos do NuGet. Execute a restauração do projeto "{1}" antes de executar este comando.</target>
+        <source>The file '{0}' does not appear to be a NuGet assets file. Run restore for project '{1}' before running this command.</source>
+        <target state="translated">O arquivo "{0}" não parece ser um arquivo de ativos do NuGet. Execute a restauração do projeto '{1}' antes de executar este comando.</target>
         <note>{0} - Assets file path, {1} - Project name</note>
       </trans-unit>
       <trans-unit id="WhyCommand_Error_InvalidAssetsFile_WithoutProject">
@@ -1527,8 +1549,8 @@ A pesquisa é uma comparação de cadeia de caracteres que não faz distinção 
         <note />
       </trans-unit>
       <trans-unit id="WhyCommand_PathArgument_Description">
-        <source>A path to a project, solution file, or directory.</source>
-        <target state="translated">Um caminho para um projeto, arquivo de solução ou diretório.</target>
+        <source>A path to a project, solution file, file-based app, or project directory.</source>
+        <target state="translated">Um caminho para um projeto, arquivo de solução, aplicativo baseado em arquivo ou diretório de projeto.</target>
         <note />
       </trans-unit>
       <trans-unit id="WhyCommand_Warning_AssetsFileDoesNotContainSpecifiedTarget">

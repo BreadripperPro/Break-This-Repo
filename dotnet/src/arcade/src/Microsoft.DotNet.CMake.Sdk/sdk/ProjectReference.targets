@@ -2,11 +2,11 @@
 <Project>
 
   <PropertyGroup>
-    <MicrosoftDotNetCMakeSdkTaskAssembly Condition="'$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)..\tools\net\Microsoft.DotNet.CMake.Sdk.dll</MicrosoftDotNetCMakeSdkTaskAssembly>
-    <MicrosoftDotNetCMakeSdkTaskAssembly Condition="'$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)..\tools\netframework\Microsoft.DotNet.CMake.Sdk.dll</MicrosoftDotNetCMakeSdkTaskAssembly>
+    <MicrosoftDotNetCMakeSdkTaskAssembly>$(MSBuildThisFileDirectory)..\tools\net\Microsoft.DotNet.CMake.Sdk.dll</MicrosoftDotNetCMakeSdkTaskAssembly>
   </PropertyGroup>
 
-  <UsingTask TaskName="Microsoft.DotNet.CMake.Sdk.GetCMakeArtifactsFromFileApi" AssemblyFile="$(MicrosoftDotNetCMakeSdkTaskAssembly)" />
+  <!-- TODO: Remove Architecture="*" on Runtime="NET" UsingTask declarations below when https://github.com/dotnet/msbuild/issues/13739 is fixed and a new msbuild is consumed with the fix. -->
+  <UsingTask TaskName="Microsoft.DotNet.CMake.Sdk.GetCMakeArtifactsFromFileApi" AssemblyFile="$(MicrosoftDotNetCMakeSdkTaskAssembly)" Runtime="NET" Architecture="*" />
 
   <ItemDefinitionGroup>
     <NativeProjectReference>

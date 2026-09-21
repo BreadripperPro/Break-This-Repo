@@ -101,7 +101,7 @@ type FSharpFileSnapshot(FileName: string, Version: string, GetSource: unit -> Ta
                     task {
                         match! f fileName |> Async.StartAsTask with
                         | Some source -> return SourceTextNew.ofISourceText source
-                        | None -> return failwith $"Couldn't get source for file {f}"
+                        | None -> return failwith $"Couldn't get source for file {fileName}"
                     }
             )
 
@@ -225,9 +225,6 @@ type internal ProjectSnapshotBase<'T when 'T :> IFileSnapshot>
                 member _.GetKey() = projectConfig.Identifier
                 member _.GetVersion() = fullHash.Value |> Md5Hasher.toString
             }
-
-    let addHash (file: 'T) hash =
-        hash |> Md5Hasher.addString file.FileName |> Md5Hasher.addBytes file.Version
 
     let signatureHash =
         lazy (signatureHash baseVersion.Value (sourceFiles |> Seq.map (fun x -> x :> IFileSnapshot)))

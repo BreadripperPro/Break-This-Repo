@@ -44,7 +44,6 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
     private readonly Mock<IRequestData> _mockRequestData;
 
     private Mock<IProcessHelper>? _mockProcessHelper;
-    private Mock<IRunSettingsHelper>? _mockRunsettingHelper;
     private Mock<IWindowsRegistryHelper>? _mockWindowsRegistry;
     private Mock<IEnvironmentVariableHelper>? _mockEnvironmentVariableHelper;
     private Mock<IFileHelper>? _mockFileHelper;
@@ -123,8 +122,8 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
             TesthostFriendlyName = testhostFriendlyName
         };
 
-        Assert.IsTrue(testOperationManager.IsTesthostCompatibleWithTestSessions() == expectedCompatibilityCheckResult);
-        Assert.IsTrue(testOperationManager.SetupChannel([], DefaultRunSettings) == expectedSetupResult);
+        Assert.AreEqual(expectedCompatibilityCheckResult, testOperationManager.IsTesthostCompatibleWithTestSessions());
+        Assert.AreEqual(expectedSetupResult, testOperationManager.SetupChannel([], DefaultRunSettings));
     }
 
     [TestMethod]
@@ -278,7 +277,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
 
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
 
-        var message = Assert.ThrowsException<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
         Assert.AreEqual(message, TimoutErrorMessage);
     }
 
@@ -292,7 +291,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object, cancellationTokenSource);
 
         cancellationTokenSource.Cancel();
-        var message = Assert.ThrowsException<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
         Equals("Canceling the operation as requested.", message);
     }
 
@@ -302,12 +301,14 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         SetupTestHostLaunched(true);
         _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(ConnectionTimeout, It.IsAny<CancellationToken>())).Returns(false);
 
+#pragma warning disable MSTEST0049 // CancellationToken not applicable in Moq callback
         _mockTestHostManager.Setup(rs => rs.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Callback(() => Task.Run(() => throw new OperationCanceledException()));
+#pragma warning restore MSTEST0049
 
         var cancellationTokenSource = new CancellationTokenSource();
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object, cancellationTokenSource);
 
-        var message = Assert.ThrowsException<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
         Equals("Canceling the operation as requested.", message);
     }
 
@@ -321,7 +322,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         _mockTestHostManager.Setup(rs => rs.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Callback(() => cancellationTokenSource.Cancel());
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object, cancellationTokenSource);
 
-        var message = Assert.ThrowsException<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
         Equals("Canceling the operation as requested.", message);
     }
 
@@ -333,7 +334,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
 
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
 
-        var message = Assert.ThrowsException<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel([], DefaultRunSettings)).Message;
         Assert.AreEqual(message, Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.Resources.Resources.InitializationFailed);
     }
 
@@ -349,14 +350,14 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
     {
         // Make the version check fail
         _mockRequestSender.Setup(rs => rs.CheckVersionWithTestHost()).Throws(new TestPlatformException("Version check failed"));
-        Assert.ThrowsException<TestPlatformException>(() => _testOperationManager.SetupChannel([], DefaultRunSettings));
+        Assert.ThrowsExactly<TestPlatformException>(() => _testOperationManager.SetupChannel([], DefaultRunSettings));
     }
 
     [TestMethod]
     public void SetupChannelForDotnetHostManagerWithIsVersionCheckRequiredFalseShouldNotCheckVersionWithTestHost()
     {
         SetUpMocksForDotNetTestHost();
-        var testHostManager = new TestableDotnetTestHostManager(false, _mockProcessHelper.Object, _mockFileHelper.Object, _mockEnvironment.Object, _mockRunsettingHelper.Object, _mockWindowsRegistry.Object, _mockEnvironmentVariableHelper.Object);
+        var testHostManager = new TestableDotnetTestHostManager(false, _mockProcessHelper.Object, _mockFileHelper.Object, _mockEnvironment.Object, _mockWindowsRegistry.Object, _mockEnvironmentVariableHelper.Object);
         testHostManager.Initialize(new NullMessageLogger(), DefaultRunSettings);
 
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, testHostManager);
@@ -370,7 +371,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
     public void SetupChannelForDotnetHostManagerWithIsVersionCheckRequiredTrueShouldCheckVersionWithTestHost()
     {
         SetUpMocksForDotNetTestHost();
-        var testHostManager = new TestableDotnetTestHostManager(true, _mockProcessHelper.Object, _mockFileHelper.Object, _mockEnvironment.Object, _mockRunsettingHelper.Object, _mockWindowsRegistry.Object, _mockEnvironmentVariableHelper.Object);
+        var testHostManager = new TestableDotnetTestHostManager(true, _mockProcessHelper.Object, _mockFileHelper.Object, _mockEnvironment.Object, _mockWindowsRegistry.Object, _mockEnvironmentVariableHelper.Object);
         testHostManager.Initialize(new NullMessageLogger(), DefaultRunSettings);
         var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, testHostManager);
 
@@ -439,6 +440,153 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         _testOperationManager.Close();
     }
 
+    [TestMethod]
+    public void SetupChannelShouldIncludeProcessPathAndStdErrorWhenTestHostExitsWithBoth()
+    {
+        var processPath = @"C:\testhost.exe";
+        var stdError = "Unhandled exception. System.Exception: Boom";
+
+        _mockTestHostManager.Setup(
+                m => m.GetTestHostProcessStartInfo(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<IDictionary<string, string?>>(),
+                    It.IsAny<TestRunnerConnectionInfo>()))
+            .Returns(new TestProcessStartInfo { FileName = processPath });
+
+        _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                _mockTestHostManager.Raise(t => t.HostLaunched += null, new HostProviderEventArgs(string.Empty));
+                _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs(stdError));
+            })
+            .Returns(Task.FromResult(true));
+
+        _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
+
+        var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
+
+        var ex = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel(["test.dll"], DefaultRunSettings));
+        Assert.Contains("Process path:", ex.Message);
+        Assert.Contains(processPath, ex.Message);
+        Assert.Contains(stdError, ex.Message);
+    }
+
+    [TestMethod]
+    public void SetupChannelShouldIncludeOnlyStdErrorWhenProcessPathIsNull()
+    {
+        var stdError = "Unhandled exception. System.Exception: Boom";
+
+        _mockTestHostManager.Setup(
+                m => m.GetTestHostProcessStartInfo(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<IDictionary<string, string?>>(),
+                    It.IsAny<TestRunnerConnectionInfo>()))
+            .Returns(new TestProcessStartInfo { FileName = null });
+
+        _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                _mockTestHostManager.Raise(t => t.HostLaunched += null, new HostProviderEventArgs(string.Empty));
+                _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs(stdError));
+            })
+            .Returns(Task.FromResult(true));
+
+        _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
+
+        var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
+
+        var ex = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel(["test.dll"], DefaultRunSettings));
+        Assert.Contains(stdError, ex.Message);
+        Assert.DoesNotContain("Process path:", ex.Message);
+    }
+
+    [TestMethod]
+    public void SetupChannelShouldIncludeProcessPathWhenTestHostTimesOutWithNoStdError()
+    {
+        var processPath = @"C:\testhost.exe";
+
+        _mockTestHostManager.Setup(
+                m => m.GetTestHostProcessStartInfo(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<IDictionary<string, string?>>(),
+                    It.IsAny<TestRunnerConnectionInfo>()))
+            .Returns(new TestProcessStartInfo { FileName = processPath });
+
+        _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()))
+            .Callback(() => _mockTestHostManager.Raise(t => t.HostLaunched += null, new HostProviderEventArgs(string.Empty)))
+            .Returns(Task.FromResult(true));
+
+        _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
+
+        var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
+
+        var ex = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel(["test.dll"], DefaultRunSettings));
+        Assert.Contains($" Process path: {processPath}", ex.Message);
+    }
+
+    [TestMethod]
+    public void SetupChannelShouldPassCrashContextToRequestSenderOnTestHostExit()
+    {
+        var processPath = @"C:\testhost.exe";
+        var stdError = "Fatal error";
+
+        _mockTestHostManager.Setup(
+                m => m.GetTestHostProcessStartInfo(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<IDictionary<string, string?>>(),
+                    It.IsAny<TestRunnerConnectionInfo>()))
+            .Returns(new TestProcessStartInfo { FileName = processPath });
+
+        _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                _mockTestHostManager.Raise(t => t.HostLaunched += null, new HostProviderEventArgs(string.Empty));
+                _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs(stdError));
+            })
+            .Returns(Task.FromResult(true));
+
+        _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
+
+        var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
+
+        Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel(["test.dll"], DefaultRunSettings));
+
+        // Verify OnClientProcessExit was called with the crash context containing both path and error.
+        _mockRequestSender.Verify(
+            rs => rs.OnClientProcessExit(It.Is<string>(s => s.Contains(processPath) && s.Contains(stdError))),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void SetupChannelShouldIncludeProcessPathInErrorWhenTestHostExitsWithOnlyPath()
+    {
+        var processPath = @"C:\testhost.exe";
+
+        _mockTestHostManager.Setup(
+                m => m.GetTestHostProcessStartInfo(
+                    It.IsAny<IEnumerable<string>>(),
+                    It.IsAny<IDictionary<string, string?>>(),
+                    It.IsAny<TestRunnerConnectionInfo>()))
+            .Returns(new TestProcessStartInfo { FileName = processPath });
+
+        _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                _mockTestHostManager.Raise(t => t.HostLaunched += null, new HostProviderEventArgs(string.Empty));
+                // Host exits with empty stderr (no error output).
+                _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs(string.Empty));
+            })
+            .Returns(Task.FromResult(true));
+
+        _mockRequestSender.Setup(rs => rs.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
+
+        var operationManager = new TestableProxyOperationManager(_mockRequestData.Object, _mockRequestSender.Object, _mockTestHostManager.Object);
+
+        var ex = Assert.ThrowsExactly<TestPlatformException>(() => operationManager.SetupChannel(["test.dll"], DefaultRunSettings));
+        // ThrowOnTestHostExited fires first; with no stderr the crash context is just the path.
+        Assert.Contains(processPath, ex.Message);
+    }
+
     private void SetupWaitForTestHostExit()
     {
         // Raise host exited when end session is called
@@ -474,7 +622,7 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         testOperationManager.SetupChannel([], DefaultRunSettings);
 
         // Verify.
-        Assert.IsTrue(receivedTestProcessInfo.Arguments!.Contains("--telemetryoptedin true"));
+        Assert.Contains("--telemetryoptedin true", receivedTestProcessInfo.Arguments!);
     }
 
     [TestMethod]
@@ -497,20 +645,18 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
         testOperationManager.SetupChannel([], DefaultRunSettings);
 
         // Verify.
-        Assert.IsTrue(receivedTestProcessInfo.Arguments!.Contains("--telemetryoptedin false"));
+        Assert.Contains("--telemetryoptedin false", receivedTestProcessInfo.Arguments!);
     }
 
-    [MemberNotNull(nameof(_mockProcessHelper), nameof(_mockFileHelper), nameof(_mockEnvironment), nameof(_mockRunsettingHelper), nameof(_mockWindowsRegistry), nameof(_mockEnvironmentVariableHelper))]
+    [MemberNotNull(nameof(_mockProcessHelper), nameof(_mockFileHelper), nameof(_mockEnvironment), nameof(_mockWindowsRegistry), nameof(_mockEnvironmentVariableHelper))]
     private void SetUpMocksForDotNetTestHost()
     {
         _mockProcessHelper = new Mock<IProcessHelper>();
         _mockFileHelper = new Mock<IFileHelper>();
         _mockEnvironment = new Mock<IEnvironment>();
-        _mockRunsettingHelper = new Mock<IRunSettingsHelper>();
         _mockWindowsRegistry = new Mock<IWindowsRegistryHelper>();
         _mockEnvironmentVariableHelper = new Mock<IEnvironmentVariableHelper>();
 
-        _mockRunsettingHelper.SetupGet(r => r.IsDefaultTargetArchitecture).Returns(true);
         _mockProcessHelper.Setup(
                 ph =>
                     ph.LaunchProcess(
@@ -520,9 +666,10 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
                         It.IsAny<IDictionary<string, string?>>(),
                         It.IsAny<Action<object?, string?>>(),
                         It.IsAny<Action<object?>>(),
-                        It.IsAny<Action<object?, string?>>()))
-            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>>(
-                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback) =>
+                        It.IsAny<Action<object?, string?>>(),
+                        It.IsAny<bool>()))
+            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>, bool>(
+                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback, createNoNewWindow) =>
                 {
                     var process = Process.GetCurrentProcess();
 
@@ -565,14 +712,12 @@ public class ProxyOperationManagerTests : ProxyBaseManagerTests
             IProcessHelper processHelper,
             IFileHelper fileHelper,
             IEnvironment environment,
-            IRunSettingsHelper runsettingHelper,
             IWindowsRegistryHelper windowsRegistryHelper,
             IEnvironmentVariableHelper environmentVariableHelper) : base(
             processHelper,
             fileHelper,
             new DotnetHostHelper(fileHelper, environment, windowsRegistryHelper, environmentVariableHelper, processHelper),
             environment,
-            runsettingHelper,
             windowsRegistryHelper,
             environmentVariableHelper)
         {

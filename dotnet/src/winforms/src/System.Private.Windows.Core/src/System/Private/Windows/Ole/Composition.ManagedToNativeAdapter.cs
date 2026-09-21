@@ -13,10 +13,15 @@ namespace System.Private.Windows.Ole;
 
 internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFormat>
 {
+#if NET
+    // Workaround SA1001 white space warnings.
+    private sealed partial class ManagedToNativeAdapter : IManagedWrapper<IDataObject> { }
+#endif
+
     /// <summary>
     ///  Maps <see cref="IDataObject"/> to <see cref="IDataObject.Interface"/>.
     /// </summary>
-    private sealed unsafe class ManagedToNativeAdapter : IDataObject.Interface, IManagedWrapper<IDataObject>
+    private sealed unsafe partial class ManagedToNativeAdapter : IDataObject.Interface
     {
         private const int DATA_S_SAMEFORMATETC = 0x00040130;
 
@@ -147,7 +152,11 @@ internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFo
                 }
             }
 
+#if NET
             return TOleServices.GetDataHere(format, data, pformatetc, pmedium);
+#else
+            return s_oleServices.GetDataHere(format, data, pformatetc, pmedium);
+#endif
         }
 
         public HRESULT QueryGetData(FORMATETC* pformatetc)
@@ -310,7 +319,7 @@ internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFo
                     return HRESULT.S_OK;
                 }
 
-                if (hglobal == 0)
+                if (hglobal == (nint)0)
                 {
                     return HRESULT.E_INVALIDARG;
                 }
@@ -366,7 +375,7 @@ internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFo
 
             static HRESULT SaveDbcsToHGLOBAL(HGLOBAL hglobal, string value)
             {
-                int byteCount = PInvokeCore.WideCharToMultiByte(PInvokeCore.CP_ACP, 0, value, value.Length, null, 0, null, null);
+                int byteCount = PInvokeCore.WideCharToMultiByte(PInvokeCore.CP_ACP, 0, value, value.Length, null, 0, null);
 
                 using GlobalBuffer buffer = new(hglobal, (uint)byteCount + 1);
                 if (buffer.Status.Failed)
@@ -374,7 +383,7 @@ internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFo
                     return buffer.Status;
                 }
 
-                PInvokeCore.WideCharToMultiByte(PInvokeCore.CP_ACP, 0, value, value.Length, (PSTR)buffer.Pointer, byteCount, null, null);
+                PInvokeCore.WideCharToMultiByte(PInvokeCore.CP_ACP, 0, value, value.Length, (PSTR)buffer.Pointer, byteCount, null);
 
                 // Null terminate.
                 buffer.AsSpan()[byteCount] = 0;
@@ -412,6 +421,7 @@ internal unsafe partial class Composition<TOleServices, TNrbfSerializer, TDataFo
                 }
 
                 Span<byte> span = buffer.AsSpan();
+
                 byteCount = Encoding.UTF8.GetBytes(value, span);
 
                 // Null terminate

@@ -528,7 +528,7 @@ public class DiscovererEnumeratorTests
         InvokeLoadTestWithMockSetup();
 
         Assert.IsTrue(ManagedDllTestDiscoverer.IsManagedDiscoverTestCalled);
-        Assert.AreEqual(2, _discoveryResultCache.Tests.Count);
+        Assert.HasCount(2, _discoveryResultCache.Tests);
     }
 
     [TestMethod]
@@ -536,7 +536,7 @@ public class DiscovererEnumeratorTests
     {
         InvokeLoadTestWithMockSetup();
 
-        Assert.AreEqual(2, _discoveryResultCache.Tests.Count);
+        Assert.HasCount(2, _discoveryResultCache.Tests);
 
         _messageLoggerMock.Verify(m => m.SendMessage(TestMessageLevel.Warning, It.IsAny<string>()), Times.Never);
     }
@@ -835,7 +835,7 @@ public class DiscovererEnumeratorTests
             var shouldTestDiscovered = false;
             foreach (var source in sources)
             {
-                if (source.Equals("native.dll") || source.Equals("managed.dll") || source.EndsWith("CrossPlatEngine.UnitTests.dll") || source.EndsWith("CrossPlatEngine.UnitTests.exe"))
+                if (source.Equals("native.dll") || source.Equals("managed.dll") || source.EndsWith("CrossPlatEngine.UnitTests.dll", StringComparison.Ordinal) || source.EndsWith("CrossPlatEngine.UnitTests.exe", StringComparison.Ordinal))
                 {
                     shouldTestDiscovered = true;
                     break;

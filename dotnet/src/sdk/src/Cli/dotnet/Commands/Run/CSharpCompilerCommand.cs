@@ -4,7 +4,6 @@
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CommandLine;
@@ -44,19 +43,26 @@ internal sealed partial class CSharpCompilerCommand
         "link:",
     ];
 
-    private static string SdkPath => field ??= PathUtility.EnsureNoTrailingDirectorySeparator(AppContext.BaseDirectory);
-    private static string DotNetRootPath => field ??= Path.GetDirectoryName(Path.GetDirectoryName(SdkPath)!)!;
+    internal static string SdkPath { set; get => field ??= PathUtility.EnsureNoTrailingDirectorySeparator(AppContext.BaseDirectory); }
+    internal static string DotNetRootPath => field ??= Path.GetDirectoryName(Path.GetDirectoryName(SdkPath)!)!;
     private static string ClientDirectory => field ??= Path.Combine(SdkPath, "Roslyn", "bincore");
-    private static string NuGetCachePath => field ??= SettingsUtility.GetGlobalPackagesFolder(Settings.LoadDefaultSettings(null));
+    internal static string NuGetCachePath { set; get => field ??= SettingsUtility.GetGlobalPackagesFolder(Settings.LoadDefaultSettings(null)); }
     internal static string RuntimeVersion => field ??= ComputeRuntimeVersion();
-    private static string DefaultRuntimeVersion => field ??= ComputeDefaultRuntimeVersion();
+    private static string BundledVersionsPath => field ??= Path.Combine(SdkPath, "Microsoft.NETCoreSdk.BundledVersions.props");
+    internal static string TargetingPackVersion => field ??= ComputeTargetingPackVersion();
+    internal static string BundledRuntimePackageVersion => field ??= ComputeBundledRuntimePackageVersion();
+    internal static string DefaultRuntimeVersion => field ??= ComputeDefaultRuntimeVersion();
     internal static string TargetFrameworkVersion => Product.TargetFrameworkVersion;
+    internal static string TargetFramework => field ??= $"net{TargetFrameworkVersion}";
 
     public required string EntryPointFileFullPath { get; init; }
     public required string ArtifactsPath { get; init; }
     public required bool CanReuseAuxiliaryFiles { get; init; }
 
     public string BaseDirectory => field ??= Path.GetDirectoryName(EntryPointFileFullPath)!;
+    internal string BaseDirectoryWithTrailingSeparator => field ??= BaseDirectory + Path.DirectorySeparatorChar;
+    internal string FileName => field ??= Path.GetFileName(EntryPointFileFullPath);
+    internal string FileNameWithoutExtension => field ??= Path.GetFileNameWithoutExtension(EntryPointFileFullPath);
 
     /// <summary>
     /// Compiler command line arguments to use. If empty, default arguments are used.
@@ -76,7 +82,13 @@ internal sealed partial class CSharpCompilerCommand
     public int Execute(out bool fallbackToNormalBuild)
     {
         // Write .rsp file and other intermediate build outputs.
-        PrepareAuxiliaryFiles(out string rspPath);
+        if (!TryPrepareAuxiliaryFiles(out string rspPath, out string? missingPackPath))
+        {
+            Reporter.Verbose.WriteLine(
+                $"Required framework pack file '{missingPackPath}' is not installed, falling back to full MSBuild.");
+            fallbackToNormalBuild = true;
+            return 1;
+        }
 
         // Ensure the compiler is launched with the correct dotnet.
         Environment.SetEnvironmentVariable("DOTNET_HOST_PATH", new Muxer().MuxerPath);
@@ -106,6 +118,7 @@ internal sealed partial class CSharpCompilerCommand
             buildRequest,
             pipeName: pipeName,
             clientDirectory: ClientDirectory,
+            buildEnvironment: StandardBuildEnvironment.Instance,
             logger,
             cancellationToken: default);
 
@@ -203,18 +216,26 @@ internal sealed partial class CSharpCompilerCommand
         }
     }
 
-    private void PrepareAuxiliaryFiles(out string rspPath)
+    internal static string WriteCscRspFile(string artifactsPath, ImmutableArray<string> cscArguments)
     {
-        rspPath = Path.Join(ArtifactsPath, "csc.rsp");
+        string rspPath = GetCscRspPath(artifactsPath);
+        File.WriteAllLines(rspPath, cscArguments);
+        return rspPath;
+    }
+
+    private static string GetCscRspPath(string artifactsPath) => Path.Join(artifactsPath, "csc.rsp");
+
+    private bool TryPrepareAuxiliaryFiles(out string rspPath, out string? missingPackPath)
+    {
+        missingPackPath = null;
 
         if (!CscArguments.IsDefaultOrEmpty)
         {
-            File.WriteAllLines(rspPath, CscArguments);
-            return;
+            rspPath = WriteCscRspFile(ArtifactsPath, CscArguments);
+            return true;
         }
 
-        string fileDirectory = Path.GetDirectoryName(EntryPointFileFullPath) ?? string.Empty;
-        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(EntryPointFileFullPath);
+        rspPath = GetCscRspPath(ArtifactsPath);
 
         // Note that Release builds won't go through this optimized code path because `-c Release` translates to global property `Configuration=Release`
         // and customizing global properties triggers a full MSBuild run.
@@ -226,159 +247,69 @@ internal sealed partial class CSharpCompilerCommand
         string assemblyAttributes = Path.Join(objDir, $".NETCoreApp,Version=v{TargetFrameworkVersion}.AssemblyAttributes.cs");
         if (ShouldEmit(assemblyAttributes))
         {
-            File.WriteAllText(assemblyAttributes, /* lang=C#-test */ $"""
-                // <autogenerated />
-                using System;
-                using System.Reflection;
-                [assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v{TargetFrameworkVersion}", FrameworkDisplayName = ".NET {TargetFrameworkVersion}")]
-
-                """);
+            File.WriteAllText(assemblyAttributes, GetAssemblyAttributesContent());
         }
 
-        string globalUsings = Path.Join(objDir, $"{fileNameWithoutExtension}.GlobalUsings.g.cs");
+        string globalUsings = Path.Join(objDir, $"{FileName}.GlobalUsings.g.cs");
         if (ShouldEmit(globalUsings))
         {
-            File.WriteAllText(globalUsings, /* lang=C#-test */ """
-                // <auto-generated/>
-                global using System;
-                global using System.Collections.Generic;
-                global using System.IO;
-                global using System.Linq;
-                global using System.Net.Http;
-                global using System.Threading;
-                global using System.Threading.Tasks;
-
-                """);
+            File.WriteAllText(globalUsings, GetGlobalUsingsContent());
         }
 
-        string assemblyInfo = Path.Join(objDir, $"{fileNameWithoutExtension}.AssemblyInfo.cs");
+        string assemblyInfo = Path.Join(objDir, $"{FileName}.AssemblyInfo.cs");
         if (ShouldEmit(assemblyInfo))
         {
-            File.WriteAllText(assemblyInfo, /* lang=C#-test */ $"""
-                //------------------------------------------------------------------------------
-                // <auto-generated>
-                //     This code was generated by a tool.
-                //
-                //     Changes to this file may cause incorrect behavior and will be lost if
-                //     the code is regenerated.
-                // </auto-generated>
-                //------------------------------------------------------------------------------
-
-                using System;
-                using System.Reflection;
-
-                [assembly: System.Reflection.AssemblyCompanyAttribute("{fileNameWithoutExtension}")]
-                [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-                [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-                [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
-                [assembly: System.Reflection.AssemblyProductAttribute("{fileNameWithoutExtension}")]
-                [assembly: System.Reflection.AssemblyTitleAttribute("{fileNameWithoutExtension}")]
-                [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
-
-                // Generated by the MSBuild WriteCodeFragment class.
-
-
-                """);
+            File.WriteAllText(assemblyInfo, GetAssemblyInfoContent());
         }
 
-        // NOTE: MSBuild writes empty values as "property = " (with a trailing space).
-        // Use an interpolation expression to preserve the trailing space from editor trimming.
-        string editorconfig = Path.Join(objDir, $"{fileNameWithoutExtension}.GeneratedMSBuildEditorConfig.editorconfig");
+        string editorconfig = Path.Join(objDir, $"{FileName}.GeneratedMSBuildEditorConfig.editorconfig");
         if (ShouldEmit(editorconfig))
         {
-            File.WriteAllText(editorconfig, $"""
-                is_global = true
-                build_property.EnableAotAnalyzer = true
-                build_property.EnableSingleFileAnalyzer = true
-                build_property.EnableTrimAnalyzer = true
-                build_property.EnableUnsafeAnalyzer ={" "}
-                build_property.IncludeAllContentForSelfExtract ={" "}
-                build_property.VerifyReferenceTrimCompatibility ={" "}
-                build_property.VerifyReferenceAotCompatibility ={" "}
-                build_property.TargetFramework = net{TargetFrameworkVersion}
-                build_property.TargetFrameworkIdentifier = .NETCoreApp
-                build_property.TargetFrameworkVersion = v{TargetFrameworkVersion}
-                build_property.TargetPlatformMinVersion ={" "}
-                build_property.UsingMicrosoftNETSdkWeb ={" "}
-                build_property.ProjectTypeGuids ={" "}
-                build_property.InvariantGlobalization ={" "}
-                build_property.PlatformNeutralAssembly ={" "}
-                build_property.EnforceExtendedAnalyzerRules ={" "}
-                build_property._SupportedPlatformList = Linux,macOS,Windows
-                build_property.RootNamespace = {fileNameWithoutExtension}
-                build_property.ProjectDir = {fileDirectory}{Path.DirectorySeparatorChar}
-                build_property.EnableComHosting ={" "}
-                build_property.EnableGeneratedComInterfaceComImportInterop = false
-                build_property.EffectiveAnalysisLevelStyle = {TargetFrameworkVersion}
-                build_property.EnableCodeStyleSeverity ={" "}
-
-                """);
+            File.WriteAllText(editorconfig, GetGeneratedMSBuildEditorConfigContent());
         }
 
-        var apphostTarget = Path.Join(binDir, $"{fileNameWithoutExtension}{FileNameSuffixes.CurrentPlatform.Exe}");
+        var launchArtifacts = FileBasedAppRunPlan.GetCscBuiltProgramLaunchArtifacts(EntryPointFileFullPath, ArtifactsPath);
+        string apphostTarget = launchArtifacts.AppHost;
         if (ShouldEmit(apphostTarget))
         {
             var rid = RuntimeInformation.RuntimeIdentifier;
-            var apphostSource = Path.Join(SdkPath, "..", "..", "packs", $"Microsoft.NETCore.App.Host.{rid}", RuntimeVersion, "runtimes", rid, "native", $"apphost{FileNameSuffixes.CurrentPlatform.Exe}");
+            var apphostSource = Path.Join(SdkPath, "..", "..", "packs", $"Microsoft.NETCore.App.Host.{rid}", BundledRuntimePackageVersion, "runtimes", rid, "native", $"apphost{FileNameSuffixes.CurrentPlatform.Exe}");
+            if (!File.Exists(apphostSource))
+            {
+                missingPackPath = apphostSource;
+                return false;
+            }
+
             HostWriter.CreateAppHost(
                 appHostSourceFilePath: apphostSource,
                 appHostDestinationFilePath: apphostTarget,
-                appBinaryFilePath: $"{fileNameWithoutExtension}.dll",
+                appBinaryFilePath: $"{FileNameWithoutExtension}.dll",
                 enableMacOSCodeSign: OperatingSystem.IsMacOS());
         }
 
-        var runtimeConfig = Path.Join(binDir, $"{fileNameWithoutExtension}{FileNameSuffixes.RuntimeConfigJson}");
+        string runtimeConfig = launchArtifacts.RuntimeConfig;
         if (ShouldEmit(runtimeConfig))
         {
-            File.WriteAllText(runtimeConfig, $$"""
-                {
-                  "runtimeOptions": {
-                    "tfm": "net{{TargetFrameworkVersion}}",
-                    "framework": {
-                      "name": "Microsoft.NETCore.App",
-                      "version": {{JsonSerializer.Serialize(DefaultRuntimeVersion, CSharpCompilerCommandJsonSerializerContext.Default.String)}}
-                    },
-                    "configProperties": {
-                      "EntryPointFilePath": {{JsonSerializer.Serialize(EntryPointFileFullPath, CSharpCompilerCommandJsonSerializerContext.Default.String)}},
-                      "EntryPointFileDirectoryPath": {{JsonSerializer.Serialize(fileDirectory, CSharpCompilerCommandJsonSerializerContext.Default.String)}},
-                      "Microsoft.Extensions.DependencyInjection.VerifyOpenGenericServiceTrimmability": true,
-                      "System.ComponentModel.DefaultValueAttribute.IsSupported": false,
-                      "System.ComponentModel.Design.IDesignerHost.IsSupported": false,
-                      "System.ComponentModel.TypeConverter.EnableUnsafeBinaryFormatterInDesigntimeLicenseContextSerialization": false,
-                      "System.ComponentModel.TypeDescriptor.IsComObjectDescriptorSupported": false,
-                      "System.Data.DataSet.XmlSerializationIsSupported": false,
-                      "System.Diagnostics.Tracing.EventSource.IsSupported": false,
-                      "System.Linq.Enumerable.IsSizeOptimized": true,
-                      "System.Net.SocketsHttpHandler.Http3Support": false,
-                      "System.Reflection.Metadata.MetadataUpdater.IsSupported": false,
-                      "System.Resources.ResourceManager.AllowCustomResourceTypes": false,
-                      "System.Resources.UseSystemResourceKeys": false,
-                      "System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported": false,
-                      "System.Runtime.InteropServices.BuiltInComInterop.IsSupported": false,
-                      "System.Runtime.InteropServices.EnableConsumingManagedCodeFromNativeHosting": false,
-                      "System.Runtime.InteropServices.EnableCppCLIHostActivation": false,
-                      "System.Runtime.InteropServices.Marshalling.EnableGeneratedComInterfaceComImportInterop": false,
-                      "System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization": false,
-                      "System.StartupHookProvider.IsSupported": false,
-                      "System.Text.Encoding.EnableUnsafeUTF7Encoding": false,
-                      "System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault": false,
-                      "System.Threading.Thread.EnableAutoreleasePool": false,
-                      "System.Linq.Expressions.CanEmitObjectArrayDelegate": false
-                    }
-                  }
-                }
-                """);
+            File.WriteAllText(runtimeConfig, GetRuntimeConfigContent());
         }
 
         if (ShouldEmit(rspPath))
         {
+            string frameworkListPath = GetFrameworkListPath();
+            if (!File.Exists(frameworkListPath))
+            {
+                missingPackPath = frameworkListPath;
+                return false;
+            }
+
             IEnumerable<string> args = GetCscArguments(
-                fileNameWithoutExtension: fileNameWithoutExtension,
                 objDir: objDir,
                 binDir: binDir);
 
             File.WriteAllLines(rspPath, args.Select(EscapeSingleArg));
         }
+
+        return true;
 
         bool ShouldEmit(string file)
         {
@@ -441,18 +372,81 @@ internal sealed partial class CSharpCompilerCommand
 
     private static string ComputeRuntimeVersion()
     {
-        var executingRuntimeVersion = RuntimeInformation.FrameworkDescription.Split(' ').Last();
-        var executingRuntimeMajorVersion = executingRuntimeVersion.Split('.').First();
-        var tfmMajorVersion = TargetFrameworkVersion.Split('.').First();
+        var result = GetBundledRuntimeVersion() ?? GetExecutingRuntimeVersion();
+        Debug.Assert(!string.IsNullOrWhiteSpace(result));
+        return result;
 
-        // If the target framework is still net10.0 while the runtime is already 11.0.x, we need to force-use 10.0.x runtime.
-        if (tfmMajorVersion != executingRuntimeMajorVersion)
+        static string? GetBundledRuntimeVersion()
         {
-            return tfmMajorVersion + ".0.0";
+            return File.Exists(BundledVersionsPath)
+                ? ReadKnownFrameworkReferenceAttribute(BundledVersionsPath, TargetFramework, "LatestRuntimeFrameworkVersion")
+                : null;
         }
 
-        // Otherwise, we can use the current runtime.
-        return executingRuntimeVersion;
+        static string? GetExecutingRuntimeVersion()
+        {
+            return Path.GetFileName(Path.GetDirectoryName(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory()));
+        }
+    }
+
+    private static string ComputeTargetingPackVersion()
+    {
+        return File.Exists(BundledVersionsPath)
+            ? ReadKnownFrameworkReferenceAttribute(BundledVersionsPath, TargetFramework, "TargetingPackVersion") ?? RuntimeVersion
+            : RuntimeVersion;
+    }
+
+    private static string ComputeBundledRuntimePackageVersion()
+    {
+        if (!File.Exists(BundledVersionsPath))
+        {
+            return RuntimeVersion;
+        }
+
+        const string propertyName = "BundledNETCoreAppPackageVersion";
+        string? version = XDocument.Load(BundledVersionsPath)
+            .Root?
+            .Elements("PropertyGroup")
+            .Elements(propertyName)
+            .SingleOrDefault()?
+            .Value
+            .Trim();
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            Reporter.Verbose.WriteLine(
+                $"The '{propertyName}' property was not found in '{BundledVersionsPath}'. The SDK installation may be corrupted.");
+            return RuntimeVersion;
+        }
+
+        return version;
+    }
+
+    private static string? ReadKnownFrameworkReferenceAttribute(
+        string bundledVersionsPath,
+        string targetFramework,
+        string attributeName)
+    {
+        string? runtimeVersion = XDocument.Load(bundledVersionsPath)
+            .Root?
+            .Elements("ItemGroup")
+            .Elements("KnownFrameworkReference")
+            .FirstOrDefault(element =>
+                string.Equals(element.Attribute("Include")?.Value, "Microsoft.NETCore.App", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(element.Attribute("TargetFramework")?.Value, targetFramework, StringComparison.OrdinalIgnoreCase))?
+            .Attribute(attributeName)?
+            .Value
+            .Trim();
+
+        if (string.IsNullOrWhiteSpace(runtimeVersion))
+        {
+            Reporter.Verbose.WriteLine(
+                $"A KnownFrameworkReference for 'Microsoft.NETCore.App' and target framework '{targetFramework}' with a " +
+                $"'{attributeName}' attribute was not found in '{bundledVersionsPath}'. The SDK installation may be corrupted.");
+            return null;    
+        }
+
+        return runtimeVersion;
     }
 
     /// <summary>
@@ -468,5 +462,66 @@ internal sealed partial class CSharpCompilerCommand
         }
 
         return RuntimeVersion;
+    }
+
+    /// <summary>
+    /// Reads the <c>FrameworkList.xml</c> from the current targeting pack and yields one
+    /// <c>/reference:</c> argument per managed assembly listed there.
+    /// </summary>
+    private IEnumerable<string> GetFrameworkReferenceArguments()
+        => GetFrameworkArguments(type: "Managed", language: null, argPrefix: "/reference:");
+
+    /// <summary>
+    /// Reads the <c>FrameworkList.xml</c> from the current targeting pack and yields one
+    /// <c>/analyzer:</c> argument per C# analyzer assembly listed there.
+    /// </summary>
+    private IEnumerable<string> GetFrameworkAnalyzerArguments()
+        => GetFrameworkArguments(type: "Analyzer", language: "cs", argPrefix: "/analyzer:");
+
+    /// <summary>
+    /// Reads the <c>FrameworkList.xml</c> from the current targeting pack and yields one
+    /// compiler argument per matching assembly listed there.
+    /// </summary>
+    private IEnumerable<string> GetFrameworkArguments(string type, string? language, string argPrefix)
+    {
+        var packRoot = GetTargetingPackRoot();
+        var frameworkListPath = GetFrameworkListPath();
+        if (!File.Exists(frameworkListPath))
+        {
+            throw new InvalidOperationException($"FrameworkList.xml not found at '{frameworkListPath}'. The SDK installation may be corrupted.");
+        }
+
+        var frameworkList = XDocument.Load(frameworkListPath);
+        foreach (var file in frameworkList.Root?.Elements("File") ?? [])
+        {
+            if (file.Attribute("Type")?.Value.Equals(type, StringComparison.OrdinalIgnoreCase) != true)
+            {
+                continue;
+            }
+
+            if (language is not null && file.Attribute("Language")?.Value.Equals(language, StringComparison.OrdinalIgnoreCase) != true)
+            {
+                continue;
+            }
+
+            var filePath = file.Attribute("Path")?.Value;
+            if (string.IsNullOrEmpty(filePath))
+            {
+                continue;
+            }
+
+            yield return $"{argPrefix}{Path.Join(packRoot, filePath)}";
+        }
+    }
+
+    private static string GetFrameworkListPath()
+        => Path.Join(GetTargetingPackRoot(), "data", "FrameworkList.xml");
+
+    private static string GetTargetingPackRoot()
+    {
+        string installedPackRoot = Path.Join(DotNetRootPath, "packs", "Microsoft.NETCore.App.Ref", TargetingPackVersion);
+        return Directory.Exists(installedPackRoot)
+            ? installedPackRoot
+            : Path.Join(NuGetCachePath, "microsoft.netcore.app.ref", TargetingPackVersion);
     }
 }

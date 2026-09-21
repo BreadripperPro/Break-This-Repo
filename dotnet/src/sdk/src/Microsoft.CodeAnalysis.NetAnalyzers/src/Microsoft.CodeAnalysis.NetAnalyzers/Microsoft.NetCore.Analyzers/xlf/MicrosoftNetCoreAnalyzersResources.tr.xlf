@@ -202,6 +202,26 @@
         <target state="translated">Sıfır uzunluklu dizi ayırmaları kullanmaktan kaçının</target>
         <note />
       </trans-unit>
+      <trans-unit id="AvoidRedundantRegexIsMatchBeforeMatchDescription">
+        <source>When 'Regex.IsMatch' is used to check for a match and then 'Regex.Match' is called with the same arguments, the regular expression is evaluated twice. Call 'Regex.Match' once and check 'Match.Success' to avoid redundant work.</source>
+        <target state="new">When 'Regex.IsMatch' is used to check for a match and then 'Regex.Match' is called with the same arguments, the regular expression is evaluated twice. Call 'Regex.Match' once and check 'Match.Success' to avoid redundant work.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="AvoidRedundantRegexIsMatchBeforeMatchFix">
+        <source>Use 'Regex.Match' and check 'Success'</source>
+        <target state="new">Use 'Regex.Match' and check 'Success'</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="AvoidRedundantRegexIsMatchBeforeMatchMessage">
+        <source>Redundant call to 'Regex.IsMatch' before 'Regex.Match'. Use 'Regex.Match' and check 'Match.Success' instead.</source>
+        <target state="new">Redundant call to 'Regex.IsMatch' before 'Regex.Match'. Use 'Regex.Match' and check 'Match.Success' instead.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="AvoidRedundantRegexIsMatchBeforeMatchTitle">
+        <source>Avoid redundant 'Regex.IsMatch' call before 'Regex.Match'</source>
+        <target state="new">Avoid redundant 'Regex.IsMatch' call before 'Regex.Match'</target>
+        <note />
+      </trans-unit>
       <trans-unit id="BinaryFormatterDeserializeMaybeWithoutBinderSetMessage">
         <source>The method '{0}' is insecure when deserializing untrusted data without a SerializationBinder to restrict the type of objects in the deserialized object graph.</source>
         <target state="translated">Güvenilmeyen veriler, seri durumdan çıkarılmış nesne grafındaki nesnelerin türünü kısıtlamak için SerializationBinder kullanılmadan seri durumdan çıkarılırken '{0}' yöntemi güvenli değildir.</target>
@@ -603,12 +623,12 @@
         <note />
       </trans-unit>
       <trans-unit id="DisposeObjectsBeforeLosingScopeMayBeDisposedMessage">
-        <source>Use recommended dispose pattern to ensure that object created by '{0}' is disposed on all paths. If possible, wrap the creation within a 'using' statement or a 'using' declaration. Otherwise, use a try-finally pattern, with a dedicated local variable declared before the try region and an unconditional Dispose invocation on non-null value in the 'finally' region, say 'x?.Dispose()'. If the object is explicitly disposed within the try region or the dispose ownership is transfered to another object or method, assign 'null' to the local variable just after such an operation to prevent double dispose in 'finally'.</source>
+        <source>Use recommended dispose pattern to ensure that object created by '{0}' is disposed on all paths. If possible, wrap the creation within a 'using' statement or a 'using' declaration. Otherwise, use a try-finally pattern, with a dedicated local variable declared before the try region and an unconditional Dispose invocation on non-null value in the 'finally' region, say 'x?.Dispose()'. If the object is explicitly disposed within the try region or the dispose ownership is transferred to another object or method, assign 'null' to the local variable just after such an operation to prevent double dispose in 'finally'.</source>
         <target state="translated">'{0}' tarafından oluşturulan nesnenin tüm yollarda atıldığından emin olmak için önerilen atma desenini kullanın. Mümkünse, oluşturulan nesneyi 'using' deyimi veya 'using' bildirimiyle sarmalayın. Aksi halde, try bölgesinden önce bildirilen ayrılmış bir yerel değişkeni ve 'finally' bölgesinde null olmayan değer üzerinde koşulsuz bir Dispose çağrısı (örneğin, 'x?.Dispose()') olan bir try-finally deseni kullanın. Nesne try bölgesi içinde açıkça atıldıysa veya atma sahipliği başka bir nesne ya da metoda aktarıldıysa, 'finally' bölgesinde çift atma gerçekleşmesini önlemek için bu tür bir işlemden hemen sonra yerel değişkene 'null' atayın.</target>
         <note />
       </trans-unit>
       <trans-unit id="DisposeObjectsBeforeLosingScopeMayBeDisposedOnExceptionPathsMessage">
-        <source>Use recommended dispose pattern to ensure that object created by '{0}' is disposed on all exception paths. If possible, wrap the creation within a 'using' statement or a 'using' declaration. Otherwise, use a try-finally pattern, with a dedicated local variable declared before the try region and an unconditional Dispose invocation on non-null value in the 'finally' region, say 'x?.Dispose()'. If the object is explicitly disposed within the try region or the dispose ownership is transfered to another object or method, assign 'null' to the local variable just after such an operation to prevent double dispose in 'finally'.</source>
+        <source>Use recommended dispose pattern to ensure that object created by '{0}' is disposed on all exception paths. If possible, wrap the creation within a 'using' statement or a 'using' declaration. Otherwise, use a try-finally pattern, with a dedicated local variable declared before the try region and an unconditional Dispose invocation on non-null value in the 'finally' region, say 'x?.Dispose()'. If the object is explicitly disposed within the try region or the dispose ownership is transferred to another object or method, assign 'null' to the local variable just after such an operation to prevent double dispose in 'finally'.</source>
         <target state="translated">'{0}' tarafından oluşturulan nesnenin tüm özel durum yollarında atıldığından emin olmak için önerilen atma desenini kullanın. Mümkünse oluşturulan nesneyi 'using' deyimi veya 'using' bildirimiyle sarmalayın. Aksi halde, try bölgesinden önce bildirilen ayrılmış bir yerel değişkeni ve 'finally' bölgesinde null olmayan değer üzerinde koşulsuz bir Dispose çağrısı (örneğin, 'x?.Dispose()') olan bir try-finally deseni kullanın. Nesne try bölgesi içinde açıkça atıldıysa veya atma sahipliği başka bir nesne ya da metoda aktarıldıysa, 'finally' bölgesinde çift atma gerçekleşmesini önlemek için bu tür bir işlemden hemen sonra yerel değişkene 'null' atayın.</target>
         <note />
       </trans-unit>
@@ -1928,6 +1948,26 @@ Genel türlerde genişletme ve kullanıcı tanımlı dönüştürmeler desteklen
         <target state="translated">{0} eylem metodunun HTTP istek tipini açık olarak belirtmesi gerekir</target>
         <note />
       </trans-unit>
+      <trans-unit id="MissingShebangInFileBasedProgramCodeFixTitle">
+        <source>Add '#!' (shebang)</source>
+        <target state="translated">+ Ekle‘#!’ ekle (shebang)</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="MissingShebangInFileBasedProgramDescription">
+        <source>When a file-based program consists of multiple files, the entry point file should start with a shebang ('#!') line to clearly distinguish it from other included files.</source>
+        <target state="translated">Dosya tabanlı bir program birden fazla dosyadan oluştuğunda, giriş noktası dosyası diğer dahil edilen dosyalardan açıkça ayırt edilebilmesi için bir shebang (‘#!’) satırıyla başlamalıdır.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="MissingShebangInFileBasedProgramMessage">
+        <source>File-based program entry point should start with '#!'</source>
+        <target state="translated">Dosya tabanlı program giriş noktası ‘#!’ ile başlamalıdır</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="MissingShebangInFileBasedProgramTitle">
+        <source>File-based program entry point should start with '#!'</source>
+        <target state="translated">Dosya tabanlı program giriş noktası ‘#!’ ile başlamalıdır</target>
+        <note />
+      </trans-unit>
       <trans-unit id="ModuleInitializerAttributeShouldNotBeUsedInLibrariesDescription">
         <source>Module initializers are intended to be used by application code to ensure an application's components are initialized before the application code begins executing. If library code declares a method with the 'ModuleInitializerAttribute', it can interfere with application initialization and also lead to limitations in that application's trimming abilities. Instead of using methods marked with 'ModuleInitializerAttribute', the library should expose methods that can be used to initialize any components within the library and allow the application to invoke the method during application initialization.</source>
         <target state="translated">Modül başlatıcılar, uygulama kodu yürütülmeye başlamadan önce uygulamanın bileşenlerinin başlatılmasını sağlamak için uygulama kodu tarafından kullanılmak içindir. Kitaplık kodu 'ModuleInitializerAttribute' öznitelikli bir yöntem bildirirse, uygulamanın başlatılmasına engel olabilir ve ayrıca bu uygulamanın kırpma becerileriyle ilgili sınırlamalara neden olabilir. Kitaplık, 'ModuleInitializerAttribute' özniteliği ile işaretli yöntemleri kullanmak yerine, içindeki bileşenlerin başlatılması için kullanılabilecek ve başlatılırken uygulamanın çağırabileceği yöntemleri kullanıma sunmalıdır.</target>
@@ -2373,6 +2413,26 @@ Genel türlerde genişletme ve kullanıcı tanımlı dönüştürmeler desteklen
         <target state="translated">Hem kolay anlaşılırlık hem de performans için 'Length' değerini 'Any()' yerine 0 ile karşılaştırmayı tercih edin</target>
         <note />
       </trans-unit>
+      <trans-unit id="PreferQuotedFileBasedProgramDirectiveCodeFixTitle">
+        <source>Add quotes around the directive value</source>
+        <target state="new">Add quotes around the directive value</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="PreferQuotedFileBasedProgramDirectiveDescription">
+        <source>Before quoting was supported, whitespace in a file-based program '#:' directive value was taken literally. That form still works but is deprecated; wrap values that contain whitespace in double quotes so they are parsed unambiguously.</source>
+        <target state="new">Before quoting was supported, whitespace in a file-based program '#:' directive value was taken literally. That form still works but is deprecated; wrap values that contain whitespace in double quotes so they are parsed unambiguously.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="PreferQuotedFileBasedProgramDirectiveMessage">
+        <source>Wrap the value of the '#:{0}' directive in quotes; the unquoted-whitespace form is deprecated</source>
+        <target state="new">Wrap the value of the '#:{0}' directive in quotes; the unquoted-whitespace form is deprecated</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="PreferQuotedFileBasedProgramDirectiveTitle">
+        <source>Quote whitespace in file-based program directive values</source>
+        <target state="new">Quote whitespace in file-based program directive values</target>
+        <note />
+      </trans-unit>
       <trans-unit id="PreferReadOnlySpanOverSpanCodeFixTitle">
         <source>Change to '{0}'</source>
         <target state="new">Change to '{0}'</target>
@@ -2392,6 +2452,26 @@ Genel türlerde genişletme ve kullanıcı tanımlı dönüştürmeler desteklen
         <source>Use 'ReadOnlySpan&lt;T&gt;' or 'ReadOnlyMemory&lt;T&gt;' instead of 'Span&lt;T&gt;' or 'Memory&lt;T&gt;'</source>
         <target state="new">Use 'ReadOnlySpan&lt;T&gt;' or 'ReadOnlyMemory&lt;T&gt;' instead of 'Span&lt;T&gt;' or 'Memory&lt;T&gt;'</target>
         <note />
+      </trans-unit>
+      <trans-unit id="PreferReadOnlySpanPropertiesOverReadOnlyArrayFieldsCodeFixTitle">
+        <source>Use ReadOnlySpan&lt;T&gt; property</source>
+        <target state="new">Use ReadOnlySpan&lt;T&gt; property</target>
+        <note>{Locked="ReadOnlySpan&lt;T&gt;"}</note>
+      </trans-unit>
+      <trans-unit id="PreferReadOnlySpanPropertiesOverReadOnlyArrayFieldsDescription">
+        <source>If an array field is readonly and the array is never modified, the compiler can emit more efficient code if the readonly field is replaced with a read-only ReadOnlySpan&lt;T&gt; property.</source>
+        <target state="new">If an array field is readonly and the array is never modified, the compiler can emit more efficient code if the readonly field is replaced with a read-only ReadOnlySpan&lt;T&gt; property.</target>
+        <note>{Locked="readonly"}{Locked="ReadOnlySpan&lt;T&gt;"}</note>
+      </trans-unit>
+      <trans-unit id="PreferReadOnlySpanPropertiesOverReadOnlyArrayFieldsMessage">
+        <source>Prefer static ReadOnlySpan&lt;{0}&gt; property over static readonly {0}[] field</source>
+        <target state="new">Prefer static ReadOnlySpan&lt;{0}&gt; property over static readonly {0}[] field</target>
+        <note>{Locked="static"}{Locked="ReadOnlySpan"}{Locked="readonly"}</note>
+      </trans-unit>
+      <trans-unit id="PreferReadOnlySpanPropertiesOverReadOnlyArrayFieldsTitle">
+        <source>Prefer ReadOnlySpan&lt;T&gt; properties over readonly array fields</source>
+        <target state="new">Prefer ReadOnlySpan&lt;T&gt; properties over readonly array fields</target>
+        <note>{Locked="ReadOnlySpan&lt;T&gt;"}{Locked="readonly"}</note>
       </trans-unit>
       <trans-unit id="PreferStreamAsyncMemoryOverloadsDescription">
         <source>'Stream' has a 'ReadAsync' overload that takes a 'Memory&lt;Byte&gt;' as the first argument, and a 'WriteAsync' overload that takes a 'ReadOnlyMemory&lt;Byte&gt;' as the first argument. Prefer calling the memory based overloads, which are more efficient.</source>

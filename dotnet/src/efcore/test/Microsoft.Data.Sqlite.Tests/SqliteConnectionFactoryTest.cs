@@ -1,11 +1,13 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Concurrent;
 using System.Data;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using SQLitePCL;
 using Xunit;
@@ -17,6 +19,95 @@ public class SqliteConnectionFactoryTest : IDisposable
 {
     private const string FileName = "pooled.db";
     private const string ConnectionString = "Data Source=" + FileName + ";Cache=Shared;Pooling=True";
+
+    [Fact]
+    public async Task Concurrent_opens_do_not_share_internal_connections()
+    {
+        const int workerCount = 16;
+        const int iterations = 1000;
+        var connections = new SqliteConnection?[workerCount];
+        var errors = new ConcurrentQueue<Exception>();
+        var duplicate = false;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        using var barrier = new Barrier(workerCount + 1);
+        using var pool = new SqliteConnection(ConnectionString);
+
+        // Dedicated workers avoid blocking thread-pool threads at the phase barriers.
+        var workers = Enumerable.Range(0, workerCount).Select(index => Task.Factory.StartNew(
+            () =>
+            {
+                for (var iteration = 0; iteration < iterations; iteration++)
+                {
+                    barrier.SignalAndWait(timeout.Token);
+                    try
+                    {
+                        connections[index] = new SqliteConnection(ConnectionString);
+                        connections[index]!.Open();
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Enqueue(exception);
+                    }
+
+                    try
+                    {
+                        barrier.SignalAndWait(timeout.Token);
+                        // Keep every owner alive and open until its handle has been inspected.
+                        barrier.SignalAndWait(timeout.Token);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            connections[index]?.Dispose();
+                        }
+                        catch (Exception exception)
+                        {
+                            errors.Enqueue(exception);
+                        }
+                    }
+
+                    barrier.SignalAndWait(timeout.Token);
+                    if (duplicate || !errors.IsEmpty)
+                    {
+                        break;
+                    }
+                }
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+
+        var completed = false;
+        try
+        {
+            for (var iteration = 0; iteration < iterations; iteration++)
+            {
+                // Only clear this pool, between waves while all previous owners are closed.
+                SqliteConnection.ClearPool(pool);
+                barrier.SignalAndWait(timeout.Token);
+                barrier.SignalAndWait(timeout.Token);
+                duplicate = connections.Select(c => c?.Handle).Distinct().Count() != workerCount;
+                barrier.SignalAndWait(timeout.Token);
+                barrier.SignalAndWait(timeout.Token);
+                if (duplicate || !errors.IsEmpty)
+                {
+                    break;
+                }
+            }
+
+            completed = true;
+        }
+        finally
+        {
+            if (!completed)
+            {
+                timeout.Cancel();
+            }
+
+            await Task.WhenAll(workers);
+        }
+
+        Assert.Empty(errors);
+        Assert.False(duplicate);
+    }
 
     [Fact]
     public void Internal_connections_are_reused_after_reopen()
@@ -32,6 +123,25 @@ public class SqliteConnectionFactoryTest : IDisposable
         connection.Open();
 
         Assert.Same(db, connection.Handle);
+    }
+
+    [Fact]
+    public void Synchronous_is_reapplied_when_pooled_connection_is_reopened()
+    {
+        using var connection = new SqliteConnection(
+            ConnectionString + ";Synchronous=Normal");
+
+        connection.Open();
+        var db = connection.Handle;
+
+        connection.ExecuteNonQuery("PRAGMA synchronous = OFF;");
+        Assert.Equal(0L, connection.ExecuteScalar<long>("PRAGMA synchronous;"));
+
+        connection.Close();
+        connection.Open();
+
+        Assert.Same(db, connection.Handle);
+        Assert.Equal(1L, connection.ExecuteScalar<long>("PRAGMA synchronous;"));
     }
 
     [Fact]
@@ -102,12 +212,10 @@ public class SqliteConnectionFactoryTest : IDisposable
             {
                 for (var j = 0; j < 10000; j++)
                 {
-                    using (var connection = new SqliteConnection(connectionStrings[captured]))
-                    {
-                        connection.Open();
-                        Task.Yield();
-                        connection.Close();
-                    }
+                    using var connection = new SqliteConnection(connectionStrings[captured]);
+                    connection.Open();
+                    Task.Yield();
+                    connection.Close();
                 }
             };
         }
@@ -253,6 +361,20 @@ public class SqliteConnectionFactoryTest : IDisposable
 
         ex = Assert.Throws<SqliteException>(() => connection2.ExecuteNonQuery("SELECT load_extension('unknown');"));
         Assert.Equal(disabledMessage, ex.Message);
+    }
+
+    [Fact]
+    public void Deactivate_does_not_touch_disposed_handle_on_return()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.CreateCollation("MY_COLLATION", string.CompareOrdinal);
+        connection.Open();
+
+        // Simulate the underlying handle being disposed before the connection is returned to the pool. Deactivate()
+        // must not call into the native handle (sqlite3_create_collation) to reset custom collations in this case.
+        connection.Handle!.Dispose();
+
+        connection.Close();
     }
 
     [Fact]

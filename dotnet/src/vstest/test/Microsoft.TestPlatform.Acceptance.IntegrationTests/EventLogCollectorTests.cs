@@ -20,7 +20,7 @@ public class EventLogCollectorTests : AcceptanceTestBase
     [Ignore]
     [TestMethod]
     [TestCategory("Windows-Review")]
-    [NetFullTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
     public void EventLogDataCollectorShoudCreateLogFileHavingEvents(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -41,7 +41,7 @@ public class EventLogCollectorTests : AcceptanceTestBase
 
     [TestMethod]
     [TestCategory("Windows-Review")]
-    [NetFullTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
     public void EventLogDataCollectorShoudCreateLogFileWithoutEventsIfEventsAreNotLogged(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -92,7 +92,7 @@ public class EventLogCollectorTests : AcceptanceTestBase
             .Select(d => d.FullName)
             .ToList();
 
-        Assert.AreEqual(4, resultFiles.Count);
+        Assert.HasCount(4, resultFiles);
         StdOutputContains("Event Log.xml");
 
         var fileContent1 = File.ReadAllText(resultFiles[0]);
@@ -136,7 +136,7 @@ public class EventLogCollectorTests : AcceptanceTestBase
         for (int i = 0; i < eventIds.Length; i++)
         {
             int currentIndex = 0;
-            currentIndex = content.IndexOf(eventIds[i], currentIndex);
+            currentIndex = content.IndexOf(eventIds[i], currentIndex, StringComparison.Ordinal);
             if (currentIndex == -1)
             {
                 return false;

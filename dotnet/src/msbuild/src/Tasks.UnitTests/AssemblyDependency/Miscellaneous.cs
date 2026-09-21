@@ -5,10 +5,10 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Resources;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Shared;
 using Microsoft.Build.Tasks;
@@ -17,7 +17,6 @@ using Microsoft.Build.Utilities;
 using Microsoft.Win32;
 using Shouldly;
 using Xunit;
-using Xunit.Abstractions;
 using FrameworkNameVersioning = System.Runtime.Versioning.FrameworkName;
 using SystemProcessorArchitecture = System.Reflection.ProcessorArchitecture;
 
@@ -500,7 +499,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
                     item.GetMetadata(ItemMetadataNames.winMDFile).ShouldBe("NOPE", StringCompareShould.IgnoreCase);
                     item.GetMetadata(ItemMetadataNames.winmdImplmentationFile).ShouldBe("IMPL", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "System.Data.dll")))
+                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "System.Data.dll"), StringComparison.Ordinal))
                 {
                     systemDataFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
@@ -508,35 +507,35 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
                     item.GetMetadata("CopyLocal").ShouldBe("false", StringCompareShould.IgnoreCase);
                     item.GetMetadata("FusionName").ShouldBe("System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "MyGacAssembly.dll")))
+                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "MyGacAssembly.dll"), StringComparison.Ordinal))
                 {
                     myGacAssemblyFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("RandomAttributeThatShouldBeForwarded").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("CopyLocal").ShouldBe("false", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(s_myPrivateAssemblyRelPath))
+                else if (item.ItemSpec.EndsWith(s_myPrivateAssemblyRelPath, StringComparison.Ordinal))
                 {
                     myPrivateAssemblyFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("RandomAttributeThatShouldBeForwarded").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("CopyLocal").ShouldBe("true", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(Path.Combine("MyProject", "MyCopyLocalAssembly.dll")))
+                else if (item.ItemSpec.EndsWith(Path.Combine("MyProject", "MyCopyLocalAssembly.dll"), StringComparison.Ordinal))
                 {
                     myCopyLocalAssemblyFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("RandomAttributeThatShouldBeForwarded").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("CopyLocal").ShouldBe("true", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(Path.Combine("MyProject", "MyDontCopyLocalAssembly.dll")))
+                else if (item.ItemSpec.EndsWith(Path.Combine("MyProject", "MyDontCopyLocalAssembly.dll"), StringComparison.Ordinal))
                 {
                     myDontCopyLocalAssemblyFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("RandomAttributeThatShouldBeForwarded").ShouldBe("", StringCompareShould.IgnoreCase);
                     item.GetMetadata("CopyLocal").ShouldBe("false", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(s_myMissingAssemblyRelPath))
+                else if (item.ItemSpec.EndsWith(s_myMissingAssemblyRelPath, StringComparison.Ordinal))
                 {
                     missingAssemblyFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
@@ -569,7 +568,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             // Process the dependencies.
             foreach (ITaskItem item in t.ResolvedDependencyFiles)
             {
-                if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "SysTem.dll")))
+                if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "SysTem.dll"), StringComparison.Ordinal))
                 {
                     systemFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
@@ -577,7 +576,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
                     item.GetMetadata("CopyLocal").ShouldBe("false", StringCompareShould.IgnoreCase);
                     item.GetMetadata("FusionName").ShouldBe("System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", StringCompareShould.IgnoreCase);
                 }
-                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "mscorlib.dll")))
+                else if (item.ItemSpec.EndsWith(Path.Combine("v2.0.MyVersion", "mscorlib.dll"), StringComparison.Ordinal))
                 {
                     mscorlibFound = true;
                     item.GetMetadata("DestinationSubDirectory").ShouldBe("", StringCompareShould.IgnoreCase);
@@ -774,7 +773,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
                     int j;
                     for (j = 0; j < assembliesCount; j++)
                     {
-                        if (item.ItemSpec.EndsWith(expectedItemSpec[j]))
+                        if (item.ItemSpec.EndsWith(expectedItemSpec[j], StringComparison.Ordinal))
                         {
                             assembliesFound[j] = true;
                             string assemblyName = Enum.GetName(typeof(EmbedInteropTypes_Indices), j);
@@ -860,15 +859,15 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 
             foreach (ITaskItem item in t.RelatedFiles)
             {
-                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.pdb")))
+                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.pdb"), StringComparison.Ordinal))
                 {
                     pdbFound = true;
                 }
-                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.xml")))
+                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.xml"), StringComparison.Ordinal))
                 {
                     xmlFound = true;
                 }
-                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.pri")))
+                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.pri"), StringComparison.Ordinal))
                 {
                     priFound = true;
                 }
@@ -958,11 +957,11 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             bool xmlFound = false;
             foreach (ITaskItem item in t.RelatedFiles)
             {
-                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.licenses")))
+                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.licenses"), StringComparison.Ordinal))
                 {
                     licensesFound = true;
                 }
-                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.xml")))
+                if (item.ItemSpec.EndsWith(Path.Combine("AssemblyFolder", "SomeAssembly.xml"), StringComparison.Ordinal))
                 {
                     xmlFound = true;
                 }
@@ -1136,23 +1135,56 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
         }
 
         /// <summary>
-        /// Invalid app.config path should not crash.
+        /// Invalid or empty app.config paths should not crash.
+        /// Invalid path "|" causes a logged error and task failure.
+        /// Empty string is silently ignored (Wave18_8 behavior) and task succeeds.
         /// </summary>
-        [Fact]
-        public void Regress286699_InvalidAppConfig()
+        [Theory]
+        [InlineData("|", false)]
+        [InlineData("", true)]
+        public void InvalidOrEmptyAppConfig_DoesNotCrash(string appConfigFile, bool expectedSuccess)
         {
             ResolveAssemblyReference t = new ResolveAssemblyReference();
 
             t.BuildEngine = new MockEngine(_output);
-
-            t.Assemblies = new ITaskItem[] { new TaskItem("mscorlib") };
-            t.AppConfigFile = "|";
+            t.Assemblies = [new TaskItem("mscorlib")];
+            t.AppConfigFile = appConfigFile;
 
             bool retval = Execute(t);
 
-            Assert.False(retval);
+            retval.ShouldBe(expectedSuccess);
+        }
 
-            // Should not crash.
+        /// <summary>
+        /// When Wave18_8 is disabled, empty AppConfigFile should cause the task to fail
+        /// with an error, preserving backward-compatible behavior.
+        /// </summary>
+        [Fact]
+        public void EmptyAppConfigFile_Wave18_8_Disabled_Fails()
+        {            
+            try
+            {
+                using TestEnvironment env = TestEnvironment.Create(_output);
+
+                ChangeWaves.ResetStateForTests();
+                env.SetEnvironmentVariable("MSBUILDDISABLEFEATURESFROMVERSION", ChangeWaves.Wave18_8.ToString());
+                BuildEnvironmentHelper.ResetInstance_ForUnitTestsOnly();
+
+                ResolveAssemblyReference t = new ResolveAssemblyReference();
+
+                MockEngine engine = new MockEngine(_output);
+                t.BuildEngine = engine;
+                t.Assemblies = new ITaskItem[] { new TaskItem("mscorlib") };
+                t.AppConfigFile = string.Empty;
+
+                bool retval = Execute(t);
+                retval.ShouldBeFalse();
+                engine.Errors.ShouldBe(1);
+            }
+            finally
+            {
+                ChangeWaves.ResetStateForTests();
+            }
         }
 
         /// <summary>
@@ -1368,7 +1400,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             Execute(t);
 
             Assert.Empty(t.ResolvedFiles);
-            string message = ResourceUtilities.FormatResourceStringStripCodeAndKeyword("ResolveAssemblyReference.TargetedProcessorArchitectureDoesNotMatch", @"C:\Regress714052\X86\A.dll", "X86", "AMD64");
+            string message = ResourceUtilities.FormatResourceStringStripCodeAndKeyword("AssemblyResolutionSearchTrace_TargetedProcessorArchitectureDoesNotMatch", @"C:\Regress714052\X86\A.dll", "X86", "AMD64");
             mockEngine.AssertLogContains(message);
         }
 
@@ -3524,14 +3556,12 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             t.TargetFrameworkDirectories = new string[] { s_myVersion20Path };
 
             bool result = Execute(t);
-            ResourceManager resources = new ResourceManager("Microsoft.Build.Tasks.Strings", Assembly.GetExecutingAssembly());
-
             // Unresolved primary reference with itemspec "A, Version=20.0.0.0, Culture=Neutral, PublicKeyToken=null".
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.UnifiedReferenceDependsOn", "A, Version=1.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_ADllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.ReferenceDependsOn", "A, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_V2_ADllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.PrimarySourceItemsForReference", s_regress444809_CDllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.PrimarySourceItemsForReference", s_regress444809_BDllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.PrimarySourceItemsForReference", s_regress444809_V2_ADllPath);
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_UnifiedReferenceDependsOn", "A, Version=1.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_ADllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_ReferenceDependsOn", "A, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_V2_ADllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_PrimarySourceItemsForReference", s_regress444809_CDllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_PrimarySourceItemsForReference", s_regress444809_BDllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_PrimarySourceItemsForReference", s_regress444809_V2_ADllPath));
         }
 
         /// <summary>
@@ -3572,11 +3602,11 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 
             bool result = Execute(t);
 
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.ReferenceDependsOn", "A, Version=20.0.0.0, Culture=Neutral, PublicKeyToken=null", String.Empty);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.UnifiedReferenceDependsOn", "A, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_V2_ADllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.UnResolvedPrimaryItemSpec", "A, Version=20.0.0.0, Culture=Neutral, PublicKeyToken=null");
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.PrimarySourceItemsForReference", s_regress444809_DDllPath);
-            engine.AssertLogContainsMessageFromResource(resourceDelegate, "ResolveAssemblyReference.PrimarySourceItemsForReference", s_regress444809_BDllPath);
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_ReferenceDependsOn", "A, Version=20.0.0.0, Culture=Neutral, PublicKeyToken=null", String.Empty));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_UnifiedReferenceDependsOn", "A, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", s_regress444809_V2_ADllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_UnResolvedPrimaryItemSpec", "A, Version=20.0.0.0, Culture=Neutral, PublicKeyToken=null"));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_PrimarySourceItemsForReference", s_regress444809_DDllPath));
+            engine.AssertLogContains(FormatInvariantResource("AssemblyConflict_PrimarySourceItemsForReference", s_regress444809_BDllPath));
         }
 
         /// <summary>
@@ -3618,9 +3648,9 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 
             // Check that we have a message identifying conflicts with "D"
             string warningMessage = e.WarningEvents[0].Message;
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringStripCodeAndKeyword("ResolveAssemblyReference.FoundConflicts", "D", string.Empty));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ConflictFound", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "D, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.FourSpaceIndent", ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ReferenceDependsOn", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "D.dll"))));
+            warningMessage.ShouldContain(FormatInvariantResourceStripCode("AssemblyConflict_FoundConflicts", "D", string.Empty));
+            warningMessage.ShouldContain(FormatInvariantResource("AssemblyConflict_ConflictFound", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "D, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
+            warningMessage.ShouldContain(FormatInvariantResource("ResolveAssemblyReference.FourSpaceIndent", FormatInvariantResource("AssemblyConflict_ReferenceDependsOn", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "D.dll"))));
         }
 
         [Fact]
@@ -3694,14 +3724,14 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 
             // Check that we have both the expected messages
             string warningMessage = e.WarningEvents[0].Message;
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringStripCodeAndKeyword("ResolveAssemblyReference.FoundConflicts", "D", string.Empty));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ConflictFound", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "D, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.FourSpaceIndent", ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ReferenceDependsOn", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "D.dll"))));
+            warningMessage.ShouldContain(FormatInvariantResourceStripCode("AssemblyConflict_FoundConflicts", "D", string.Empty));
+            warningMessage.ShouldContain(FormatInvariantResource("AssemblyConflict_ConflictFound", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "D, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
+            warningMessage.ShouldContain(FormatInvariantResource("ResolveAssemblyReference.FourSpaceIndent", FormatInvariantResource("AssemblyConflict_ReferenceDependsOn", "D, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "D.dll"))));
 
             warningMessage = e.WarningEvents[1].Message;
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringStripCodeAndKeyword("ResolveAssemblyReference.FoundConflicts", "G", string.Empty));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ConflictFound", "G, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "G, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
-            warningMessage.ShouldContain(ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.FourSpaceIndent", ResourceUtilities.FormatResourceStringIgnoreCodeAndKeyword("ResolveAssemblyReference.ReferenceDependsOn", "G, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "G.dll"))));
+            warningMessage.ShouldContain(FormatInvariantResourceStripCode("AssemblyConflict_FoundConflicts", "G", string.Empty));
+            warningMessage.ShouldContain(FormatInvariantResource("AssemblyConflict_ConflictFound", "G, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", "G, Version=2.0.0.0, Culture=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa"));
+            warningMessage.ShouldContain(FormatInvariantResource("ResolveAssemblyReference.FourSpaceIndent", FormatInvariantResource("AssemblyConflict_ReferenceDependsOn", "G, Version=1.0.0.0, CulTUre=neutral, PublicKeyToken=aaaaaaaaaaaaaaaa", Path.Combine(s_myLibraries_V1Path, "G.dll"))));
         }
 
         /// <summary>
@@ -6703,7 +6733,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 #if FEATURE_WIN32_REGISTRY
                 null, null, null,
 #endif
-                null, null, null, new Version("4.0"), null, null, null, true, false, null, null, false, null, WarnOrErrorOnTargetArchitectureMismatchBehavior.None, false, false, null, Array.Empty<string>());
+                null, null, null, new Version("4.0"), null, null, null, true, false, null, null, false, null, WarnOrErrorOnTargetArchitectureMismatchBehavior.None, false, false, null, Array.Empty<string>(), TaskEnvironmentHelper.CreateForTest());
             MockEngine mockEngine;
             ResolveAssemblyReference rar;
             Dictionary<string, string> denyList;
@@ -6881,7 +6911,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 #if FEATURE_WIN32_REGISTRY
                 null, null, null,
 #endif
-                null, null, new Version("4.0"), null, log, null, true, false, null, null, false, null, WarnOrErrorOnTargetArchitectureMismatchBehavior.None, false, false, null, Array.Empty<string>());
+                null, null, new Version("4.0"), null, log, null, true, false, null, null, false, null, WarnOrErrorOnTargetArchitectureMismatchBehavior.None, false, false, null, Array.Empty<string>(), TaskEnvironmentHelper.CreateForTest());
             return referenceTable;
         }
 
@@ -7709,7 +7739,21 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             Execute(t);
 
             e.AssertLogContains(
-                String.Format(AssemblyResources.GetString("ResolveAssemblyReference.ConflictUnsolvable"), @"MyAssembly, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", "MyAssembly, Version=1.0.0.0, Culture=Neutral, PublicKeyToken=null"));
+                String.Format(AssemblyResources.GetString("AssemblyConflict_ConflictUnsolvable"), @"MyAssembly, Version=2.0.0.0, Culture=Neutral, PublicKeyToken=null", "MyAssembly, Version=1.0.0.0, Culture=Neutral, PublicKeyToken=null"));
+            e.WarningEvents.Single(warning => warning.Code == "MSB3243").HelpKeyword
+                .ShouldBe("MSBuild.ResolveAssemblyReference.ConflictUnsolvable");
+        }
+
+        private static string FormatInvariantResource(string resourceName, params object[] args)
+            => string.Format(CultureInfo.InvariantCulture, AssemblyResources.GetString(resourceName, CultureInfo.InvariantCulture), args);
+
+        private static string FormatInvariantResourceStripCode(string resourceName, params object[] args)
+        {
+            const string codePrefix = "MSB3277: ";
+            string message = FormatInvariantResource(resourceName, args);
+            return message.StartsWith(codePrefix, StringComparison.Ordinal)
+                ? message.Substring(codePrefix.Length)
+                : message;
         }
 
         /// <summary>
@@ -7805,15 +7849,15 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
             foreach (ITaskItem item in t.ResolvedFiles)
             {
                 int mask = 0;
-                if (item.ItemSpec.EndsWith(@"\A.dll"))
+                if (item.ItemSpec.EndsWith(@"\A.dll", StringComparison.Ordinal))
                 {
                     mask = 1;
                 }
-                else if (item.ItemSpec.EndsWith(@"\B.dll"))
+                else if (item.ItemSpec.EndsWith(@"\B.dll", StringComparison.Ordinal))
                 {
                     mask = 2;
                 }
-                else if (item.ItemSpec.EndsWith(@"\C.dll"))
+                else if (item.ItemSpec.EndsWith(@"\C.dll", StringComparison.Ordinal))
                 {
                     mask = 4;
                 }
@@ -8525,7 +8569,7 @@ namespace Microsoft.Build.UnitTests.ResolveAssemblyReference_Tests
 
             Execute(rar).ShouldBeTrue();
 
-            mockEngine.AssertLogContains(rar.Log.FormatResourceString("ResolveAssemblyReference.SearchPathAddedByParentAssembly",
+            mockEngine.AssertLogContains(rar.Log.FormatResourceString("AssemblyResolutionSearchTrace_SearchPathAddedByParentAssembly",
                 @"C:\DirectoryTest",
                 @"C:\DirectoryTest\A.dll"));
         }

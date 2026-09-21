@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using Microsoft.CodeAnalysis.CSharp.Test.Utilities;
 using Roslyn.Test.Utilities;
 using Xunit;
 
@@ -418,6 +419,15 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
         public void TestNormalizeExpressionStatement()
         {
             TestNormalizeStatement("a;", "a;");
+        }
+
+        [Fact]
+        public void TestNormalizeLabeledBreakAndContinue()
+        {
+            TestNormalizeStatement("break  ;", "break;");
+            TestNormalizeStatement("break   myLabel  ;", "break myLabel;");
+            TestNormalizeStatement("continue  ;", "continue;");
+            TestNormalizeStatement("continue   myLabel  ;", "continue myLabel;");
         }
 
         [Fact]
@@ -3492,7 +3502,7 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
 
         private static void TestNormalizeDeclaration(string text, string expected)
         {
-            var node = SyntaxFactory.ParseCompilationUnit(text.NormalizeLineEndings());
+            var node = SyntaxFactory.ParseCompilationUnit(text.NormalizeLineEndings(), options: TestOptions.RegularPreview);
             Assert.Equal(text.NormalizeLineEndings(), node.ToFullString().NormalizeLineEndings());
             var actual = node.NormalizeWhitespace("  ").ToFullString();
             AssertEx.Equal(expected.NormalizeLineEndings(), actual.NormalizeLineEndings());
@@ -6266,6 +6276,22 @@ throw x!;
 M()!;
 """, """
 M()!;
+""");
+        }
+
+        [Fact]
+        public void UnionDeclaration_01()
+        {
+            TestNormalizeDeclaration("""
+[Attr1]public   union  Result < T ,  E > ( Ok , Err ):IResult  where  T:class{public   void   M ( ) { }}
+""", """
+[Attr1]
+public union Result<T, E>(Ok, Err) : IResult where T : class
+{
+  public void M()
+  {
+  }
+}
 """);
         }
     }

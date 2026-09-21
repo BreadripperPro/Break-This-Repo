@@ -16,6 +16,7 @@ using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.CoreUtilities.Helpers;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client;
+using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.Interfaces;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -43,6 +44,8 @@ public class TestRequestSenderTests
     private readonly ITestRequestSender _testRequestSender;
     private ConnectedEventArgs _connectedEventArgs;
 
+    public TestContext TestContext { get; set; } = null!;
+
     public TestRequestSenderTests()
     {
         _connectionInfo = new TestHostConnectionInfo
@@ -61,12 +64,6 @@ public class TestRequestSenderTests
         _mockDiscoveryEventsHandler = new Mock<ITestDiscoveryEventsHandler2>();
         _mockExecutionEventsHandler = new Mock<IInternalTestRunEventsHandler>();
         _testRunCriteriaWithSources = new TestRunCriteriaWithSources(new Dictionary<string, IEnumerable<string>>(), "runsettings", null, null!);
-    }
-
-    [TestCleanup]
-    public void Cleanup()
-    {
-        Environment.SetEnvironmentVariable(EnvironmentHelper.VstestConnectionTimeout, string.Empty);
     }
 
     [TestMethod]
@@ -110,7 +107,7 @@ public class TestRequestSenderTests
         watch.Stop();
 
         Assert.IsFalse(connected);
-        Assert.IsTrue(watch.ElapsedMilliseconds < connectionTimeout);
+        Assert.IsLessThan(connectionTimeout, watch.ElapsedMilliseconds);
     }
 
     [TestMethod]
@@ -125,7 +122,7 @@ public class TestRequestSenderTests
         watch.Stop();
 
         Assert.IsFalse(connected);
-        Assert.IsTrue(watch.ElapsedMilliseconds < connectionTimeout);
+        Assert.IsLessThan(connectionTimeout, watch.ElapsedMilliseconds);
     }
 
     [TestMethod]
@@ -203,7 +200,7 @@ public class TestRequestSenderTests
         _mockChannel.Verify(mockChannel => mockChannel.Send(MessageType.CancelTestRun), Times.Never);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("")]
     [DataRow(" ")]
     [DataRow(null)]
@@ -263,7 +260,7 @@ public class TestRequestSenderTests
         SetupRaiseMessageReceivedOnCheckVersion();
         SetupFakeCommunicationChannel();
 
-        Assert.ThrowsException<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost());
+        Assert.ThrowsExactly<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost());
     }
 
     [TestMethod]
@@ -273,19 +270,39 @@ public class TestRequestSenderTests
         SetupRaiseMessageReceivedOnCheckVersion();
         SetupFakeCommunicationChannel();
 
-        Assert.ThrowsException<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost());
+        Assert.ThrowsExactly<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost());
     }
 
     [TestMethod]
+    [DoNotParallelize]
     public void CheckVersionWithTestHostShouldThrowIfProtocolNegotiationTimeouts()
     {
+        // Make sure to use do-not parallelize because you set non-default value to the env variable.
         Environment.SetEnvironmentVariable(EnvironmentHelper.VstestConnectionTimeout, "0");
 
         SetupFakeCommunicationChannel();
 
-        var message = Assert.ThrowsException<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost()).Message;
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost()).Message;
 
         Assert.AreEqual(message, TimoutErrorMessage);
+    }
+
+    [TestMethod]
+    public void CheckVersionWithTestHostShouldThrowWithTestHostErrorIfTestHostExitsDuringNegotiation()
+    {
+        // The test host connected but then exited during protocol negotiation, for example it crashed while
+        // deserializing the version check message when reflection-based serialization is disabled (issue #16274).
+        // OnClientProcessExit records the standard error and signals the exit. CheckVersionWithTestHost must stop
+        // waiting immediately and surface that error, instead of blocking for the whole connection timeout and
+        // reporting a generic timeout message.
+        SetupFakeCommunicationChannel();
+        _testRequestSender.OnClientProcessExit("System.InvalidOperationException: Reflection-based serialization has been disabled for this application.");
+
+        var message = Assert.ThrowsExactly<TestPlatformException>(() => _testRequestSender.CheckVersionWithTestHost()).Message;
+
+        Assert.Contains("Test host process crashed", message);
+        Assert.Contains("Reflection-based serialization has been disabled", message);
+        Assert.AreNotEqual(TimoutErrorMessage, message);
     }
 
     #endregion
@@ -689,6 +706,33 @@ public class TestRequestSenderTests
     }
 
     [TestMethod]
+    public void StartTestRunShouldAttachDebuggerAndSendCallbackWithNegotiatedVersion()
+    {
+        var attachDebuggerPayload = new TestProcessAttachDebuggerPayload(123)
+        {
+            TargetFramework = ".NETCoreApp,Version=v8.0"
+        };
+        _mockExecutionEventsHandler
+            .Setup(eh => eh.AttachDebuggerToProcess(It.IsAny<AttachDebuggerInfo>()))
+            .Returns(true);
+        SetupFakeChannelWithVersionNegotiation();
+        SetupDeserializeMessage(MessageType.AttachDebugger, attachDebuggerPayload);
+
+        _testRequestSender.StartTestRun(_testRunCriteriaWithSources, _mockExecutionEventsHandler.Object);
+
+        RaiseMessageReceivedEvent();
+        _mockExecutionEventsHandler.Verify(
+            eh => eh.AttachDebuggerToProcess(
+                It.Is<AttachDebuggerInfo>(
+                    info => info.ProcessId == attachDebuggerPayload.ProcessID
+                        && info.TargetFramework == attachDebuggerPayload.TargetFramework)),
+            Times.Once);
+        _mockDataSerializer.Verify(
+            ds => ds.SerializePayload(MessageType.AttachDebuggerCallback, true, Dummynegotiatedprotocolversion),
+            Times.Once);
+    }
+
+    [TestMethod]
     public void StartTestRunShouldNotifyLogMessageIfExceptionIsThrownOnMessageReceived()
     {
         SetupExceptionOnMessageReceived();
@@ -797,8 +841,8 @@ public class TestRequestSenderTests
         SetupFakeCommunicationChannel();
 
         // Note: Even if the calls get invoked on separate threads, the request sender should send back the complete message just once.
-        var t1 = Task.Run(RaiseClientDisconnectedEvent);
-        var t2 = Task.Run(() => _testRequestSender.StartTestRun(runCriteria, _mockExecutionEventsHandler.Object));
+        var t1 = Task.Run(RaiseClientDisconnectedEvent, TestContext.CancellationToken);
+        var t2 = Task.Run(() => _testRequestSender.StartTestRun(runCriteria, _mockExecutionEventsHandler.Object), TestContext.CancellationToken);
 
         await Task.WhenAll(t1, t2);
 

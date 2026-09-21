@@ -3,7 +3,7 @@
 
 using System;
 using System.Collections.Generic;
-#if !NET5_0_OR_GREATER
+#if !NET
 using System.Diagnostics;
 #endif
 using System.Globalization;
@@ -22,7 +22,6 @@ using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.Interfaces;
 using Microsoft.VisualStudio.TestPlatform.PlatformAbstractions;
 using Microsoft.VisualStudio.TestPlatform.PlatformAbstractions.Interfaces;
 using Microsoft.VisualStudio.TestPlatform.VsTestConsole.TranslationLayer;
-using Microsoft.VisualStudio.TestPlatform.VsTestConsole.TranslationLayer.Interfaces;
 
 using CommunicationUtilitiesResources = Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.Resources.Resources;
 using CoreUtilitiesConstants = Microsoft.VisualStudio.TestPlatform.CoreUtilities.Constants;
@@ -135,6 +134,22 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
 
         _vstestConsoleProcessManager.ProcessExited += (sender, args) => _requestSender.OnProcessExited();
         _sessionStarted = false;
+
+        // TODO: this is writing into the same file in integration tests (there is just 1 eqTrace for whole process)
+        // figure out how to make it useful. The logs helped a bit in debugging, but not by much.
+        //if (_consoleParameters.TraceLevel == TraceLevel.Verbose && !string.IsNullOrWhiteSpace(_consoleParameters.LogFilePath))
+        //{
+        //    var logFilePath = Path.ChangeExtension(
+        //        _consoleParameters.LogFilePath,
+        //        string.Format(
+        //            CultureInfo.InvariantCulture,
+        //            "translationLayer.{0}_{1}{2}",
+        //            DateTime.Now.ToString("yy-MM-dd_HH-mm-ss_fffff", CultureInfo.CurrentCulture),
+        //            new PlatformEnvironment().GetCurrentManagedThreadId(),
+        //            Path.GetExtension(_consoleParameters.LogFilePath))
+        //        );
+        //    EqtTrace.InitializeTrace(logFilePath, PlatformTraceLevel.Verbose);
+        //}
     }
 
 
@@ -153,7 +168,7 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
         if (port > 0)
         {
             // Fill the parameters
-#if NET5_0_OR_GREATER
+#if NET
             _consoleParameters.ParentProcessId = Environment.ProcessId;
 #else
             using (var process = Process.GetCurrentProcess())
@@ -170,92 +185,6 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
             _requestSender.Close();
             throw new TransationLayerException("Error hosting communication channel");
         }
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public ITestSession? StartTestSession(
-        IList<string> sources,
-        string? runSettings,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return StartTestSession(
-            sources,
-            runSettings,
-            options: null,
-            eventsHandler);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public ITestSession? StartTestSession(
-        IList<string> sources,
-        string? runSettings,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return StartTestSession(
-            sources,
-            runSettings,
-            options,
-            eventsHandler,
-            testHostLauncher: null);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public ITestSession? StartTestSession(
-        IList<string> sources,
-        string? runSettings,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler,
-        ITestHostLauncher? testHostLauncher)
-    {
-        _testPlatformEventSource.TranslationLayerStartTestSessionStart();
-
-        EnsureInitialized();
-
-        var testSessionInfo = _requestSender.StartTestSession(
-            sources,
-            runSettings,
-            options,
-            eventsHandler,
-            testHostLauncher);
-
-        return (testSessionInfo != null)
-            ? new TestSession(
-                testSessionInfo,
-                eventsHandler,
-                this)
-            : null;
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public bool StopTestSession(
-        TestSessionInfo? testSessionInfo,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return StopTestSession(
-            testSessionInfo,
-            options: null,
-            eventsHandler);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public bool StopTestSession(
-        TestSessionInfo? testSessionInfo,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        _testPlatformEventSource.TranslationLayerStopTestSessionStart();
-
-        EnsureInitialized();
-        return _requestSender.StopTestSession(
-            testSessionInfo,
-            options,
-            eventsHandler);
     }
 
     /// <inheritdoc/>
@@ -635,10 +564,12 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
     /// <inheritdoc/>
     public void EndSession()
     {
-        EqtTrace.Info("VsTestConsoleWrapper.EndSession: Ending VsTestConsoleWrapper session");
+        EqtTrace.Info($"VsTestConsoleWrapper.EndSession: Ending VsTestConsoleWrapper session - process id:{_vstestConsoleProcessManager.ProcessId}");
 
         _requestSender.EndSession();
         _requestSender.Close();
+
+        EqtTrace.Info("VsTestConsoleWrapper.EndSession: Ended VsTestConsoleWrapper session");
 
         // If vstest.console is still hanging around, it should be explicitly killed.
         _vstestConsoleProcessManager.ShutdownProcess();
@@ -664,7 +595,7 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
         if (port > 0)
         {
             // Fill the parameters
-#if NET5_0_OR_GREATER
+#if NET
             _consoleParameters.ParentProcessId = Environment.ProcessId;
 #else
             using (var process = Process.GetCurrentProcess())
@@ -681,92 +612,6 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
             _requestSender.Close();
             throw new TransationLayerException("Error hosting communication channel and connecting to console");
         }
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public async Task<ITestSession?> StartTestSessionAsync(
-        IList<string> sources,
-        string? runSettings,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return await StartTestSessionAsync(
-            sources,
-            runSettings,
-            options: null,
-            eventsHandler).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public async Task<ITestSession?> StartTestSessionAsync(
-        IList<string> sources,
-        string? runSettings,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return await StartTestSessionAsync(
-            sources,
-            runSettings,
-            options,
-            eventsHandler,
-            testHostLauncher: null).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public async Task<ITestSession?> StartTestSessionAsync(
-        IList<string> sources,
-        string? runSettings,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler,
-        ITestHostLauncher? testHostLauncher)
-    {
-        _testPlatformEventSource.TranslationLayerStartTestSessionStart();
-
-        await EnsureInitializedAsync().ConfigureAwait(false);
-
-        var testSessionInfo = await _requestSender.StartTestSessionAsync(
-            sources,
-            runSettings,
-            options,
-            eventsHandler,
-            testHostLauncher).ConfigureAwait(false);
-
-        return testSessionInfo != null
-            ? new TestSession(
-                testSessionInfo,
-                eventsHandler,
-                this)
-            : null;
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public async Task<bool> StopTestSessionAsync(
-        TestSessionInfo? testSessionInfo,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        return await StopTestSessionAsync(
-            testSessionInfo,
-            options: null,
-            eventsHandler).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc/>
-    [Obsolete("This API is not final yet and is subject to changes.", false)]
-    public async Task<bool> StopTestSessionAsync(
-        TestSessionInfo? testSessionInfo,
-        TestPlatformOptions? options,
-        ITestSessionEventsHandler eventsHandler)
-    {
-        _testPlatformEventSource.TranslationLayerStopTestSessionStart();
-
-        await EnsureInitializedAsync().ConfigureAwait(false);
-        return await _requestSender.StopTestSessionAsync(
-            testSessionInfo,
-            options,
-            eventsHandler).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -1200,16 +1045,53 @@ public class VsTestConsoleWrapper : IVsTestConsoleWrapper
         var timeout = EnvironmentHelper.GetConnectionTimeout();
         if (!_requestSender.WaitForRequestHandlerConnection(timeout * 1000))
         {
-            var processName = _processHelper.GetCurrentProcessFileName();
-            throw new TransationLayerException(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    CommunicationUtilitiesResources.ConnectionTimeoutErrorMessage,
-                    processName,
-                    CoreUtilitiesConstants.VstestConsoleProcessName,
-                    timeout,
-                    EnvironmentHelper.VstestConnectionTimeout)
-            );
+            var currentProcessName = _processHelper.GetCurrentProcessFileName();
+            var childProcessName = _vstestConsoleProcessManager.ProcessName;
+            var childProcessId = _vstestConsoleProcessManager.ProcessId;
+            var childProcessExitCode = _vstestConsoleProcessManager.ExitCode;
+            var childProcessErrorOutput = _vstestConsoleProcessManager.ErrorOutput;
+
+            if (childProcessId == null)
+            {
+                // Process failed to start, likely due to antivirus or other startup issues. Recommend checking machine for issues that may prevent process from starting.
+                throw new TransationLayerException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        CommunicationUtilitiesResources.ConnectionTimeoutProcessDidNotStartErrorMessage,
+                        currentProcessName,
+                        CoreUtilitiesConstants.VstestConsoleProcessName,
+                        timeout));
+            }
+            else if (childProcessExitCode == null)
+            {
+                // Process is still alive but failed to connect within the timeout, likely due to machine slowness. Recommend increasing timeout.
+                throw new TransationLayerException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        CommunicationUtilitiesResources.ConnectionTimeoutWithDetailsErrorMessage,
+                        currentProcessName,
+                        CoreUtilitiesConstants.VstestConsoleProcessName,
+                        timeout,
+                        childProcessId,
+                        childProcessName,
+                        EnvironmentHelper.VstestConnectionTimeout));
+            }
+            else
+            {
+                // Process started and exited within the timeout, likely due to startup issues or incompatible environment. Recommend checking the error output for more details.
+                throw new TransationLayerException(
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        CommunicationUtilitiesResources.ConnectionTimeoutProcessExitedErrorMessage,
+                        currentProcessName,
+                        CoreUtilitiesConstants.VstestConsoleProcessName,
+                        timeout,
+                        childProcessId,
+                        childProcessName,
+                        childProcessExitCode,
+                        childProcessErrorOutput)
+                );
+            }
         }
 
         _testPlatformEventSource.TranslationLayerInitializeStop();

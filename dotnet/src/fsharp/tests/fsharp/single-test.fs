@@ -9,8 +9,6 @@ open FSharp.Compiler.IO
 
 let testConfig = testConfig __SOURCE_DIRECTORY__
 
-let log = printfn
-
 type Permutation =
 #if NETCOREAPP
     | FSC_NETCORE of optimized: bool * buildOnly: bool
@@ -251,7 +249,7 @@ let singleTestBuildAndRunCore cfg copyFiles p languageVersion =
 
         let targetsBody = generateTargets
         let overridesBody = generateOverrides
-        
+
         let targetsFileName = Path.Combine(directory, "Directory.Build.targets")
         let propsFileName = Path.Combine(directory, "Directory.Build.props")
         let overridesFileName = Path.Combine(directory, "Directory.Overrides.targets")

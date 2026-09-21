@@ -1,15 +1,17 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-class DataTarget : public ICLRDataTarget2, ICorDebugDataTarget4, ICLRMetadataLocator, ICLRRuntimeLocator
+class DataTarget : public ICLRDataTarget2, ICorDebugDataTarget4, ICLRMetadataLocator, ICLRRuntimeLocator, ICLRContractLocator
 {
 private:
     LONG m_ref;                         // Reference count.
     ULONG64 m_baseAddress;              // Runtime base address
+    ULONG64 m_contractDescriptorAddress; // cDAC contract descriptor address (0 if not applicable/resolved)
+    IDebuggerServices* m_debuggerServices;
 
 public:
-    DataTarget(ULONG64 baseAddress);
-    virtual ~DataTarget() {}
+    DataTarget(ULONG64 baseAddress, ULONG64 contractDescriptorAddress = 0);
+    virtual ~DataTarget();
     
     // IUnknown.
     STDMETHOD(QueryInterface)(
@@ -120,4 +122,9 @@ public:
 
     virtual HRESULT STDMETHODCALLTYPE GetRuntimeBase(
         /* [out] */ CLRDATA_ADDRESS* baseAddress);
+
+    // ICLRContractLocator
+
+    virtual HRESULT STDMETHODCALLTYPE GetContractDescriptor(
+        /* [out] */ CLRDATA_ADDRESS* contractAddress);
 };

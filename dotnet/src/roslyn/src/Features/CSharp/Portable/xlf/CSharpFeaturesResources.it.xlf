@@ -32,6 +32,16 @@
         <target state="translated">Aggiunge un riferimento al pacchetto NuGet.</target>
         <note />
       </trans-unit>
+      <trans-unit id="Adds_a_file_based_app_reference">
+        <source>References another file-based app as a library.</source>
+        <target state="translated">Fa riferimento a un'altra app basata su file come libreria.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="Adds_a_file_reference">
+        <source>Adds a file reference.</source>
+        <target state="translated">Aggiunge un riferimento a un file.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="Adds_a_project_reference">
         <source>Adds a project reference.</source>
         <target state="translated">Aggiungi un riferimento al progetto.</target>
@@ -47,11 +57,6 @@
         <target state="translated">Applicare '{0}'</target>
         <note />
       </trans-unit>
-      <trans-unit id="Apply_Copilot_suggestion">
-        <source>Apply Copilot suggestion</source>
-        <target state="translated">Applicare suggerimento di Copilot</target>
-        <note />
-      </trans-unit>
       <trans-unit id="Apply_blank_line_after_colon_in_constructor_initializer_preferences_experimental">
         <source>Apply blank line after colon in constructor initializer preferences (experimental)</source>
         <target state="translated">Applica preferenze una riga vuota dopo i due punti nell'inizializzatore del costruttore (sperimentale)</target>
@@ -60,6 +65,11 @@
       <trans-unit id="Apply_blank_lines_between_consecutive_braces_preferences_experimental">
         <source>Apply blank lines between consecutive braces preferences (experimental)</source>
         <target state="translated">Applica preferenze righe vuote tra parentesi graffe consecutive (sperimentale)</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="Apply_collection_expression_preferences">
+        <source>Apply collection expression preferences</source>
+        <target state="translated">Applicare le preferenze dell'espressione di raccolta</target>
         <note />
       </trans-unit>
       <trans-unit id="Apply_conditional_delegate_call_preferences">
@@ -85,11 +95,6 @@
       <trans-unit id="Apply_expression_block_body_preferences">
         <source>Apply expression/block body preferences</source>
         <target state="translated">Applica le preferenze relative al corpo dell'espressione o del blocco</target>
-        <note />
-      </trans-unit>
-      <trans-unit id="Apply_fix_from">
-        <source>Apply fix from</source>
-        <target state="translated">Applicare correzione da</target>
         <note />
       </trans-unit>
       <trans-unit id="Apply_inline_out_variable_preferences">
@@ -247,6 +252,11 @@
         <target state="translated">Direttive globali 'using'</target>
         <note />
       </trans-unit>
+      <trans-unit id="Include_directive_file_path">
+        <source>path</source>
+        <target state="translated">percorso</target>
+        <note>'path' is a placeholder for a file path or glob in a directive like '#:include path'.</note>
+      </trans-unit>
       <trans-unit id="Make_private_field_readonly_when_possible">
         <source>Make private fields readonly when possible</source>
         <target state="translated">Imposta i campi privati come di sola lettura quando possibile</target>
@@ -266,6 +276,11 @@
         <source>path</source>
         <target state="translated">percorso</target>
         <note>'path' is a placeholder for a project file or directory path in a directive like '#:project path'.</note>
+      </trans-unit>
+      <trans-unit id="Ref_directive_file_path">
+        <source>path</source>
+        <target state="translated">percorso</target>
+        <note>'path' is a placeholder for a file path in a directive like '#:ref path'.</note>
       </trans-unit>
       <trans-unit id="Reverse_for_statement">
         <source>Reverse 'for' statement</source>
@@ -516,6 +531,11 @@
         <source>fixed statement</source>
         <target state="translated">istruzione fixed</target>
         <note>{Locked="fixed"} "fixed" is a C# keyword and should not be localized.</note>
+      </trans-unit>
+      <trans-unit id="unsafe_block">
+        <source>unsafe block</source>
+        <target state="translated">blocco non gestito</target>
+        <note />
       </trans-unit>
       <trans-unit id="using_declaration">
         <source>using declaration</source>

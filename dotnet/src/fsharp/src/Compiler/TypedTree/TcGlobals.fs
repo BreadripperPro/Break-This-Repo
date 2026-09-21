@@ -11,6 +11,7 @@ module internal FSharp.Compiler.TcGlobals
 open System.Collections.Concurrent
 open System.Linq
 open System.Diagnostics
+open System.Runtime.CompilerServices
 
 open Internal.Utilities.Library
 open Internal.Utilities.Library.Extras
@@ -20,6 +21,7 @@ open FSharp.Compiler.Features
 open FSharp.Compiler.IO
 open FSharp.Compiler.Syntax.PrettyNaming
 open FSharp.Compiler.Text.FileIndex
+open FSharp.Compiler.Text
 open FSharp.Compiler.Text.Range
 open FSharp.Compiler.TypedTree
 open FSharp.Compiler.TypedTreeBasics
@@ -278,11 +280,30 @@ type TcGlobals(
   let v_voidptr_tcr     = mk_MFCore_tcref fslibCcu "voidptr"
   let v_ilsigptr_tcr    = mk_MFCore_tcref fslibCcu "ilsigptr`1"
   let v_fastFunc_tcr    = mk_MFCore_tcref fslibCcu "FSharpFunc`2"
+  let v_optimizedClosures_nleref = mkNonLocalEntityRef fslibCcu (Array.append CorePathArray [| "OptimizedClosures" |])
+  let v_optimizedClosures_FSharpFunc3_tcr = mkNonLocalTyconRef v_optimizedClosures_nleref "FSharpFunc`3"
+  let v_optimizedClosures_FSharpFunc4_tcr = mkNonLocalTyconRef v_optimizedClosures_nleref "FSharpFunc`4"
+  let v_optimizedClosures_FSharpFunc5_tcr = mkNonLocalTyconRef v_optimizedClosures_nleref "FSharpFunc`5"
+  let v_optimizedClosures_FSharpFunc6_tcr = mkNonLocalTyconRef v_optimizedClosures_nleref "FSharpFunc`6"
   let v_refcell_tcr_canon = mk_MFCore_tcref fslibCcu "Ref`1"
   let v_refcell_tcr_nice  = mk_MFCore_tcref fslibCcu "ref`1"
   let v_mfe_tcr           = mk_MFCore_tcref fslibCcu "MatchFailureException"
 
   let mutable embeddedILTypeDefs = ConcurrentDictionary<string, ILTypeDef>()
+
+  // RFC FS-1043: compilation-scoped record of how the type-checker resolved built-in-operator SRTP
+  // constraints to extension members. Keyed by (operator logical name, support-type encoding, argument-type
+  // encoding); each entry keeps the (source range, solution-identity, solution) of every site that resolved
+  // that concrete key. The optimizer consults this to honor the checker's scope-aware decision when an
+  // inlined FSharp.Core operator arrives without a trait context. When one concrete key is resolved to two
+  // different extensions in two different scopes of the same file, the recorded ranges disambiguate which
+  // site is being replayed (see TryGetExtensionOperatorSolution), so opening/shadowing distinct same-signature
+  // extensions stays sound instead of falling back to an ambiguous file-global re-resolution.
+  // The outer ConditionalWeakTable partitions the record by the CCU being compiled so nothing leaks or
+  // cross-contaminates when a single shared (framework) TcGlobals serves many projects under FCS.
+  // Not serialized (consistent with traitCtxt): purely intra-compilation.
+  let extensionOperatorSolutions =
+      ConditionalWeakTable<CcuThunk, ConcurrentDictionary<struct(string * int64 list * int64 list), struct(range * string * TraitConstraintSln) list>>()
 
   let dummyAssemblyNameCarryingUsefulErrorInformation path typeName =
       FSComp.SR.tcGlobalsSystemTypeNotFound (String.concat "." path + "." + typeName)
@@ -393,6 +414,10 @@ type TcGlobals(
   let v_tcref_IObservable      = findSysTyconRef sys "IObservable`1"
   let v_tcref_IObserver        = findSysTyconRef sys "IObserver`1"
   let v_fslib_IDelegateEvent_tcr = mk_MFControl_tcref fslibCcu "IDelegateEvent`1"
+  let v_task_tcr                = findSysTyconRef ["System"; "Threading"; "Tasks"] "Task`1"
+  let v_task_nonGeneric_tcr     = findSysTyconRef ["System"; "Threading"; "Tasks"] "Task"
+  let v_valueTask_tcr            = findSysTyconRef ["System"; "Threading"; "Tasks"] "ValueTask`1"
+  let v_valueTask_nonGeneric_tcr = findSysTyconRef ["System"; "Threading"; "Tasks"] "ValueTask"
 
   let v_option_tcr_nice     = mk_MFCore_tcref fslibCcu "option`1"
   let v_valueoption_tcr_nice = mk_MFCore_tcref fslibCcu "voption`1"
@@ -405,6 +430,8 @@ type TcGlobals(
   let v_date_tcr                 = findSysTyconRef sys "DateTime"
   let v_IEnumerable_tcr          = findSysTyconRef sysGenerics "IEnumerable`1"
   let v_IEnumerator_tcr          = findSysTyconRef sysGenerics "IEnumerator`1"
+  let v_IAsyncEnumerable_tcr     = findSysTyconRef sysGenerics "IAsyncEnumerable`1"
+  let v_IAsyncEnumerator_tcr     = findSysTyconRef sysGenerics "IAsyncEnumerator`1"
   let v_System_Attribute_tcr     = findSysTyconRef sys "Attribute"
   let v_expr_tcr                 = mk_MFQuotations_tcref fslibCcu "Expr`1"
   let v_raw_expr_tcr             = mk_MFQuotations_tcref fslibCcu "Expr"
@@ -449,8 +476,8 @@ type TcGlobals(
   let v_string_ty       = mkNonGenericTy v_string_tcr
   let v_string_ty_ambivalent = mkNonGenericTyWithNullness v_string_tcr KnownAmbivalentToNull
   let v_decimal_ty      = mkSysNonGenericTy sys "Decimal"
-  let v_unit_ty         = mkNonGenericTy v_unit_tcr_nice 
-  let v_system_Type_ty = mkSysNonGenericTy sys "Type" 
+  let v_unit_ty         = mkNonGenericTy v_unit_tcr_nice
+  let v_system_Type_ty = mkSysNonGenericTy sys "Type"
   let v_Array_tcref = findSysTyconRef sys "Array"
 
   let v_system_Reflection_MethodInfo_ty = mkSysNonGenericTy ["System";"Reflection"] "MethodInfo"
@@ -491,6 +518,7 @@ type TcGlobals(
   let v_IEqualityComparer_ty = mkSysNonGenericTy sysCollections "IEqualityComparer"
 
   let v_system_RuntimeMethodHandle_ty = mkSysNonGenericTy sys "RuntimeMethodHandle"
+  let v_system_CancellationToken_ty = mkSysNonGenericTy ["System"; "Threading"] "CancellationToken"
 
   let mk_unop_ty ty             = [[ty]], ty
   let mk_binop_ty ty            = [[ty]; [ty]], ty
@@ -558,6 +586,7 @@ type TcGlobals(
   let fslib_MFOperatorsUnchecked_nleref        = mkNestedNonLocalEntityRef fslib_MFOperators_nleref "Unchecked"
   let fslib_MFOperatorsChecked_nleref        = mkNestedNonLocalEntityRef fslib_MFOperators_nleref "Checked"
   let fslib_MFExtraTopLevelOperators_nleref    = mkNestedNonLocalEntityRef fslib_MFCore_nleref "ExtraTopLevelOperators"
+  let fslib_MFAsyncBuilder_nleref              = mkNestedNonLocalEntityRef fslib_MFControl_nleref "AsyncBuilder"
   let fslib_MFNullableOperators_nleref         = mkNestedNonLocalEntityRef fslib_MFLinq_nleref "NullableOperators"
   let fslib_MFQueryRunExtensions_nleref              = mkNestedNonLocalEntityRef fslib_MFLinq_nleref "QueryRunExtensions"
   let fslib_MFQueryRunExtensionsLowPriority_nleref   = mkNestedNonLocalEntityRef fslib_MFQueryRunExtensions_nleref "LowPriority"
@@ -632,17 +661,30 @@ type TcGlobals(
                             fslib_MFPrintfModule_nleref
                             fslib_MFSeqModule_nleref
                             fslib_MFListModule_nleref
-                            fslib_MFArrayModule_nleref   
-                            fslib_MFArray2DModule_nleref   
-                            fslib_MFArray3DModule_nleref   
-                            fslib_MFArray4DModule_nleref   
-                            fslib_MFSetModule_nleref   
-                            fslib_MFMapModule_nleref   
-                            fslib_MFStringModule_nleref   
-                            fslib_MFNativePtrModule_nleref   
-                            fslib_MFOptionModule_nleref   
-                            fslib_MFStateMachineHelpers_nleref 
+                            fslib_MFArrayModule_nleref
+                            fslib_MFArray2DModule_nleref
+                            fslib_MFArray3DModule_nleref
+                            fslib_MFArray4DModule_nleref
+                            fslib_MFSetModule_nleref
+                            fslib_MFMapModule_nleref
+                            fslib_MFStringModule_nleref
+                            fslib_MFNativePtrModule_nleref
+                            fslib_MFOptionModule_nleref
+                            fslib_MFStateMachineHelpers_nleref
                             fslib_MFRuntimeHelpers_nleref ] do
+
+                    yield nleref.LastItemMangledName, ERefNonLocal nleref  ]
+
+  let v_FSharpCoreForceInlineModules =
+     dict [ for nleref in [ fslib_MFIntrinsicFunctions_nleref
+                            fslib_MFIntrinsicOperators_nleref
+                            fslib_MFLanguagePrimitives_nleref
+                            fslib_MFOperators_nleref
+                            fslib_MFOperatorIntrinsics_nleref
+                            fslib_MFOperatorsChecked_nleref
+                            fslib_MFOperatorsUnchecked_nleref
+                            fslib_MFNativePtrModule_nleref
+                            fslib_MFAsyncBuilder_nleref  ] do
 
                     yield nleref.LastItemMangledName, ERefNonLocal nleref  ]
 
@@ -668,7 +710,7 @@ type TcGlobals(
       | Some ty -> ty
       | None -> TType_app(tcref, tinst, nullness)
 
-  let decodeTupleTy tupInfo tinst = 
+  let decodeTupleTy tupInfo tinst =
       decodeTupleTyAndNullness tupInfo tinst v_knownWithoutNull
 
   let mk_MFCore_attrib nm : BuiltinAttribInfo =
@@ -792,6 +834,7 @@ type TcGlobals(
 
   let v_byte_operator_info         = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "byte"                                 , None                 , Some "ToByte",    [vara],   ([[varaTy]], v_byte_ty))
   let v_sbyte_operator_info        = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "sbyte"                                , None                 , Some "ToSByte",   [vara],   ([[varaTy]], v_sbyte_ty))
+  let v_string_operator_info       = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "string"                               , None                 , Some "ToString",  [vara],   ([[varaTy]], v_string_ty))
   let v_int16_operator_info        = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "int16"                                , None                 , Some "ToInt16",   [vara],   ([[varaTy]], v_int16_ty))
   let v_uint16_operator_info       = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "uint16"                               , None                 , Some "ToUInt16",  [vara],   ([[varaTy]], v_uint16_ty))
   let v_int32_operator_info        = makeIntrinsicValRef(fslib_MFOperators_nleref,                             "int32"                                , None                 , Some "ToInt32",   [vara],   ([[varaTy]], v_int32_ty))
@@ -869,6 +912,12 @@ type TcGlobals(
   let v_cgh__resumeAt_info         = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,                   "__resumeAt"                           , None                 , None          , [vara],     ([[v_int_ty]; [varaTy]], varaTy))
   let v_cgh__stateMachine_info     = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,                   "__stateMachine"                       , None                 , None          , [vara; varb],     ([[varaTy]], varbTy)) // inaccurate type but it doesn't matter for linking
   let v_cgh__resumableEntry_info   = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,                   "__resumableEntry"                     , None                 , None          , [vara],     ([[v_int_ty --> varaTy]; [v_unit_ty --> varaTy]], varaTy))
+  let v_cgh__runtimeAsyncReturn_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,               "__runtimeAsyncReturn"                 , None                 , None          , [vara],     ([[varaTy]], TType_app(v_task_tcr, [varaTy], v_knownWithoutNull))) // handled specially by the checker
+  let v_cgh__runtimeAsyncReturnValueTask_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,      "__runtimeAsyncReturnValueTask"           , None                 , None          , [vara],     ([[varaTy]], TType_app(v_valueTask_tcr, [varaTy], v_knownWithoutNull))) // handled specially by the checker
+  let v_cgh__runtimeAsyncReturnUnit_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref,           "__runtimeAsyncReturnUnit"                 , None                 , None          , [],        ([[v_unit_ty]], mkNonGenericTy v_task_nonGeneric_tcr)) // handled specially by the checker
+  let v_cgh__runtimeAsyncReturnValueTaskUnit_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref, "__runtimeAsyncReturnValueTaskUnit"          , None                 , None          , [],        ([[v_unit_ty]], mkNonGenericTy v_valueTask_nonGeneric_tcr)) // handled specially by the checker
+  let v_cgh__runtimeAsyncSequence_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref, "__runtimeAsyncSequence", None, None, [vara], ([[v_unit_ty --> mkSeqTy varaTy]], TType_app(v_IAsyncEnumerable_tcr, [varaTy], v_knownWithoutNull)))
+  let v_cgh__runtimeAsyncSequenceCancellationToken_info = makeIntrinsicValRef(fslib_MFStateMachineHelpers_nleref, "__runtimeAsyncSequenceCancellationToken", None, None, [], ([[v_unit_ty]], v_system_CancellationToken_ty))
   let v_seq_to_array_info          = makeIntrinsicValRef(fslib_MFSeqModule_nleref,                             "toArray"                              , None                 , Some "ToArray", [varb],     ([[mkSeqTy varbTy]], mkArrayType 1 varbTy))
   let v_seq_to_list_info           = makeIntrinsicValRef(fslib_MFSeqModule_nleref,                             "toList"                               , None                 , Some "ToList" , [varb],     ([[mkSeqTy varbTy]], mkListTy varbTy))
   let v_seq_map_info               = makeIntrinsicValRef(fslib_MFSeqModule_nleref,                             "map"                                  , None                 , Some "Map"    , [vara;varb], ([[varaTy --> varbTy]; [mkSeqTy varaTy]], mkSeqTy varbTy))
@@ -1037,11 +1086,11 @@ type TcGlobals(
           let entries = betterEntries
           let t = Dictionary.newWithSize entries.Length
           for nm, tcref, builder in entries do
-              t.Add(nm, 
-                     (fun tcref2 tinst2 nullness -> 
-                         if tyconRefEq tcref tcref2 then 
-                             builder tinst2 nullness 
-                         else 
+              t.Add(nm,
+                     (fun tcref2 tinst2 nullness ->
+                         if tyconRefEq tcref tcref2 then
+                             builder tinst2 nullness
+                         else
                              TType_app (tcref2, tinst2, nullness)))
           betterTypeDict1 <- t
           t
@@ -1132,6 +1181,8 @@ type TcGlobals(
   // A table of known modules in FSharp.Core. Not all modules are necessarily listed, but the more we list the
   // better the job we do of mapping from provided expressions back to FSharp.Core F# functions and values.
   member _.knownFSharpCoreModules = v_knownFSharpCoreModules
+
+  member _.fslibForceInlineModules = v_FSharpCoreForceInlineModules
 
   member _.compilingFSharpCore = compilingFSharpCore
 
@@ -1257,6 +1308,14 @@ type TcGlobals(
 
   member _.fastFunc_tcr = v_fastFunc_tcr
 
+  member _.optimizedClosures_FSharpFunc_tcref arity =
+      match arity with
+      | 2 -> v_optimizedClosures_FSharpFunc3_tcr
+      | 3 -> v_optimizedClosures_FSharpFunc4_tcr
+      | 4 -> v_optimizedClosures_FSharpFunc5_tcr
+      | 5 -> v_optimizedClosures_FSharpFunc6_tcr
+      | _ -> failwith "optimizedClosures_FSharpFunc_tcref: arity out of range 2..5"
+
   member _.MatchFailureException_tcr = v_mfe_tcr
 
 
@@ -1271,6 +1330,7 @@ type TcGlobals(
   member _.seq_tcr = v_seq_tcr
 
   member val seq_base_tcr = mk_MFCompilerServices_tcref fslibCcu "GeneratedSequenceBase`1"
+  member val runtime_async_seq_base_tcr = mk_MFCompilerServices_tcref fslibCcu "GeneratedRuntimeAsyncSequenceBase`1"
 
   member val ListCollector_tcr = mk_MFCompilerServices_tcref fslibCcu "ListCollector`1"
 
@@ -1283,6 +1343,9 @@ type TcGlobals(
         embeddedILTypeDefs.TryAdd(tref.Name, mkEmbeddableType()) |> ignore
 
   member g.mk_GeneratedSequenceBase_ty seqElemTy = TType_app(g.seq_base_tcr,[seqElemTy], v_knownWithoutNull)
+  member g.mk_GeneratedRuntimeAsyncSequenceBase_ty seqElemTy = TType_app(g.runtime_async_seq_base_tcr, [seqElemTy], v_knownWithoutNull)
+  member _.mk_IAsyncEnumerable_ty seqElemTy = TType_app(v_IAsyncEnumerable_tcr, [seqElemTy], v_knownWithoutNull)
+  member _.mk_IAsyncEnumerator_ty seqElemTy = TType_app(v_IAsyncEnumerator_tcr, [seqElemTy], v_knownWithoutNull)
 
   member val ResumableStateMachine_tcr = mk_MFCompilerServices_tcref fslibCcu "ResumableStateMachine`1"
 
@@ -1366,6 +1429,57 @@ type TcGlobals(
   /// Memoization table to help minimize the number of ILSourceDocument objects we create
   member _.memoize_file x = v_memoize_file.Apply x
 
+  /// RFC FS-1043: record how the type-checker resolved a built-in-operator SRTP constraint to an
+  /// extension member. 'identity' distinguishes the chosen extension and 'recordRange' the site that
+  /// chose it, so a second, different choice for the same concrete key in another scope is kept
+  /// alongside (rather than discarded) and later disambiguated by source position at replay.
+  /// Partitioned by the CCU being compiled so a shared framework TcGlobals cannot leak records across projects.
+  member _.RecordExtensionOperatorSolution(compilingCcu: CcuThunk, key: struct(string * int64 list * int64 list), recordRange: range, identity: string, sln: TraitConstraintSln) =
+      let table = extensionOperatorSolutions.GetValue(compilingCcu, fun _ -> ConcurrentDictionary(HashIdentity.Structural))
+      table.AddOrUpdate(
+          key,
+          [ struct(recordRange, identity, sln) ],
+          (fun _ existing ->
+              if existing |> List.exists (fun (struct(r, i, _)) -> equals r recordRange && i = identity) then existing
+              else struct(recordRange, identity, sln) :: existing))
+      |> ignore
+
+  /// RFC FS-1043: retrieve the checker's extension-member solution for a built-in-operator SRTP constraint
+  /// being replayed at 'replayRange', or None when unknown or ambiguous, scoped to the CCU being compiled.
+  /// Fast path: if a single extension resolved this concrete key across all recorded sites (single scope, or
+  /// the same extension reached transitively through inlining) it is unambiguous and returned directly.
+  /// Otherwise two different scopes chose different extensions: keep only records whose (operator-token) range
+  /// is contained in the replayed trait-call range and require them to agree; a synthetic/zero replay range
+  /// contains nothing and so degrades safely to None (file-global fallback) rather than guessing.
+  member _.TryGetExtensionOperatorSolution(compilingCcu: CcuThunk, key: struct(string * int64 list * int64 list), replayRange: range) : TraitConstraintSln option =
+      match extensionOperatorSolutions.TryGetValue compilingCcu with
+      | true, table ->
+          match table.TryGetValue key with
+          | true, (_ :: _ as entries) ->
+              let slnOfSingleIdentity records =
+                  match records |> List.map (fun (struct(_, i, _)) -> i) |> List.distinct with
+                  | [ _ ] -> let (struct(_, _, sln)) = List.head records in Some sln
+                  | _ -> None
+              match slnOfSingleIdentity entries with
+              | Some _ as r -> r
+              | None ->
+                  entries
+                  |> List.filter (fun (struct(r, _, _)) -> rangeContainsRange replayRange r)
+                  |> slnOfSingleIdentity
+          | _ -> None
+      | _ -> None
+
+  /// RFC FS-1043: drop all recorded extension-operator solutions for the CCU being compiled. FSI reuses one
+  /// session CcuThunk (and this sink) across submissions, and every EvalInteraction reuses the same dummy
+  /// file name and a fresh lexbuf, so two identical-layout submissions produce identical source ranges. The
+  /// range-based disambiguation cannot then tell an earlier submission's record from the current one, so a
+  /// stale entry could poison a later same-shaped submission. Each FSI fragment is its own compilation unit:
+  /// its records are made and replayed entirely within it, so clearing at the fragment boundary is sound and
+  /// prevents cross-submission contamination. Batch (fsc) compilation is a single unit with distinct file
+  /// names and never calls this.
+  member _.ClearExtensionOperatorSolutions(compilingCcu: CcuThunk) =
+      extensionOperatorSolutions.Remove(compilingCcu) |> ignore
+
   member val system_Array_ty = mkSysNonGenericTy sys "Array"
   member val system_Object_ty = mkSysNonGenericTy sys "Object"
   member val system_IDisposable_ty = mkSysNonGenericTy sys "IDisposable"
@@ -1388,6 +1502,7 @@ type TcGlobals(
   member val system_IntPtr_tcref = findSysTyconRef sys "IntPtr"
   member val system_Bool_tcref = findSysTyconRef sys "Boolean"
   member val system_Byte_tcref = findSysTyconRef sys "Byte"
+  member _.system_CancellationToken_ty = v_system_CancellationToken_ty
   member val system_UInt16_tcref = findSysTyconRef sys "UInt16"
   member val system_Char_tcref = findSysTyconRef sys "Char"
   member val system_UInt32_tcref = findSysTyconRef sys "UInt32"
@@ -1403,8 +1518,8 @@ type TcGlobals(
   member val system_ExceptionDispatchInfo_ty =
       tryMkSysNonGenericTy ["System"; "Runtime"; "ExceptionServices"] "ExceptionDispatchInfo"
 
-  member _.mk_IAsyncStateMachine_ty = mkSysNonGenericTy sysCompilerServices "IAsyncStateMachine" 
-    
+  member _.mk_IAsyncStateMachine_ty = mkSysNonGenericTy sysCompilerServices "IAsyncStateMachine"
+
   member val system_Object_tcref = findSysTyconRef sys "Object"
   member val system_Value_tcref = findSysTyconRef sys "ValueType"
   member val system_Void_tcref = findSysTyconRef sys "Void"
@@ -1446,6 +1561,8 @@ type TcGlobals(
 
   // Review: Does this need to be an option type?
   member val System_Runtime_CompilerServices_RuntimeFeature_ty = tryFindSysTyconRef sysCompilerServices "RuntimeFeature" |> Option.map mkNonGenericTy
+  member val System_Runtime_CompilerServices_MethodImplOptions_ty =
+      tryFindSysTyconRef sysCompilerServices "MethodImplOptions" |> Option.map mkNonGenericTy
 
   member val iltyp_StreamingContext = tryFindSysILTypeRef tname_StreamingContext  |> Option.map mkILNonGenericValueTy
   member val iltyp_SerializationInfo = tryFindSysILTypeRef tname_SerializationInfo  |> Option.map mkILNonGenericBoxedTy
@@ -1459,20 +1576,15 @@ type TcGlobals(
   member val iltyp_RuntimeMethodHandle = findSysILTypeRef tname_RuntimeMethodHandle |> mkILNonGenericValueTy
   member val iltyp_RuntimeTypeHandle   = findSysILTypeRef tname_RuntimeTypeHandle |> mkILNonGenericValueTy
   member val iltyp_ReferenceAssemblyAttributeOpt = tryFindSysILTypeRef tname_ReferenceAssemblyAttribute |> Option.map mkILNonGenericBoxedTy
-  member val iltyp_UnmanagedType   = findSysILTypeRef tname_UnmanagedType |> mkILNonGenericValueTy  
+  member val iltyp_UnmanagedType   = findSysILTypeRef tname_UnmanagedType |> mkILNonGenericValueTy
   member val attrib_AttributeUsageAttribute = findSysAttrib "System.AttributeUsageAttribute"
   member val attrib_ParamArrayAttribute = findSysAttrib "System.ParamArrayAttribute"
-  member val attrib_IDispatchConstantAttribute = tryFindSysAttrib "System.Runtime.CompilerServices.IDispatchConstantAttribute"
-  member val attrib_IUnknownConstantAttribute = tryFindSysAttrib "System.Runtime.CompilerServices.IUnknownConstantAttribute"
-  member val attrib_RequiresLocationAttribute = findSysAttrib "System.Runtime.CompilerServices.RequiresLocationAttribute"
 
   // We use 'findSysAttrib' here because lookup on attribute is done by name comparison, and can proceed
   // even if the type is not found in a system assembly.
   member val attrib_IsReadOnlyAttribute = findOrEmbedSysPublicType "System.Runtime.CompilerServices.IsReadOnlyAttribute"
   member val attrib_IsUnmanagedAttribute = findOrEmbedSysPublicType "System.Runtime.CompilerServices.IsUnmanagedAttribute"
   member val attrib_DynamicDependencyAttribute = findOrEmbedSysPublicType "System.Diagnostics.CodeAnalysis.DynamicDependencyAttribute"
-  member val attrib_NullableAttribute_opt = tryFindSysAttrib "System.Runtime.CompilerServices.NullableAttribute"
-  member val attrib_NullableContextAttribute_opt = tryFindSysAttrib "System.Runtime.CompilerServices.NullableContextAttribute"
   member val attrib_NullableAttribute = findOrEmbedSysPublicType "System.Runtime.CompilerServices.NullableAttribute"
   member val attrib_NullableContextAttribute = findOrEmbedSysPublicType "System.Runtime.CompilerServices.NullableContextAttribute"
   member val attrib_MemberNotNullWhenAttribute  = findOrEmbedSysPublicType "System.Diagnostics.CodeAnalysis.MemberNotNullWhenAttribute"
@@ -1481,89 +1593,40 @@ type TcGlobals(
   member val attrib_SystemObsolete = findSysAttrib "System.ObsoleteAttribute"
   member val attrib_IsByRefLikeAttribute_opt = tryFindSysAttrib "System.Runtime.CompilerServices.IsByRefLikeAttribute"
   member val attrib_DllImportAttribute = tryFindSysAttrib "System.Runtime.InteropServices.DllImportAttribute"
-  member val attrib_StructLayoutAttribute = findSysAttrib "System.Runtime.InteropServices.StructLayoutAttribute"
+
   member val attrib_TypeForwardedToAttribute = findSysAttrib "System.Runtime.CompilerServices.TypeForwardedToAttribute"
-  member val attrib_ComVisibleAttribute = findSysAttrib "System.Runtime.InteropServices.ComVisibleAttribute"
-  member val attrib_ComImportAttribute = tryFindSysAttrib "System.Runtime.InteropServices.ComImportAttribute"
-  member val attrib_FieldOffsetAttribute = findSysAttrib "System.Runtime.InteropServices.FieldOffsetAttribute"
-  member val attrib_MarshalAsAttribute = tryFindSysAttrib "System.Runtime.InteropServices.MarshalAsAttribute"
+
   member val attrib_InAttribute = findSysAttrib "System.Runtime.InteropServices.InAttribute"
-  member val attrib_OutAttribute = findSysAttrib "System.Runtime.InteropServices.OutAttribute"
-  member val attrib_OptionalAttribute = tryFindSysAttrib "System.Runtime.InteropServices.OptionalAttribute"
-  member val attrib_DefaultParameterValueAttribute = tryFindSysAttrib "System.Runtime.InteropServices.DefaultParameterValueAttribute"
-  member val attrib_ThreadStaticAttribute = tryFindSysAttrib "System.ThreadStaticAttribute"
-  member val attrib_VolatileFieldAttribute = mk_MFCore_attrib "VolatileFieldAttribute"
+
   member val attrib_NoEagerConstraintApplicationAttribute = mk_MFCompilerServices_attrib "NoEagerConstraintApplicationAttribute"
-  member val attrib_ContextStaticAttribute = tryFindSysAttrib "System.ContextStaticAttribute"
+
   member val attrib_FlagsAttribute = findSysAttrib "System.FlagsAttribute"
   member val attrib_DefaultMemberAttribute = findSysAttrib "System.Reflection.DefaultMemberAttribute"
-  member val attrib_DebuggerDisplayAttribute = findSysAttrib "System.Diagnostics.DebuggerDisplayAttribute"
-  member val attrib_DebuggerTypeProxyAttribute = findSysAttrib "System.Diagnostics.DebuggerTypeProxyAttribute"
-  member val attrib_PreserveSigAttribute = tryFindSysAttrib "System.Runtime.InteropServices.PreserveSigAttribute"
-  member val attrib_MethodImplAttribute = findSysAttrib "System.Runtime.CompilerServices.MethodImplAttribute"
+
   member val attrib_ExtensionAttribute = findSysAttrib "System.Runtime.CompilerServices.ExtensionAttribute"
-  member val attrib_CallerLineNumberAttribute = findSysAttrib "System.Runtime.CompilerServices.CallerLineNumberAttribute"
-  member val attrib_CallerFilePathAttribute = findSysAttrib "System.Runtime.CompilerServices.CallerFilePathAttribute"
-  member val attrib_CallerMemberNameAttribute = findSysAttrib "System.Runtime.CompilerServices.CallerMemberNameAttribute"
-  member val attrib_SkipLocalsInitAttribute  = findSysAttrib "System.Runtime.CompilerServices.SkipLocalsInitAttribute"
   member val attrib_DecimalConstantAttribute = findSysAttrib "System.Runtime.CompilerServices.DecimalConstantAttribute"
   member val attribs_Unsupported = v_attribs_Unsupported
 
-  member val attrib_ProjectionParameterAttribute           = mk_MFCore_attrib "ProjectionParameterAttribute"
   member val attrib_CustomOperationAttribute               = mk_MFCore_attrib "CustomOperationAttribute"
-  member val attrib_NonSerializedAttribute                 = tryFindSysAttrib "System.NonSerializedAttribute"
 
-  member val attrib_AutoSerializableAttribute              = mk_MFCore_attrib "AutoSerializableAttribute"
-  member val attrib_RequireQualifiedAccessAttribute        = mk_MFCore_attrib "RequireQualifiedAccessAttribute"
-  member val attrib_EntryPointAttribute                    = mk_MFCore_attrib "EntryPointAttribute"
-  member val attrib_DefaultAugmentationAttribute           = mk_MFCore_attrib "DefaultAugmentationAttribute"
-  member val attrib_CompilerMessageAttribute               = mk_MFCore_attrib "CompilerMessageAttribute"
-  member val attrib_ExperimentalAttribute                  = mk_MFCore_attrib "ExperimentalAttribute"
-  member val attrib_UnverifiableAttribute                  = mk_MFCore_attrib "UnverifiableAttribute"
-  member val attrib_LiteralAttribute                       = mk_MFCore_attrib "LiteralAttribute"
   member val attrib_ConditionalAttribute                   = findSysAttrib "System.Diagnostics.ConditionalAttribute"
-  member val attrib_OptionalArgumentAttribute              = mk_MFCore_attrib "OptionalArgumentAttribute"
-  member val attrib_RequiresExplicitTypeArgumentsAttribute = mk_MFCore_attrib "RequiresExplicitTypeArgumentsAttribute"
+
   member val attrib_DefaultValueAttribute                  = mk_MFCore_attrib "DefaultValueAttribute"
-  member val attrib_ClassAttribute                         = mk_MFCore_attrib "ClassAttribute"
-  member val attrib_InterfaceAttribute                     = mk_MFCore_attrib "InterfaceAttribute"
-  member val attrib_StructAttribute                        = mk_MFCore_attrib "StructAttribute"
+
   member val attrib_ReflectedDefinitionAttribute           = mk_MFCore_attrib "ReflectedDefinitionAttribute"
   member val attrib_CompiledNameAttribute                  = mk_MFCore_attrib "CompiledNameAttribute"
   member val attrib_AutoOpenAttribute                      = mk_MFCore_attrib "AutoOpenAttribute"
-  member val attrib_InternalsVisibleToAttribute            = findSysAttrib tname_InternalsVisibleToAttribute
-  member val attrib_CompilationRepresentationAttribute     = mk_MFCore_attrib "CompilationRepresentationAttribute"
   member val attrib_CompilationArgumentCountsAttribute     = mk_MFCore_attrib "CompilationArgumentCountsAttribute"
   member val attrib_CompilationMappingAttribute            = mk_MFCore_attrib "CompilationMappingAttribute"
-  member val attrib_CLIEventAttribute                      = mk_MFCore_attrib "CLIEventAttribute"
-  member val attrib_InlineIfLambdaAttribute                = mk_MFCore_attrib "InlineIfLambdaAttribute"
-  member val attrib_CLIMutableAttribute                    = mk_MFCore_attrib "CLIMutableAttribute"
+  member val attrib_AllowOverloadOnReturnTypeAttribute      = mk_MFCore_attrib "AllowOverloadOnReturnTypeAttribute"
   member val attrib_AllowNullLiteralAttribute              = mk_MFCore_attrib "AllowNullLiteralAttribute"
-  member val attrib_NoEqualityAttribute                    = mk_MFCore_attrib "NoEqualityAttribute"
-  member val attrib_NoComparisonAttribute                  = mk_MFCore_attrib "NoComparisonAttribute"
-  member val attrib_CustomEqualityAttribute                = mk_MFCore_attrib "CustomEqualityAttribute"
-  member val attrib_CustomComparisonAttribute              = mk_MFCore_attrib "CustomComparisonAttribute"
   member val attrib_EqualityConditionalOnAttribute         = mk_MFCore_attrib "EqualityConditionalOnAttribute"
   member val attrib_ComparisonConditionalOnAttribute       = mk_MFCore_attrib "ComparisonConditionalOnAttribute"
-  member val attrib_ReferenceEqualityAttribute             = mk_MFCore_attrib "ReferenceEqualityAttribute"
-  member val attrib_StructuralEqualityAttribute            = mk_MFCore_attrib "StructuralEqualityAttribute"
-  member val attrib_StructuralComparisonAttribute          = mk_MFCore_attrib "StructuralComparisonAttribute"
   member val attrib_SealedAttribute                        = mk_MFCore_attrib "SealedAttribute"
-  member val attrib_AbstractClassAttribute                 = mk_MFCore_attrib "AbstractClassAttribute"
-  member val attrib_GeneralizableValueAttribute            = mk_MFCore_attrib "GeneralizableValueAttribute"
   member val attrib_MeasureAttribute                       = mk_MFCore_attrib "MeasureAttribute"
-  member val attrib_MeasureableAttribute                   = mk_MFCore_attrib "MeasureAnnotatedAbbreviationAttribute"
-  member val attrib_NoDynamicInvocationAttribute           = mk_MFCore_attrib "NoDynamicInvocationAttribute"
-  member val attrib_NoCompilerInliningAttribute            = mk_MFCore_attrib "NoCompilerInliningAttribute"
-  member val attrib_WarnOnWithoutNullArgumentAttribute      = mk_MFCore_attrib "WarnOnWithoutNullArgumentAttribute"
   member val attrib_SecurityAttribute                      = tryFindSysAttrib "System.Security.Permissions.SecurityAttribute"
   member val attrib_SecurityCriticalAttribute              = findSysAttrib "System.Security.SecurityCriticalAttribute"
   member val attrib_SecuritySafeCriticalAttribute          = findSysAttrib "System.Security.SecuritySafeCriticalAttribute"
-  member val attrib_ComponentModelEditorBrowsableAttribute = findSysAttrib "System.ComponentModel.EditorBrowsableAttribute"
-  member val attrib_CompilerFeatureRequiredAttribute       = findSysAttrib "System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute"
-  member val attrib_SetsRequiredMembersAttribute           = findSysAttrib "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"
-  member val attrib_RequiredMemberAttribute                = findSysAttrib "System.Runtime.CompilerServices.RequiredMemberAttribute"
-  member val attrib_IlExperimentalAttribute                   = findSysAttrib "System.Diagnostics.CodeAnalysis.ExperimentalAttribute"
 
   member g.improveType tcref tinst = improveTy tcref tinst
 
@@ -1649,6 +1712,7 @@ type TcGlobals(
 
   member _.byte_operator_info       = v_byte_operator_info
   member _.sbyte_operator_info      = v_sbyte_operator_info
+  member _.string_operator_info     = v_string_operator_info
   member _.int16_operator_info      = v_int16_operator_info
   member _.uint16_operator_info     = v_uint16_operator_info
   member _.int32_operator_info      = v_int32_operator_info
@@ -1762,7 +1826,6 @@ type TcGlobals(
   member _.seq_map_info               = v_seq_map_info
   member _.seq_singleton_info         = v_seq_singleton_info
   member _.seq_empty_info             = v_seq_empty_info
-  member _.sprintf_info               = v_sprintf_info
   member _.new_format_info            = v_new_format_info
   member _.unbox_info                 = v_unbox_info
   member _.get_generic_comparer_info  = v_get_generic_comparer_info
@@ -1809,6 +1872,12 @@ type TcGlobals(
 
 
   member val cgh__stateMachine_vref = ValRefForIntrinsic v_cgh__stateMachine_info
+  member val cgh__runtimeAsyncReturn_vref = ValRefForIntrinsic v_cgh__runtimeAsyncReturn_info
+  member val cgh__runtimeAsyncReturnValueTask_vref = ValRefForIntrinsic v_cgh__runtimeAsyncReturnValueTask_info
+  member val cgh__runtimeAsyncReturnUnit_vref = ValRefForIntrinsic v_cgh__runtimeAsyncReturnUnit_info
+  member val cgh__runtimeAsyncReturnValueTaskUnit_vref = ValRefForIntrinsic v_cgh__runtimeAsyncReturnValueTaskUnit_info
+  member val cgh__runtimeAsyncSequence_vref = ValRefForIntrinsic v_cgh__runtimeAsyncSequence_info
+  member val cgh__runtimeAsyncSequenceCancellationToken_vref = ValRefForIntrinsic v_cgh__runtimeAsyncSequenceCancellationToken_info
   member val cgh__useResumableCode_vref = ValRefForIntrinsic v_cgh__useResumableCode_info
   member val cgh__debugPoint_vref = ValRefForIntrinsic v_cgh__debugPoint_info
   member val cgh__resumeAt_vref = ValRefForIntrinsic v_cgh__resumeAt_info
@@ -1904,10 +1973,7 @@ type TcGlobals(
 
   member _.DebuggerNonUserCodeAttribute = debuggerNonUserCodeAttribute
 
-  member _.HasTailCallAttrib (attribs: Attribs) =
-    attribs
-    |> List.exists (fun a -> a.TyconRef.CompiledRepresentationForNamedType.FullName = "Microsoft.FSharp.Core.TailCallAttribute")
-  
+
   member _.MakeInternalsVisibleToAttribute(simpleAssemName) =
       mkILCustomAttribute (tref_InternalsVisibleToAttribute, [ilg.typ_String], [ILAttribElem.String (Some simpleAssemName)], [])
 
@@ -1987,7 +2053,7 @@ type TcGlobals(
         Some (g.array_get_info, [retTy], argExprs)
     | "set_Item", [arrTy; _; elemTy], _, [_; _; _] when isArrayTy g arrTy ->
         Some (g.array_set_info, [elemTy], argExprs)
-    | "get_Item", [stringTy; _; _], _, [_; _] when isStringTy g stringTy ->
+    | "get_Item", [stringTy; _], _, [_; _] when isStringTy g stringTy ->
         Some (g.getstring_info, [], argExprs)
     | "op_UnaryPlus", [aty], _, [_] ->
         // Call Operators.id

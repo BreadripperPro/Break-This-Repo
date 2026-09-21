@@ -6,10 +6,6 @@ parameters:
   type: string
   default: ''
 
-- name: desiredIbc
-  type: string
-  default: ''
-
 - name: desiredFinalVersionKind
   type: string
   default: ''
@@ -102,7 +98,6 @@ stages:
       parameters:
         desiredSigning: ${{ parameters.desiredSigning }}
         isOfficialBuild: ${{ parameters.isOfficialBuild }}
-        desiredIBC: ${{ parameters.desiredIBC }}
         desiredFinalVersionKind: ${{ parameters.desiredFinalVersionKind }}
     jobs:
 
@@ -141,7 +136,6 @@ stages:
       parameters:
         desiredSigning: ${{ parameters.desiredSigning }}
         isOfficialBuild: ${{ parameters.isOfficialBuild }}
-        desiredIBC: ${{ parameters.desiredIBC }}
         desiredFinalVersionKind: ${{ parameters.desiredFinalVersionKind }}
     jobs:
 
@@ -156,8 +150,11 @@ stages:
           pool: ${{ parameters.pool_Windows }}
           targetOS: windows
           targetArchitecture: x64
-          enableIBCOptimization: ${{ variables.ibcEnabled }}
+          tagPipelineBuildWithSdkVersion: ${{ parameters.isOfficialBuild }}
+          enableAstred: ${{ parameters.isOfficialBuild }}
           brandingType: ${{ variables.brandingType }}
+          sourceIndexName: dotnet-dotnet-windows
+          sourceIndexIncludeRepos: 'winforms wpf windowsdesktop aspnetcore'
 
     - ${{ if containsValue(parameters.verifications, 'unified-build-windows-x86') }}:
       - template: ../jobs/vmr-build.yml
@@ -278,6 +275,22 @@ stages:
             targetOS: browser
             targetArchitecture: wasm
             extraProperties: /p:WasmEnableThreads=true
+            brandingType: ${{ variables.brandingType }}
+
+        - template: ../jobs/vmr-build.yml
+          parameters:
+            buildName: Browser_CoreCLR_Shortstack
+            isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
+            sign: ${{ variables.signEnabled }}
+            signType: ${{ variables.signType }}
+            pool: ${{ parameters.pool_Linux_Shortstack }}
+            container:
+              name: ${{ variables.browserCrossContainerName }}
+              image: ${{ variables.browserCrossContainerImage }}
+            crossRootFs: '/crossrootfs/x64'
+            targetOS: browser
+            targetArchitecture: wasm
+            extraProperties: /p:DotNetBuildUseMonoRuntime=false
             brandingType: ${{ variables.brandingType }}
 
         - template: ../jobs/vmr-build.yml
@@ -621,7 +634,6 @@ stages:
           pool: ${{ parameters.pool_Windows }}
           targetOS: windows
           targetArchitecture: arm64
-          enableIBCOptimization: ${{ variables.ibcEnabled }}
           brandingType: ${{ variables.brandingType }}
 
       - template: ../jobs/vmr-build.yml
@@ -644,7 +656,6 @@ stages:
           targetOS: windows
           targetArchitecture: x86
           extraProperties: /p:PgoInstrument=true
-          enableIBCOptimization: ${{ variables.ibcEnabled }}
           brandingType: ${{ variables.brandingType }}
 
       - template: ../jobs/vmr-build.yml
@@ -718,6 +729,7 @@ stages:
           - Windows_x86
           - Windows_arm64
           - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
+            - Browser_CoreCLR_Shortstack_wasm
             - Browser_Shortstack_wasm
             - Browser_Multithreaded_Shortstack_wasm
             - Wasi_Shortstack_wasm
@@ -798,7 +810,6 @@ stages:
       parameters:
         desiredSigning: ${{ parameters.desiredSigning }}
         isOfficialBuild: ${{ parameters.isOfficialBuild }}
-        desiredIBC: ${{ parameters.desiredIBC }}
         desiredFinalVersionKind: ${{ parameters.desiredFinalVersionKind }}
         isScoutingJob: true
     jobs:
@@ -814,7 +825,6 @@ stages:
         pool: ${{ parameters.pool_Windows }}
         targetOS: windows
         targetArchitecture: x64
-        enableIBCOptimization: ${{ variables.ibcEnabled }}
 
     - template: ../jobs/vmr-build.yml
       parameters:
@@ -839,7 +849,6 @@ stages:
         pool: ${{ parameters.pool_Windows }}
         targetOS: windows
         targetArchitecture: arm64
-        enableIBCOptimization: ${{ variables.ibcEnabled }}
 
     ## Build Pass 2 verticals
 

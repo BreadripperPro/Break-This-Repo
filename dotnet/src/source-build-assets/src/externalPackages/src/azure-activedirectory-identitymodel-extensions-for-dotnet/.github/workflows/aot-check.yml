@@ -1,0 +1,33 @@
+name: "AOT Check"
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches: [ "dev" ]
+
+jobs:
+  analyze:
+    runs-on: windows-latest
+    name: "AOT check"
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 1
+
+    - name: Setup .NET SDK from global.json
+      uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: ./global.json
+
+    - name: Runs powershell script
+      id: aot-powershell
+      run: build\test-aot.ps1 'net10.0'
+

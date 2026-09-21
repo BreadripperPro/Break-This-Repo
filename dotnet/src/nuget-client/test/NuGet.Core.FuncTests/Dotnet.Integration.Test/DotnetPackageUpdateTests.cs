@@ -3,6 +3,7 @@
 
 #nullable disable
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,8 +15,10 @@ using FluentAssertions;
 using NuGet.CommandLine.Xplat.Tests;
 using NuGet.Frameworks;
 using NuGet.ProjectModel;
+using NuGet.Protocol;
 using NuGet.Test.Utility;
 using NuGet.Versioning;
+using Test.Utility;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -93,6 +96,44 @@ namespace Dotnet.Integration.Test
 
             string version = GetPackageReferenceVersion(csprojPath, "NuGet.Internal.Test.a");
             version.Should().Be("2.0.0");
+        }
+
+        [Fact]
+        public async Task FileBasedApp()
+        {
+            using var pathContext = _testFixture.CreateSimpleTestPathContext();
+
+            // Create packages.
+            var a1 = new SimpleTestPackageContext("NuGet.Internal.Test.a", "1.0.0");
+            var a2 = new SimpleTestPackageContext("NuGet.Internal.Test.a", "2.0.0");
+
+            SimpleTestPackageContext[] packages = [a1, a2];
+            await SimpleTestPackageUtility.CreatePackagesAsync(pathContext.PackageSource, packages);
+
+            // Create the file-based app.
+            var fbaDir = Path.Join(pathContext.SolutionRoot, "fba");
+            Directory.CreateDirectory(fbaDir);
+
+            var appFile = Path.Join(fbaDir, "app.cs");
+            File.WriteAllText(appFile, """
+                #:property PublishAot=false
+                #:package NuGet.Internal.Test.a@1.0.0
+                Console.WriteLine();
+                """);
+
+            // Update the package.
+            _testFixture.RunDotnetExpectSuccess(fbaDir, "package update --file app.cs", testOutputHelper: _testOutputHelper, environmentVariables: _envVars);
+
+            // Verify the full content of the modified .cs file.
+            var modifiedContent = File.ReadAllText(appFile);
+            _testOutputHelper.WriteLine("after:\n" + modifiedContent);
+            Assert.Equal(
+                """
+                #:property PublishAot=false
+                #:package NuGet.Internal.Test.a@2.0.0
+                Console.WriteLine();
+                """,
+                modifiedContent);
         }
 
         [Fact]
@@ -385,6 +426,50 @@ namespace Dotnet.Integration.Test
         private string GetPackageVersionVersion(string projectPath, string packageName)
         {
             return GetItemVersion(projectPath, "PackageVersion", packageName);
+        }
+
+        [Fact]
+        public async Task VulnerablePackageUpdate_WithTreatWarningsAsErrors_Succeeds()
+        {
+            // Arrange
+            using var testContext = _testFixture.CreateSimpleTestPathContext();
+
+            var vulnerable = new SimpleTestPackageContext("NuGet.Internal.Test.Vulnerable", "1.0.0");
+            var safe = new SimpleTestPackageContext("NuGet.Internal.Test.Vulnerable", "2.0.0");
+            await SimpleTestPackageUtility.CreatePackagesAsync(testContext.PackageSource, vulnerable, safe);
+
+            using var mockServer = new FileSystemBackedV3MockServer(testContext.PackageSource, sourceReportsVulnerabilities: true);
+            mockServer.Vulnerabilities.Add(
+                "NuGet.Internal.Test.Vulnerable",
+                new List<(Uri, PackageVulnerabilitySeverity, VersionRange)>
+                {
+                    (new Uri("https://contoso.test/advisories/1"), PackageVulnerabilitySeverity.High, VersionRange.Parse("[1.0.0]"))
+                });
+
+            testContext.Settings.RemoveSource("source");
+            testContext.Settings.AddSource("source", mockServer.ServiceIndexUri, allowInsecureConnectionsValue: "true");
+
+            var project = SimpleTestProjectContext.CreateNETCoreWithSDK("my", testContext.SolutionRoot, TestConstants.ProjectTargetFramework);
+            project.Properties["TreatWarningsAsErrors"] = "true";
+            project.AddPackageToAllFrameworks(vulnerable);
+            project.Save();
+            string csprojPath = project.ProjectPath;
+
+            mockServer.Start();
+
+            // Act
+            var result = _testFixture.RunDotnetExpectSuccess(
+                workingDirectory: Path.GetDirectoryName(project.ProjectPath),
+                args: "package update --vulnerable",
+                testOutputHelper: _testOutputHelper,
+                environmentVariables: _envVars);
+
+            mockServer.Stop();
+
+            // Assert
+            result.ExitCode.Should().Be(0);
+            string version = GetPackageReferenceVersion(csprojPath, "NuGet.Internal.Test.Vulnerable");
+            version.Should().Be("2.0.0");
         }
     }
 }

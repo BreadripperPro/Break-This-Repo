@@ -117,6 +117,48 @@ namespace NuGet.CommandLine.Test
         }
 
         [Fact]
+        public void PackCommand_PackageFromNuspecWithNonStandardPackageId_EmitsNU5052()
+        {
+            var nugetexe = Util.GetNuGetExePath();
+
+            using var workingDirectory = TestDirectory.Create();
+
+            // Arrange
+            Util.CreateFile(
+                workingDirectory,
+                "content.txt",
+                "content");
+
+            Util.CreateFile(
+                workingDirectory,
+                "packageA.nuspec",
+@"<package xmlns='http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd'>
+  <metadata>
+    <id>Contöso.Utilities</id>
+    <version>1.0.0</version>
+    <title>packageA</title>
+    <authors>test</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Description</description>
+  </metadata>
+  <files>
+    <file src=""content.txt"" target=""content"" />
+  </files>
+</package>");
+
+            // Act
+            var r = CommandRunner.Run(
+                nugetexe,
+                workingDirectory,
+                "pack packageA.nuspec",
+                testOutputHelper: _testOutputHelper);
+
+            // Assert
+            r.Success.Should().BeTrue(because: r.AllOutput);
+            r.AllOutput.Should().Contain("NU5052");
+        }
+
+        [Fact]
         public void PackCommand_AutomaticallyExcludeNuspecs()
         {
             var nugetexe = Util.GetNuGetExePath();
@@ -6296,7 +6338,7 @@ $@"<package xmlns='http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd'>
             }
         }
 
-        [Fact(Skip = "https://github.com/NuGet/Home/issues/8601")]
+        [Fact]
         public void PackCommand_Deterministic_MultiplePackInvocations_CreateIdenticalPackages()
         {
             var nugetexe = Util.GetNuGetExePath();
@@ -6329,7 +6371,11 @@ $@"<package xmlns='http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd'>
   </metadata>
 </package>");
 
-                var command = "pack packageA.nuspec -Deterministic -OutputDirectory {0}";
+                var timestamp = new DateTimeOffset(year: 2020, month: 1, day: 1,
+                                                   hour: 0, minute: 0, second: 0,
+                                                   offset: TimeSpan.Zero);
+
+                var command = "pack packageA.nuspec -Deterministic -DeterministicTimestamp {0} -OutputDirectory {1}";
                 byte[][] packageBytes = new byte[2][];
 
                 for (var i = 0; i < 2; i++)
@@ -6340,7 +6386,7 @@ $@"<package xmlns='http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd'>
                     var r = CommandRunner.Run(
                         nugetexe,
                         workingDirectory,
-                        string.Format(command, path),
+                        string.Format(command, timestamp.ToString("o"), path),
                         testOutputHelper: _testOutputHelper);
                     Assert.True(0 == r.ExitCode, r.Output + " " + r.Errors);
 

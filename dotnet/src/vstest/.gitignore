@@ -147,3 +147,13 @@ logs/
 
 .idea/
 .tools/
+
+# ===========================
+# Language Server cache
+# ===========================
+*.lscache
+
+# ===========================
+# Agentic workflow scratch output
+# ===========================
+eng/agentic-workflows/tmp/

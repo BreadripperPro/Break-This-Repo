@@ -56,7 +56,7 @@ public partial class CollectionEditor
                 ScaleButtonImageLogicalToDevice(_upButton);
             }
 
-            Text = string.Format(SR.CollectionEditorCaption, CollectionItemType.Name);
+            Text = string.Format(SR.CollectionEditorCaption, GetCollectionItemTypeNameForCaption(CollectionItemType));
 
             HookEvents();
 
@@ -74,6 +74,20 @@ public partial class CollectionEditor
             }
 
             AdjustListBoxItemHeight();
+        }
+
+        private static string GetCollectionItemTypeNameForCaption(Type collectionItemType)
+        {
+            string itemTypeName = collectionItemType.Name;
+
+            if (collectionItemType is { IsGenericType: true, GenericTypeArguments: [Type innerType] }
+                && typeof(Control).IsAssignableFrom(innerType)
+                && collectionItemType.GetGenericTypeDefinition().Name.StartsWith("ControlProxy", StringComparison.Ordinal))
+            {
+                itemTypeName = innerType.Name;
+            }
+
+            return itemTypeName;
         }
 
         private bool IsImmutable
@@ -581,8 +595,11 @@ public partial class CollectionEditor
                 if ((e.State & DrawItemState.Selected) == DrawItemState.Selected)
                 {
                     backColor = SystemColors.Highlight;
-                    textColor = SystemColors.HighlightText;
+                    textColor = Application.IsDarkModeEnabled ? SystemColors.ControlText : SystemColors.HighlightText;
                 }
+
+                using SolidBrush backBrush = new(SystemColors.Window);
+                g.FillRectangle(backBrush, button);
 
                 Rectangle res = e.Bounds with { X = e.Bounds.X + offset, Width = e.Bounds.Width - offset };
                 g.FillRectangle(new SolidBrush(backColor), res);
@@ -1024,8 +1041,8 @@ public partial class CollectionEditor
 
             bool editEnabled = (_listBox.SelectedItem is not null) && CollectionEditable;
             _removeButton.Enabled = editEnabled && AllowRemoveInstance(((ListItem)_listBox.SelectedItem!).Value);
-            _upButton.Enabled = editEnabled && _listBox.Items.Count > 1;
-            _downButton.Enabled = editEnabled && _listBox.Items.Count > 1;
+            _upButton.Enabled = editEnabled && _listBox.Items.Count > 1 && _listBox.SelectedIndex > 0;
+            _downButton.Enabled = editEnabled && _listBox.Items.Count > 1 && _listBox.SelectedIndex < _listBox.Items.Count - 1;
             _propertyGrid.Enabled = editEnabled;
             _addButton.Enabled = CollectionEditable;
 

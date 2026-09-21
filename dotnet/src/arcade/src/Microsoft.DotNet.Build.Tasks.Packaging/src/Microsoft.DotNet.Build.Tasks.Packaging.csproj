@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(BundledNETCoreAppTargetFramework);$(NetFrameworkToolCurrent)</TargetFrameworks>
+    <TargetFramework>$(NetMinimum)</TargetFramework>
     <IsPackable>true</IsPackable>
     <IsBuildTaskProject>true</IsBuildTaskProject>
     <PackageType>MSBuildSdk</PackageType>
@@ -55,14 +55,7 @@
     <PackageReference Include="NuGet.ProjectModel" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">
-    <Compile Include="..\..\Common\Internal\AssemblyResolver.cs" />
-    <Compile Include="..\..\Common\Internal\BuildTask.Desktop.cs" />
-    <PackageReference Include="System.Reflection.Metadata" />
-  </ItemGroup>
-
    <ItemGroup>
-    <Compile Include="..\..\Common\Internal\BuildTask.cs" />
     <Compile Include="..\..\Common\Internal\EnumerableExtensions.cs" />
   </ItemGroup>
 

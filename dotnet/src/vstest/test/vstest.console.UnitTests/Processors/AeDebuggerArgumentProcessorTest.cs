@@ -18,6 +18,7 @@ using Moq;
 namespace vstest.console.UnitTests.Processors;
 
 [TestClass]
+// AeDebug (post-mortem debugger) is a Windows-only feature and these tests rely on Windows path semantics.
 [TestCategory("Windows-Review")]
 public class AeDebuggerArgumentProcessorTest
 {
@@ -36,7 +37,9 @@ public class AeDebuggerArgumentProcessorTest
     [TestMethod]
     public void AeDebuggerArgumentProcessorCommandName()
     {
+#pragma warning disable MSTEST0032 // Assertion condition is always true
         Assert.AreEqual("/AeDebugger", AeDebuggerArgumentProcessor.CommandName);
+#pragma warning restore MSTEST0032 // Assertion condition is always true
     }
 
     [TestMethod]
@@ -59,11 +62,11 @@ public class AeDebuggerArgumentProcessorTest
     [TestMethod]
     public void AeDebuggerArgumentExecutor_InvalidCtor()
     {
-        Assert.ThrowsException<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, _processHelper.Object, _output.Object, null!));
-        Assert.ThrowsException<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, _processHelper.Object, null!, _environmentVariableHelper.Object));
-        Assert.ThrowsException<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, null!, _output.Object, _environmentVariableHelper.Object));
-        Assert.ThrowsException<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, null!, _processHelper.Object, _output.Object, _environmentVariableHelper.Object));
-        Assert.ThrowsException<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(null!, _fileHelper.Object, _processHelper.Object, _output.Object, _environmentVariableHelper.Object));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, _processHelper.Object, _output.Object, null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, _processHelper.Object, null!, _environmentVariableHelper.Object));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, _fileHelper.Object, null!, _output.Object, _environmentVariableHelper.Object));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(_environment.Object, null!, _processHelper.Object, _output.Object, _environmentVariableHelper.Object));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AeDebuggerArgumentExecutor(null!, _fileHelper.Object, _processHelper.Object, _output.Object, _environmentVariableHelper.Object));
     }
 
     [TestMethod]
@@ -80,7 +83,7 @@ public class AeDebuggerArgumentProcessorTest
     public void AeDebuggerArgumentExecutor_WrongInstallUnistallCommand(string wrongCommand)
     {
         _executor.Initialize(wrongCommand);
-        Assert.ThrowsException<CommandLineException>(() => _executor.Execute());
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Execute());
     }
 
     [TestMethod]
@@ -100,9 +103,9 @@ public class AeDebuggerArgumentProcessorTest
     public void AeDebuggerArgumentExecutor_WrongDirectoryPaths(string command, string? directoryPath)
     {
         _fileHelper.Setup(x => x.DirectoryExists(It.IsAny<string>()))
-            .Returns((string path) => directoryPath is null || !directoryPath.EndsWith(path));
+            .Returns((string path) => directoryPath is null || !directoryPath.EndsWith(path, StringComparison.Ordinal));
         _fileHelper.Setup(x => x.Exists(It.IsAny<string>()))
-            .Returns((string path) => path.EndsWith("procdump.exe") && path != "procdump.exe");
+            .Returns((string path) => path.EndsWith("procdump.exe", StringComparison.Ordinal) && path != "procdump.exe");
         _executor.Initialize(string.Format(CultureInfo.InvariantCulture, command, directoryPath));
         Assert.AreEqual(ArgumentProcessorResult.Fail, _executor.Execute());
     }
@@ -135,8 +138,9 @@ public class AeDebuggerArgumentProcessorTest
             null,
             It.IsAny<Action<object?, string?>>(),
             It.IsAny<Action<object?>>(),
-            It.IsAny<Action<object?, string?>>()))
-         .Returns((string processPath, string? arguments, string? workingDirectory, IDictionary<string, string?>? envVariables, Action<object?, string?>? errorCallback, Action<object?>? exitCallBack, Action<object?, string?>? outputCallBack) =>
+            It.IsAny<Action<object?, string?>>(),
+            It.IsAny<bool>()))
+         .Returns((string processPath, string? arguments, string? workingDirectory, IDictionary<string, string?>? envVariables, Action<object?, string?>? errorCallback, Action<object?>? exitCallBack, Action<object?, string?>? outputCallBack, bool createNoNewWindow) =>
          {
              Assert.IsTrue(install ? arguments == "-ma -i" : arguments == "-u");
              return new object();

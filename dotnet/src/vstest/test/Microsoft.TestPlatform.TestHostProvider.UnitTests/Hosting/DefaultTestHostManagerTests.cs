@@ -37,7 +37,6 @@ public class DefaultTestHostManagerTests
     private readonly Mock<IMessageLogger> _mockMessageLogger;
     private readonly Mock<IProcessHelper> _mockProcessHelper;
     private readonly Mock<IFileHelper> _mockFileHelper;
-    private readonly Mock<IDotnetHostHelper> _mockDotnetHostHelper;
     private readonly Mock<IEnvironment> _mockEnvironment;
     private readonly Mock<IEnvironmentVariableHelper> _mockEnvironmentVariable;
     private readonly DefaultTestHostManager _testHostManager;
@@ -47,18 +46,19 @@ public class DefaultTestHostManagerTests
     private int _exitCode;
     private int _testHostId;
 
+    public TestContext TestContext { get; set; } = null!;
+
     public DefaultTestHostManagerTests()
     {
         _mockProcessHelper = new Mock<IProcessHelper>();
         _mockFileHelper = new Mock<IFileHelper>();
         _mockProcessHelper.Setup(ph => ph.GetCurrentProcessFileName()).Returns("vstest.console.exe");
-        _mockDotnetHostHelper = new Mock<IDotnetHostHelper>();
         _mockEnvironment = new Mock<IEnvironment>();
         _mockEnvironmentVariable = new Mock<IEnvironmentVariableHelper>();
 
         _mockMessageLogger = new Mock<IMessageLogger>();
 
-        _testHostManager = new DefaultTestHostManager(_mockProcessHelper.Object, _mockFileHelper.Object, _mockDotnetHostHelper.Object, _mockEnvironment.Object, _mockEnvironmentVariable.Object);
+        _testHostManager = new DefaultTestHostManager(_mockProcessHelper.Object, _mockFileHelper.Object, _mockEnvironment.Object, _mockEnvironmentVariable.Object);
         _testHostManager.Initialize(_mockMessageLogger.Object, $"<?xml version=\"1.0\" encoding=\"utf-8\"?><RunSettings> <RunConfiguration> <TargetPlatform>{Architecture.X64}</TargetPlatform> <TargetFrameworkVersion>{Framework.DefaultFramework}</TargetFrameworkVersion> <DisableAppDomain>{false}</DisableAppDomain> </RunConfiguration> </RunSettings>");
         _startInfo = _testHostManager.GetTestHostProcessStartInfo([], null, default);
     }
@@ -70,13 +70,13 @@ public class DefaultTestHostManagerTests
 
         var info = _testHostManager.GetTestHostProcessStartInfo([], null, default);
 
-        StringAssert.EndsWith(info.FileName, "testhost.x86.exe");
+        Assert.EndsWith("testhost.x86.exe", info.FileName);
     }
 
     [TestMethod]
     public void ConstructorShouldSetX64ProcessForX64Architecture()
     {
-        StringAssert.EndsWith(_startInfo.FileName, "testhost.exe");
+        Assert.EndsWith("testhost.exe", _startInfo.FileName);
     }
 
     [TestMethod]
@@ -86,7 +86,7 @@ public class DefaultTestHostManagerTests
         _mockFileHelper.Setup(x => x.Exists(It.IsAny<string>())).Returns(false);
         var startInfo = _testHostManager.GetTestHostProcessStartInfo([], null, default);
 
-        Assert.IsTrue(startInfo.FileName!.EndsWith(Path.Combine("TestHostNetFramework", "testhost.exe")));
+        Assert.EndsWith(Path.Combine("TestHostNetFramework", "testhost.exe"), startInfo.FileName!);
     }
 
     [TestMethod]
@@ -96,8 +96,8 @@ public class DefaultTestHostManagerTests
         _mockFileHelper.Setup(x => x.Exists(It.IsAny<string>())).Returns(true);
         var startInfo = _testHostManager.GetTestHostProcessStartInfo([], null, default);
 
-        Assert.IsFalse(startInfo.FileName!.EndsWith(Path.Combine("TestHost", "testhost.exe")));
-        Assert.IsTrue(startInfo.FileName!.EndsWith("testhost.exe"));
+        Assert.DoesNotEndWith(Path.Combine("TestHost", "testhost.exe"), startInfo.FileName!);
+        Assert.EndsWith("testhost.exe", startInfo.FileName!);
     }
 
     [TestMethod]
@@ -106,8 +106,8 @@ public class DefaultTestHostManagerTests
         _mockProcessHelper.Setup(ph => ph.GetCurrentProcessFileName()).Returns("devenv.exe");
         var startInfo = _testHostManager.GetTestHostProcessStartInfo([], null, default);
 
-        Assert.IsFalse(startInfo.FileName!.EndsWith(Path.Combine("TestHost", "testhost.exe")));
-        Assert.IsTrue(startInfo.FileName!.EndsWith("testhost.exe"));
+        Assert.DoesNotEndWith(Path.Combine("TestHost", "testhost.exe"), startInfo.FileName!);
+        Assert.EndsWith("testhost.exe", startInfo.FileName!);
     }
 
     [TestMethod]
@@ -140,7 +140,7 @@ public class DefaultTestHostManagerTests
     [TestMethod]
     public void GetTestHostProcessStartInfoShouldIncludeEmptyEnvironmentVariables()
     {
-        Assert.AreEqual(0, _startInfo.EnvironmentVariables!.Count);
+        Assert.IsEmpty(_startInfo.EnvironmentVariables!);
     }
 
     [TestMethod]
@@ -175,38 +175,22 @@ public class DefaultTestHostManagerTests
     }
 
     [TestMethod]
-    public void GetTestHostProcessStartInfoShouldUseMonoAsHostOnNonWindowsIfNotStartedWithMono()
+    [DataRow(PlatformOperatingSystem.Unix, "/usr/bin/dotnet")]
+    [DataRow(PlatformOperatingSystem.Unix, "/usr/bin/mono")]
+    [DataRow(PlatformOperatingSystem.OSX, "/usr/local/share/dotnet/dotnet")]
+    [DataRow(PlatformOperatingSystem.OSX, "/usr/local/bin/mono")]
+    public void GetTestHostProcessStartInfoShouldThrowWhenRunningNetFrameworkTestsOnNonWindows(PlatformOperatingSystem operatingSystem, string currentProcessFileName)
     {
-        _mockProcessHelper.Setup(p => p.GetCurrentProcessFileName()).Returns("/usr/bin/dotnet");
-        _mockEnvironment.Setup(e => e.OperatingSystem).Returns(PlatformOperatingSystem.Unix);
-        _mockDotnetHostHelper.Setup(d => d.GetMonoPath()).Returns("/usr/bin/mono");
-        var source = @"C:\temp\a.dll";
+        // .NET Framework tests can only run on Windows. On other operating systems we no longer
+        // fall back to Mono and instead fail with a clear, actionable message.
+        _mockProcessHelper.Setup(p => p.GetCurrentProcessFileName()).Returns(currentProcessFileName);
+        _mockEnvironment.Setup(e => e.OperatingSystem).Returns(operatingSystem);
+        var source = "/tmp/a.dll";
 
-        var info = _testHostManager.GetTestHostProcessStartInfo(
-            new List<string>() { source },
-            null,
-            default);
+        var exception = Assert.ThrowsExactly<TestPlatformException>(
+            () => _testHostManager.GetTestHostProcessStartInfo(new List<string>() { source }, null, default));
 
-        Assert.AreEqual("/usr/bin/mono", info.FileName);
-        StringAssert.Contains(info.Arguments, Path.Combine("TestHostNetFramework", "testhost.exe"));
-    }
-
-    [TestMethod]
-    public void GetTestHostProcessStartInfoShouldNotUseMonoAsHostOnNonWindowsIfStartedWithMono()
-    {
-        _mockProcessHelper.Setup(p => p.GetCurrentProcessFileName()).Returns("/usr/bin/mono");
-        _mockEnvironment.Setup(e => e.OperatingSystem).Returns(PlatformOperatingSystem.Unix);
-        _mockDotnetHostHelper.Setup(d => d.GetMonoPath()).Returns("/usr/bin/mono");
-        var source = @"C:\temp\a.dll";
-
-        var info = _testHostManager.GetTestHostProcessStartInfo(
-            new List<string>() { source },
-            null,
-            default);
-
-        var testHostPath = Path.Combine("TestHostNetFramework", "testhost.exe");
-        StringAssert.EndsWith(info.FileName, testHostPath);
-        Assert.IsFalse(info.Arguments!.Contains(testHostPath));
+        Assert.Contains("Running .NET Framework tests is supported on Windows only", exception.Message);
     }
 
     [TestMethod]
@@ -350,15 +334,16 @@ public class DefaultTestHostManagerTests
                     It.IsAny<IDictionary<string, string?>>(),
                     It.IsAny<Action<object?, string?>>(),
                     It.IsAny<Action<object?>>(),
-                    It.IsAny<Action<object?, string?>>())).Returns(Process.GetCurrentProcess());
+                    It.IsAny<Action<object?, string?>>(),
+                    It.IsAny<bool>())).Returns(Process.GetCurrentProcess());
 
         _testHostManager.Initialize(_mockMessageLogger.Object, $"<?xml version=\"1.0\" encoding=\"utf-8\"?><RunSettings> <RunConfiguration> <TargetPlatform>{Architecture.X64}</TargetPlatform> <TargetFrameworkVersion>{Framework.DefaultFramework}</TargetFrameworkVersion> <DisableAppDomain>{false}</DisableAppDomain> </RunConfiguration> </RunSettings>");
         var startInfo = _testHostManager.GetTestHostProcessStartInfo([], null, default);
 
         _testHostManager.HostLaunched += TestHostManagerHostLaunched;
 
-        Task<bool> processId = _testHostManager.LaunchTestHostAsync(startInfo, CancellationToken.None);
-        processId.Wait();
+        Task<bool> processId = _testHostManager.LaunchTestHostAsync(startInfo, TestContext.CancellationToken);
+        processId.Wait(TestContext.CancellationToken);
 
         Assert.IsTrue(processId.Result);
 
@@ -385,13 +370,13 @@ public class DefaultTestHostManagerTests
         CancellationTokenSource cancellationTokenSource = new();
         cancellationTokenSource.Cancel();
 
-        Assert.ThrowsException<OperationCanceledException>(() => _testableTestHostManager.LaunchTestHostAsync(GetDefaultStartInfo(), cancellationTokenSource.Token).Wait());
+        Assert.ThrowsExactly<OperationCanceledException>(() => _testableTestHostManager.LaunchTestHostAsync(GetDefaultStartInfo(), cancellationTokenSource.Token).Wait(TestContext.CancellationToken));
     }
 
     [TestMethod]
     public void PropertiesShouldReturnEmptyDictionary()
     {
-        Assert.AreEqual(0, _testHostManager.Properties.Count);
+        Assert.IsEmpty(_testHostManager.Properties);
     }
 
     [TestMethod]
@@ -424,8 +409,8 @@ public class DefaultTestHostManagerTests
 
         _testHostManager.HostLaunched += TestHostManagerHostLaunched;
 
-        Task<bool> pid = _testHostManager.LaunchTestHostAsync(_startInfo, CancellationToken.None);
-        pid.Wait();
+        Task<bool> pid = _testHostManager.LaunchTestHostAsync(_startInfo, TestContext.CancellationToken);
+        pid.Wait(TestContext.CancellationToken);
         mockCustomLauncher.Verify(mc => mc.LaunchTestHost(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>()), Times.Once);
 
         Assert.IsTrue(pid.Result);
@@ -439,7 +424,7 @@ public class DefaultTestHostManagerTests
         _testHostManager.SetCustomLauncher(mockCustomLauncher.Object);
         var currentProcess = Process.GetCurrentProcess();
         mockCustomLauncher.Setup(mc => mc.LaunchTestHost(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Returns(currentProcess.Id);
-        _testHostManager.LaunchTestHostAsync(_startInfo, CancellationToken.None).Wait();
+        _testHostManager.LaunchTestHostAsync(_startInfo, TestContext.CancellationToken).Wait(TestContext.CancellationToken);
 
         _mockProcessHelper.Verify(ph => ph.SetExitCallback(currentProcess.Id, It.IsAny<Action<object?>>()));
     }
@@ -591,12 +576,14 @@ public class DefaultTestHostManagerTests
                         It.IsAny<IDictionary<string, string?>>(),
                         It.IsAny<Action<object?, string?>>(),
                         It.IsAny<Action<object?>>(),
-                        It.IsAny<Action<object?, string?>>()))
-            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>>(
-                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback) =>
+                        It.IsAny<Action<object?, string?>>(),
+                        It.IsAny<bool>()))
+            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>, bool>(
+                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback, createNoNewWindow) =>
                 {
                     var process = Process.GetCurrentProcess();
 
+                    Assert.IsTrue(createNoNewWindow, "createNoNewWindow should default to true");
                     errorCallback(process, errorMessage);
                     exitCallback(process);
                 }).Returns(Process.GetCurrentProcess());
@@ -625,11 +612,13 @@ public class DefaultTestHostManagerTests
                         It.IsAny<IDictionary<string, string?>>(),
                         It.IsAny<Action<object?, string?>>(),
                         It.IsAny<Action<object?>>(),
-                        It.IsAny<Action<object?, string?>>()))
-            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>>(
-                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback) =>
+                        It.IsAny<Action<object?, string?>>(),
+                        It.IsAny<bool>()))
+            .Callback<string, string, string, IDictionary<string, string>, Action<object, string>, Action<object>, Action<object, string>, bool>(
+                (var1, var2, var3, dictionary, errorCallback, exitCallback, outputCallback, createNoNewWindow) =>
                 {
                     var process = Process.GetCurrentProcess();
+                    Assert.IsTrue(createNoNewWindow, "createNoNewWindow should default to true");
                     exitCallback(process);
                 }).Returns(Process.GetCurrentProcess());
 
@@ -649,7 +638,7 @@ public class DefaultTestHostManagerTests
             IProcessHelper processHelper,
             bool shared,
             IMessageLogger logger)
-            : base(processHelper, new FileHelper(), new DotnetHostHelper(), new PlatformEnvironment(), new EnvironmentVariableHelper())
+            : base(processHelper, new FileHelper(), new PlatformEnvironment(), new EnvironmentVariableHelper())
         {
             Initialize(logger, $"<?xml version=\"1.0\" encoding=\"utf-8\"?><RunSettings> <RunConfiguration> <TargetPlatform>{architecture}</TargetPlatform> <TargetFrameworkVersion>{framework}</TargetFrameworkVersion> <DisableAppDomain>{!shared}</DisableAppDomain> </RunConfiguration> </RunSettings>");
         }

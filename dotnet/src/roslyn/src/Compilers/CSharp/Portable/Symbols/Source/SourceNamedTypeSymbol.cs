@@ -79,6 +79,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             switch (declaration.Kind)
             {
                 case DeclarationKind.Struct:
+                case DeclarationKind.Union:
                 case DeclarationKind.Interface:
                 case DeclarationKind.Enum:
                 case DeclarationKind.Delegate:
@@ -121,6 +122,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                 case SyntaxKind.ClassDeclaration:
                 case SyntaxKind.InterfaceDeclaration:
                 case SyntaxKind.StructDeclaration:
+                case SyntaxKind.UnionDeclaration:
                 case SyntaxKind.RecordDeclaration:
                 case SyntaxKind.RecordStructDeclaration:
                     return ((BaseTypeDeclarationSyntax)node).Identifier;
@@ -162,6 +164,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                 {
                     case SyntaxKind.ClassDeclaration:
                     case SyntaxKind.StructDeclaration:
+                    case SyntaxKind.UnionDeclaration:
                     case SyntaxKind.InterfaceDeclaration:
                     case SyntaxKind.RecordDeclaration:
                     case SyntaxKind.RecordStructDeclaration:
@@ -472,6 +475,7 @@ next:;
             {
                 case SyntaxKind.ClassDeclaration:
                 case SyntaxKind.StructDeclaration:
+                case SyntaxKind.UnionDeclaration:
                 case SyntaxKind.InterfaceDeclaration:
                 case SyntaxKind.RecordDeclaration:
                 case SyntaxKind.RecordStructDeclaration:
@@ -806,7 +810,7 @@ next:;
 
         AttributeLocation IAttributeTargetSymbol.DefaultAttributeLocation
         {
-            get { return AttributeLocation.Type; }
+            get { return IsExtension ? AttributeLocation.Extension : AttributeLocation.Type; }
         }
 
         AttributeLocation IAttributeTargetSymbol.AllowedAttributeLocations
@@ -1048,6 +1052,21 @@ next:;
                 return (null, null);
             }
 
+            if (CSharpAttributeData.IsTargetEarlyAttribute(arguments.AttributeType, arguments.AttributeSyntax, AttributeDescription.UnionAttribute))
+            {
+                (attributeData, boundAttribute) = arguments.Binder.GetAttribute(arguments.AttributeSyntax, arguments.AttributeType, beforeAttributePartBound: null, afterAttributePartBound: null, out hasAnyDiagnostics);
+                if (!attributeData.HasErrors && attributeData.CommonConstructorArguments.IsEmpty)
+                {
+                    arguments.GetOrCreateData<TypeEarlyWellKnownAttributeData>().HasUnionAttribute = true;
+                    if (!hasAnyDiagnostics)
+                    {
+                        return (attributeData, boundAttribute);
+                    }
+                }
+
+                return (null, null);
+            }
+
             return base.EarlyDecodeWellKnownAttribute(ref arguments);
         }
 #nullable disable
@@ -1161,18 +1180,9 @@ next:;
                 diagnostics.Add(ErrorCode.ERR_CantUseRequiredAttribute, arguments.AttributeSyntaxOpt.Name.Location);
             }
             else if (ReportExplicitUseOfReservedAttributes(in arguments,
-                ReservedAttributes.DynamicAttribute
-                | ReservedAttributes.IsReadOnlyAttribute
-                | ReservedAttributes.RequiresLocationAttribute
-                | ReservedAttributes.IsUnmanagedAttribute
-                | ReservedAttributes.IsByRefLikeAttribute
-                | ReservedAttributes.TupleElementNamesAttribute
-                | ReservedAttributes.NullableAttribute
-                | ReservedAttributes.NullableContextAttribute
-                | ReservedAttributes.NativeIntegerAttribute
-                | ReservedAttributes.CaseSensitiveExtensionAttribute
-                | ReservedAttributes.RequiredMemberAttribute
-                | ReservedAttributes.ExtensionMarkerAttribute))
+                permitted: ReservedAttributes.NullablePublicOnlyAttribute
+                    | ReservedAttributes.ScopedRefAttribute
+                    | ReservedAttributes.RefSafetyRulesAttribute))
             {
             }
             else if (attribute.IsTargetAttribute(AttributeDescription.SecurityCriticalAttribute)
@@ -1450,6 +1460,22 @@ next:;
         }
 
 #nullable enable
+        internal override bool IsUnionTypeCore
+        {
+            get
+            {
+                return IsUnionDeclaration || HasUnionAttribute;
+            }
+        }
+
+        private bool HasUnionAttribute
+        {
+            get
+            {
+                return GetEarlyDecodedWellKnownAttributeData()?.HasUnionAttribute == true;
+            }
+        }
+
         internal sealed override bool IsInterpolatedStringHandlerType
             => GetEarlyDecodedWellKnownAttributeData()?.HasInterpolatedStringHandlerAttribute == true;
 #nullable disable
@@ -1776,6 +1802,32 @@ next:;
                     compilation.TrySynthesizeAttribute(WellKnownMember.System_Runtime_CompilerServices_RequiredMemberAttribute__ctor));
             }
 
+            if (IsClosed)
+            {
+                ImmutableArray<KeyValuePair<WellKnownMember, TypedConstant>> namedArguments;
+                var derivedTypesProperty = (PropertySymbol)compilation.GetWellKnownTypeMember(WellKnownMember.System_Runtime_CompilerServices_IsClosedTypeAttribute__DerivedTypes);
+                if (derivedTypesProperty is not null)
+                {
+                    var propertyType = (ArrayTypeSymbol)derivedTypesProperty.Type;
+                    var derivedTypesConstant = new TypedConstant(
+                        propertyType,
+                        CandidateClosedSubtypeDefinitions.SelectAsArray(
+                            static (subtype, elementType) => new TypedConstant(elementType, TypedConstantKind.Type, subtype.GetUnboundGenericTypeOrSelf()), propertyType.ElementType));
+
+                    namedArguments = [new KeyValuePair<WellKnownMember, TypedConstant>(
+                        WellKnownMember.System_Runtime_CompilerServices_IsClosedTypeAttribute__DerivedTypes,
+                        derivedTypesConstant)];
+                }
+                else
+                {
+                    namedArguments = default;
+                }
+
+                AddSynthesizedAttribute(
+                    ref attributes,
+                    compilation.TrySynthesizeAttribute(WellKnownMember.System_Runtime_CompilerServices_IsClosedTypeAttribute__ctor, namedArguments: namedArguments));
+            }
+
             // Add MetadataUpdateOriginalTypeAttribute when a reloadable type is emitted to EnC delta
             if (moduleBuilder.EncSymbolChanges?.IsReplaced(this) == true)
             {
@@ -1810,6 +1862,49 @@ next:;
                         SynthesizedAttributeData.Create(DeclaringCompilation, parameterlessConstructor, arguments: [], namedArguments: []));
                 }
             }
+
+            // Union type
+            if (ShouldApplyUnionAttribute())
+            {
+                AddSynthesizedAttribute(ref attributes, compilation.TrySynthesizeAttribute(WellKnownMember.System_Runtime_CompilerServices_UnionAttribute__ctor));
+            }
+        }
+
+        private bool ShouldApplyUnionAttribute()
+        {
+            return IsUnionDeclaration && !HasUnionAttribute;
+        }
+
+        protected override void AfterMembersChecks(BindingDiagnosticBag diagnostics)
+        {
+            base.AfterMembersChecks(diagnostics);
+
+            bool hasExplicitOrExtendedLayout = Layout.Kind == LayoutKind.Explicit || Layout.Kind == LayoutKind.Extended;
+            bool fieldsNeedSafeOrUnsafe = ContainingModule.UseUpdatedMemorySafetyRules && hasExplicitOrExtendedLayout;
+            var fields = GetFieldsToEmit();
+            foreach (var field in fields)
+            {
+                if (fieldsNeedSafeOrUnsafe && !field.IsStatic && !field.IsConst && !fieldHasUnsafeOrSafeModifier(field))
+                {
+                    diagnostics.Add(ErrorCode.ERR_ExplicitOrExtendedLayoutFieldRequiresUnsafeOrSafe, field.GetFirstLocation());
+                }
+            }
+
+            // Union type
+            if (ShouldApplyUnionAttribute())
+            {
+                _ = Binder.GetWellKnownTypeMember(DeclaringCompilation, WellKnownMember.System_Runtime_CompilerServices_UnionAttribute__ctor, diagnostics, GetFirstLocation());
+            }
+
+            return;
+
+            static bool fieldHasUnsafeOrSafeModifier(FieldSymbol field) => field.AssociatedSymbol switch
+            {
+                SourcePropertySymbolBase prop => prop.HasUnsafeModifier || prop.HasSafeModifier,
+                SourceEventSymbol evt => evt.HasUnsafeModifier || evt.HasSafeModifier,
+                null => field is FieldSymbolWithAttributesAndModifiers fieldWithModifiers && (fieldWithModifiers.HasUnsafeModifier || fieldWithModifiers.HasSafeModifier),
+                _ => throw ExceptionUtilities.UnexpectedValue(field.AssociatedSymbol),
+            };
         }
 
         #endregion
@@ -2045,6 +2140,7 @@ next:;
                     diagnostics.Add(ErrorCode.ERR_BadExtensionContainingType, syntax.Keyword);
                 }
             }
+
         }
     }
 }

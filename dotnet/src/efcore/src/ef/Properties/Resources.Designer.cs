@@ -70,7 +70,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("ContextDescription");
 
         /// <summary>
-        ///     The directory to put the DbContext file in. Paths are relative to the project directory.
+        ///     The directory to put the DbContext file in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string ContextDirDescription
             => GetString("ContextDirDescription");
@@ -272,7 +272,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("IdempotentDescription");
 
         /// <summary>
-        ///     Show JSON output. Use with --prefix-output to parse programatically.
+        ///     Show JSON output. Use with --prefix-output to parse programmatically.
         /// </summary>
         public static string JsonDescription
             => GetString("JsonDescription");
@@ -356,7 +356,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("MigrationsNamespaceDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory. Defaults to "Migrations".
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory. Defaults to "Migrations".
         /// </summary>
         public static string MigrationsOutputDirDescription
             => GetString("MigrationsOutputDirDescription");
@@ -430,6 +430,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
         /// <summary>
         ///     The '--namespace' option requires the '--add' option to be specified.
         /// </summary>
+
+        /// <summary>
+        ///     The C# language version to use when generating code.
+        /// </summary>
+        public static string LanguageVersionDescription
+            => GetString("LanguageVersionDescription");
 
         /// <summary>
         ///     Additionally generate all the code required for NativeAOT compilation and precompiled queries (experimental).
@@ -506,7 +512,7 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => GetString("OutputDescription");
 
         /// <summary>
-        ///     The directory to put files in. Paths are relative to the project directory.
+        ///     The directory to put files in. Paths are relative to the project or file-based app directory.
         /// </summary>
         public static string OutputDirDescription
             => GetString("OutputDirDescription");
@@ -724,6 +730,12 @@ namespace Microsoft.EntityFrameworkCore.Tools.Properties
             => string.Format(
                 GetString("WritingFile", nameof(file)),
                 file);
+
+        /// <summary>
+        ///     The wildcard '*' is not supported for this command.
+        /// </summary>
+        public static string WildcardNotSupported
+            => GetString("WildcardNotSupported");
 
         private static string GetString(string name, params string[] formatterNames)
         {

@@ -51,7 +51,20 @@ public class SqliteByteArrayMethodTranslator(ISqlExpressionFactory sqlExpression
                 sqlExpressionFactory.Constant(0));
         }
 
-        return null;
+        return method.IsGenericMethod
+            && method.DeclaringType == typeof(Enumerable)
+            && method.Name == nameof(Enumerable.Any)
+            && arguments is [var anySource]
+            && anySource.Type == typeof(byte[])
+                ? sqlExpressionFactory.GreaterThan(
+                    sqlExpressionFactory.Function(
+                        "length",
+                        [anySource],
+                        nullable: true,
+                        argumentsPropagateNullability: Statics.TrueArrays[1],
+                        typeof(int)),
+                    sqlExpressionFactory.Constant(0))
+                : null;
     }
 
     // See issue#16428

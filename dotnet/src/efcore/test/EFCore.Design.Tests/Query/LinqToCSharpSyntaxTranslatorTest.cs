@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.EntityFrameworkCore.Design.Internal;
@@ -11,8 +12,6 @@ using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal;
 using Xunit.Sdk;
 using static System.Linq.Expressions.Expression;
-
-#nullable enable
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
@@ -246,6 +245,33 @@ private static extern ref int UnsafeAccessor_Microsoft_EntityFrameworkCore_Query
 """,
                     Assert.Single(accessors),
                     ignoreLineEndingDifferences: true));
+
+    [Fact]
+    public void Private_instance_field_read_with_updated_memory_safety_rules()
+    {
+        var (translator, _) = CreateTranslator(useUpdatedMemorySafetyRules: true);
+        var namespaces = new HashSet<string>();
+        var unsafeAccessors = new HashSet<MethodDeclarationSyntax>();
+
+        translator.TranslateExpression(
+            Field(Parameter(typeof(Blog), "blog"), "_privateField"),
+            constantReplacements: null,
+            namespaces,
+            unsafeAccessors);
+
+        var declaration = Assert.Single(unsafeAccessors);
+
+        if (MemorySafetyRules.SafeKeyword == SyntaxKind.None)
+        {
+            // The Roslyn version currently referenced by this project doesn't recognize "safe" as a contextual
+            // keyword yet, so it can never be emitted, even when updated memory safety rules were requested.
+            Assert.DoesNotContain(declaration.Modifiers, modifier => modifier.Text == "safe");
+        }
+        else
+        {
+            Assert.Contains(declaration.Modifiers, modifier => modifier.Text == "safe");
+        }
+    }
 
     // TODO: Also test accessing private static fields
     // TODO: Also test accessing private properties, instance and static
@@ -550,6 +576,31 @@ int () =>
         AssertExpression(
             Lambda<Func<int, int, int>>(Add(i, j), i, j),
             "int (int i, int j) => i + j");
+    }
+
+    [Fact]
+    public void Lambda_parameter_name_is_uniquified_against_constant_replacement()
+    {
+        var source = Parameter(typeof(int), "source");
+
+        AssertExpression(
+            Lambda<Func<int, int>>(Add(source, Constant(42)), source),
+            "int (int source0) => source0 + source",
+            new Dictionary<object, string> { { 42, "source" } });
+    }
+
+    [Fact]
+    public void Nested_lambda_parameters_are_uniquified_against_outer_scope_and_constant_replacement()
+    {
+        var outer = Parameter(typeof(int), "source");
+        var inner = Parameter(typeof(int), "source");
+
+        AssertExpression(
+            Lambda<Func<int, Func<int, int>>>(
+                Lambda<Func<int, int>>(Add(Add(outer, inner), Constant(42)), inner),
+                outer),
+            "Func<int, int> (int source0) => int (int source1) => source0 + source1 + source",
+            new Dictionary<object, string> { { 42, "source" } });
     }
 
     [Fact]
@@ -1046,6 +1097,25 @@ else
     }
 }
 """);
+    }
+
+    [Fact]
+    public void Variable_with_same_name_as_constant_replacement_gets_renamed()
+    {
+        var i = Parameter(typeof(int), "i");
+
+        AssertStatement(
+            Block(
+                variables: [i],
+                Assign(i, Constant(8)),
+                Call(ReturnsIntWithParamMethod, i)),
+            """
+{
+    var i0 = i;
+    LinqToCSharpSyntaxTranslatorTest.ReturnsIntWithParam(i0);
+}
+""",
+            new Dictionary<object, string> { { 8, "i" } });
     }
 
     [Fact]
@@ -1979,11 +2049,11 @@ catch
         }
     }
 
-    private (LinqToCSharpSyntaxTranslator, AdhocWorkspace) CreateTranslator()
+    private (LinqToCSharpSyntaxTranslator, AdhocWorkspace) CreateTranslator(bool useUpdatedMemorySafetyRules = false)
     {
         var workspace = new AdhocWorkspace();
         var syntaxGenerator = SyntaxGenerator.GetGenerator(workspace, LanguageNames.CSharp);
-        return (new LinqToCSharpSyntaxTranslator(syntaxGenerator), workspace);
+        return (new LinqToCSharpSyntaxTranslator(syntaxGenerator, useUpdatedMemorySafetyRules), workspace);
     }
 
     // ReSharper disable UnusedMember.Local

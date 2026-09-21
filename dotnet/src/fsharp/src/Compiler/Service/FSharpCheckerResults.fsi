@@ -224,8 +224,6 @@ type public FSharpParsingOptions =
 
         IsInteractive: bool
 
-        StrictIndentation: bool option
-
         CompilingFSharpCore: bool
 
         IsExe: bool
@@ -253,8 +251,13 @@ type public FSharpCheckFileResults =
     /// The errors returned by parsing a source file.
     member Diagnostics: FSharpDiagnostic[]
 
+    member HasErrors: bool
+
     /// Get a view of the contents of the assembly up to and including the file just checked
     member PartialAssemblySignature: FSharpAssemblySignature
+
+    /// Get a view of the contents of the file just checked, inferred even when a signature file hides them
+    member FileSignature: FSharpAssemblySignature
 
     /// Get the resolution of the ProjectOptions
     member ProjectContext: FSharpProjectContext
@@ -421,7 +424,8 @@ type public FSharpCheckFileResults =
         line: int * colAtEndOfNames: int * lineText: string * names: string list -> FSharpSymbolUse list
 
     /// <summary>Get any extra colorization info that is available after the typecheck</summary>
-    member GetSemanticClassification: range option -> SemanticClassificationItem[]
+    member GetSemanticClassification:
+        range option * ?relatedSymbolKinds: RelatedSymbolUseKind -> SemanticClassificationItem[]
 
     /// <summary>Get the locations of format specifiers</summary>
     [<Obsolete("This member has been replaced by GetFormatSpecifierLocationsAndArity, which returns both range and arity of specifiers")>]
@@ -434,7 +438,9 @@ type public FSharpCheckFileResults =
     member GetAllUsesOfAllSymbolsInFile: ?cancellationToken: CancellationToken -> seq<FSharpSymbolUse>
 
     /// Get the textual usages that resolved to the given symbol throughout the file
-    member GetUsesOfSymbolInFile: symbol: FSharpSymbol * ?cancellationToken: CancellationToken -> FSharpSymbolUse[]
+    member GetUsesOfSymbolInFile:
+        symbol: FSharpSymbol * ?relatedSymbolKinds: RelatedSymbolUseKind * ?cancellationToken: CancellationToken ->
+            FSharpSymbolUse[]
 
     member internal GetVisibleNamespacesAndModulesAtPoint: pos -> ModuleOrNamespaceRef[]
 
@@ -456,7 +462,7 @@ type public FSharpCheckFileResults =
     /// Lays out and returns the formatted signature for the typechecked file as source text.
     member GenerateSignature: ?pageWidth: int -> ISourceText option
 
-    member internal CalculateSignatureHash: unit -> int option
+    member internal CalculateSignatureHash: unit -> int64 option
 
     /// Internal constructor
     static member internal MakeEmpty:
@@ -477,6 +483,7 @@ type public FSharpCheckFileResults =
         tcErrors: FSharpDiagnostic[] *
         keepAssemblyContents: bool *
         ccuSigForFile: ModuleOrNamespaceType *
+        ownSigForFile: ModuleOrNamespaceType *
         thisCcu: CcuThunk *
         tcImports: TcImports *
         tcAccessRights: AccessorDomain *

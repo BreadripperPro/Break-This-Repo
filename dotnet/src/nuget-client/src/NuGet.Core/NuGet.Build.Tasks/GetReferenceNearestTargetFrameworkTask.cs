@@ -17,6 +17,7 @@ using NuGet.ProjectModel;
 
 namespace NuGet.Build.Tasks
 {
+    [MSBuildMultiThreadableTask]
     public class GetReferenceNearestTargetFrameworkTask : Task
     {
         private const string NEAREST_TARGET_FRAMEWORK = "NearestTargetFramework";
@@ -169,7 +170,7 @@ namespace NuGet.Build.Tasks
             // try project fallback frameworks
             foreach (var currentProjectTargetFramework in fallbackNuGetFrameworks)
             {
-                nearestNuGetFramework = packageSpec.GetNearestTargetFramework(currentProjectTargetFramework, targetAlias: null);
+                nearestNuGetFramework = packageSpec.GetNearestTargetFramework(currentProjectTargetFramework, targetAlias: CurrentProjectTargetFrameworkProperty);
 
                 if (nearestNuGetFramework.FrameworkName != null)
                 {

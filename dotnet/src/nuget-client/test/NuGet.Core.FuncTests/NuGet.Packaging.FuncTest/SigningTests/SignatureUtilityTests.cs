@@ -30,7 +30,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
         }
 
 #if IS_DESKTOP
-        [Fact]
+        [NetFxCIOnlyFact]
         public async Task GetTimestampCertificateChain_WithNoSigningCertificateUsage_Throws()
         {
             ISigningTestServer testServer = await _fixture.GetSigningTestServerAsync();
@@ -57,7 +57,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
                     using (FileStream stream = File.OpenRead(signedPackagePath))
                     using (var reader = new PackageArchiveReader(stream))
                     {
-                        PrimarySignature signature = await reader.GetPrimarySignatureAsync(CancellationToken.None);
+                        PrimarySignature signature = (await reader.GetPrimarySignatureAsync(CancellationToken.None))!;
 
                         var exception = Assert.Throws<SignatureException>(
                             () => SignatureUtility.GetTimestampCertificateChain(signature));
@@ -70,7 +70,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
             }
         }
 
-        [Theory]
+        [NetFxCIOnlyTheory]
         [InlineData(SigningCertificateUsage.V1)]
         public async Task GetTimestampCertificateChain_WithShortEssCertIdCertificateHash_Throws(
             SigningCertificateUsage signingCertificateUsage)
@@ -100,7 +100,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
                     using (FileStream stream = File.OpenRead(signedPackagePath))
                     using (var reader = new PackageArchiveReader(stream))
                     {
-                        PrimarySignature signature = await reader.GetPrimarySignatureAsync(CancellationToken.None);
+                        PrimarySignature signature = (await reader.GetPrimarySignatureAsync(CancellationToken.None))!;
 
                         var exception = Assert.Throws<SignatureException>(
                             () => SignatureUtility.GetTimestampCertificateChain(signature));
@@ -113,7 +113,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
             }
         }
 
-        [Theory]
+        [NetFxCIOnlyTheory]
         [InlineData(SigningCertificateUsage.V1)]
         public async Task GetTimestampCertificateChain_WithMismatchedEssCertIdCertificateHash_ReturnsChain(
             SigningCertificateUsage signingCertificateUsage)
@@ -143,7 +143,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
                     using (FileStream stream = File.OpenRead(signedPackagePath))
                     using (var reader = new PackageArchiveReader(stream))
                     {
-                        PrimarySignature signature = await reader.GetPrimarySignatureAsync(CancellationToken.None);
+                        PrimarySignature signature = (await reader.GetPrimarySignatureAsync(CancellationToken.None))!;
 
                         using (IX509CertificateChain actualChain = SignatureUtility.GetTimestampCertificateChain(signature))
                         {
@@ -169,7 +169,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
         }
 #endif
 
-        [Theory]
+        [NetFxCIOnlyTheory]
         [InlineData(SigningCertificateUsage.V1)]
         [InlineData(SigningCertificateUsage.V2)]
         [InlineData(SigningCertificateUsage.V1 | SigningCertificateUsage.V2)]
@@ -200,7 +200,7 @@ namespace NuGet.Packaging.FuncTest.SigningTests
                     using (FileStream stream = File.OpenRead(signedPackagePath))
                     using (var reader = new PackageArchiveReader(stream))
                     {
-                        PrimarySignature signature = await reader.GetPrimarySignatureAsync(CancellationToken.None);
+                        PrimarySignature signature = (await reader.GetPrimarySignatureAsync(CancellationToken.None))!;
 
                         using (IX509CertificateChain actualChain = SignatureUtility.GetTimestampCertificateChain(signature))
                         {

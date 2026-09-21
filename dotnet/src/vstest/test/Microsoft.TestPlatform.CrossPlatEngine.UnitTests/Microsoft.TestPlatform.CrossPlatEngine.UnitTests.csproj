@@ -7,7 +7,7 @@
 
   <PropertyGroup>
     <AssemblyName>Microsoft.TestPlatform.CrossPlatEngine.UnitTests</AssemblyName>
-    <TargetFrameworks>net9.0;net48</TargetFrameworks>
+    <TargetFrameworks>net11.0;net481</TargetFrameworks>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
@@ -17,5 +17,10 @@
       <FromP2P>true</FromP2P>
     </ProjectReference>
     <ProjectReference Include="..\Microsoft.TestPlatform.TestUtilities\Microsoft.TestPlatform.TestUtilities.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
+    <!-- The MTP client is compiled out of source-only builds, so its tests go with it.
+         Temporary, see dotnet/dotnet#8349 and CrossPlatEngine.csproj. -->
+    <Compile Remove="Client\MTP\**\*.cs" />
   </ItemGroup>
 </Project>

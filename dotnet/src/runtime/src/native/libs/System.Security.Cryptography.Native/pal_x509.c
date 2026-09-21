@@ -11,6 +11,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "openssl.h"
+
 #ifndef NAME_MAX
 #error "NAME_MAX is not defined"
 #endif
@@ -126,12 +128,6 @@ void CryptoNative_X509Destroy(X509* a)
     }
 }
 
-X509* CryptoNative_X509Duplicate(X509* x509)
-{
-    ERR_clear_error();
-    return X509_dup(x509);
-}
-
 X509* CryptoNative_PemReadX509FromBio(BIO* bio)
 {
     ERR_clear_error();
@@ -150,13 +146,13 @@ ASN1_INTEGER* CryptoNative_X509GetSerialNumber(X509* x509)
     return X509_get_serialNumber(x509);
 }
 
-X509_NAME* CryptoNative_X509GetIssuerName(X509* x509)
+const X509_NAME* CryptoNative_X509GetIssuerName(X509* x509)
 {
     // Just a field accessor, no error queue interactions apply.
     return X509_get_issuer_name(x509);
 }
 
-X509_NAME* CryptoNative_X509GetSubjectName(X509* x509)
+const X509_NAME* CryptoNative_X509GetSubjectName(X509* x509)
 {
     // Just a field accessor, no error queue interactions apply.
     return X509_get_subject_name(x509);
@@ -180,19 +176,19 @@ int32_t CryptoNative_X509GetExtCount(X509* x)
     return X509_get_ext_count(x);
 }
 
-X509_EXTENSION* CryptoNative_X509GetExt(X509* x, int32_t loc)
+const X509_EXTENSION* CryptoNative_X509GetExt(X509* x, int32_t loc)
 {
     // Just a field accessor, no error queue interactions apply.
     return X509_get_ext(x, loc);
 }
 
-ASN1_OBJECT* CryptoNative_X509ExtensionGetOid(X509_EXTENSION* x)
+const ASN1_OBJECT* CryptoNative_X509ExtensionGetOid(X509_EXTENSION* x)
 {
     // Just a field accessor, no error queue interactions apply.
     return X509_EXTENSION_get_object(x);
 }
 
-ASN1_OCTET_STRING* CryptoNative_X509ExtensionGetData(X509_EXTENSION* x)
+const ASN1_OCTET_STRING* CryptoNative_X509ExtensionGetData(X509_EXTENSION* x)
 {
     // Just a field accessor, no error queue interactions apply.
     return X509_EXTENSION_get_data(x);
@@ -204,7 +200,7 @@ int32_t CryptoNative_X509ExtensionGetCritical(X509_EXTENSION* x)
     return X509_EXTENSION_get_critical(x);
 }
 
-ASN1_OCTET_STRING* CryptoNative_X509FindExtensionData(X509* x, int32_t nid)
+const ASN1_OCTET_STRING* CryptoNative_X509FindExtensionData(X509* x, int32_t nid)
 {
     ERR_clear_error();
 
@@ -220,7 +216,7 @@ ASN1_OCTET_STRING* CryptoNative_X509FindExtensionData(X509* x, int32_t nid)
         return NULL;
     }
 
-    X509_EXTENSION* ext = X509_get_ext(x, idx);
+    OSSL4CONST X509_EXTENSION* ext = X509_get_ext(x, idx);
 
     if (ext == NULL)
     {
@@ -625,7 +621,7 @@ int32_t CryptoNative_X509StackAddDirectoryStore(X509Stack* stack, char* storePat
     if (storeDir != NULL)
     {
         X509* cert;
-        X509Stack* tmpStack = sk_X509_new_null();
+        X509Stack* tmpStack = CryptoNative_NewX509Stack();
 
         if (tmpStack == NULL)
         {
@@ -975,7 +971,7 @@ static X509VerifyStatusCode CheckOcspGetExpiry(OCSP_REQUEST* req,
             {
                 time_t currentTime = time(NULL);
                 int nextUpdComparison = 0;
-#if defined(FEATURE_DISTRO_AGNOSTIC_SSL) && defined(TARGET_ARM) && defined(TARGET_LINUX)
+#if defined(FEATURE_DISTRO_AGNOSTIC_SSL) && defined(TARGET_ARM) && defined(TARGET_LINUX) && !defined(TARGET_ANDROID)
                 // If openssl uses 32-bit time_t and the current time doesn't fit in 32 bits,
                 // skip checking the status/nextupd, and fall through to return PAL_X509_V_ERR_UNABLE_TO_GET_CRL.
                 if (!g_libSslUses32BitTime || (currentTime >= INT_MIN && currentTime <= INT_MAX))
@@ -1348,7 +1344,7 @@ int32_t CryptoNative_X509DecodeOcspToExpiration(const uint8_t* buf, int32_t len,
 
     if (store != NULL)
     {
-        bag = sk_X509_new_null();
+        bag = CryptoNative_NewX509Stack();
     }
 
     if (bag != NULL)

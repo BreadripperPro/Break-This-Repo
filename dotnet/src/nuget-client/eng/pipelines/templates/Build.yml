@@ -152,12 +152,22 @@ steps:
       configuration: "$(BuildConfiguration)"
       msbuildArguments: "/restore:false /target:BuildVSIX /property:BuildRTM=$(BuildRTM) /property:ExcludeTestProjects=$(BuildRTM) /property:IsCIBuild=true /binarylogger:$(Build.StagingDirectory)\\binlog\\13.PackVSIX.binlog"
     condition: "and(succeeded(),eq(variables['BuildRTM'], 'false'))"
+
   - ${{ if not(parameters.BuildRTM)}}:
-      - template: /eng/common/templates-official/steps/generate-sbom.yml@self
-        parameters:
+      - task: PowerShell@1
+        displayName: "Prepare for SBOM generation"
+        inputs:
+          scriptType: "inlineScript"
+          inlineScript: |
+            mkdir $(Build.ArtifactStagingDirectory)/sbom
+
+      - task: ManifestGeneratorTask@0
+        displayName: 'Generate SBOM'
+        inputs:
+          BuildDropPath: '$(System.DefaultWorkingDirectory)/artifacts'
+          ManifestDirPath: '$(Build.ArtifactStagingDirectory)/sbom'
           PackageName: "NuGet.Client"
           PackageVersion: "$(SemanticVersion)"
-          publishArtifacts: false
 
   - task: MSBuild@1
     displayName: "Generate Build Tools package"
@@ -324,3 +334,33 @@ steps:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_MULTILEVEL_LOOKUP: true
     condition: "and(succeeded(),eq(variables['PublishArtifactsToDotNetBuildAssetRegistry'], 'true'), eq(variables['BuildRTM'], 'false'))"
+
+  - task: PowerShell@1
+    displayName: "Create ReleaseConfigs artifact"
+    inputs:
+      scriptType: "inlineScript"
+      inlineScript: |
+        try {
+          if ([string]::IsNullOrWhiteSpace("$(BARBuildId)"))
+          {
+            throw "BARBuildId was not set by PublishToBuildAssetRegistry."
+          }
+
+          New-Item -ItemType Directory -Force -Path "$(Build.StagingDirectory)\ReleaseConfigs" | Out-Null
+          @(
+            "$(BARBuildId)"
+            "$(DefaultChannels)"
+            "$(IsStableBuild)"
+          ) | Set-Content -Path "$(Build.StagingDirectory)\ReleaseConfigs\ReleaseConfigs.txt"
+        } catch {
+          Write-Host "##vso[task.LogIssue type=error;]$_"
+          exit 1
+        }
+    condition: "and(succeeded(),eq(variables['PublishArtifactsToDotNetBuildAssetRegistry'], 'true'), eq(variables['BuildRTM'], 'false'))"
+
+  - template: /eng/common/templates-official/steps/publish-build-artifacts.yml
+    parameters:
+      displayName: "Publish ReleaseConfigs artifact"
+      pathToPublish: '$(Build.StagingDirectory)\ReleaseConfigs'
+      artifactName: 'ReleaseConfigs'
+      condition: "and(succeeded(),eq(variables['PublishArtifactsToDotNetBuildAssetRegistry'], 'true'), eq(variables['BuildRTM'], 'false'))"

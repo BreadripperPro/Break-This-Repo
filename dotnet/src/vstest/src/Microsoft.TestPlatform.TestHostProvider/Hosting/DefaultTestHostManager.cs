@@ -16,7 +16,7 @@ using System.Xml.Linq;
 
 using Microsoft.TestPlatform.TestHostProvider;
 using Microsoft.TestPlatform.TestHostProvider.Hosting;
-using Microsoft.TestPlatform.TestHostProvider.Resources;
+using TestHostResources = Microsoft.TestPlatform.TestHostProvider.Resources.Resources;
 using Microsoft.VisualStudio.TestPlatform.CoreUtilities.Extensions;
 using Microsoft.VisualStudio.TestPlatform.CoreUtilities.Helpers;
 using Microsoft.VisualStudio.TestPlatform.CrossPlatEngine.Helpers;
@@ -56,7 +56,6 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
     private readonly IProcessHelper _processHelper;
     private readonly IFileHelper _fileHelper;
     private readonly IEnvironment _environment;
-    private readonly IDotnetHostHelper _dotnetHostHelper;
     private readonly IEnvironmentVariableHelper _environmentVariableHelper;
     private bool _disableAppDomain;
     private Architecture _architecture;
@@ -67,6 +66,7 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
     private StringBuilder? _testHostProcessStdOut;
     private IMessageLogger? _messageLogger;
     private bool _captureOutput;
+    private bool _createNoNewWindow;
     private bool _hostExitedEventRaised;
     private TestHostManagerCallbacks? _testHostManagerCallbacks;
 
@@ -77,7 +77,6 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
         : this(
             new ProcessHelper(),
             new FileHelper(),
-            new DotnetHostHelper(),
             new PlatformEnvironment(),
             new EnvironmentVariableHelper())
     {
@@ -90,17 +89,14 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
     /// <param name="fileHelper">File helper instance.</param>
     /// <param name="environment">Instance of platform environment.</param>
     /// <param name="environmentVariableHelper">The environment helper.</param>
-    /// <param name="dotnetHostHelper">Instance of dotnet host helper.</param>
     internal DefaultTestHostManager(
         IProcessHelper processHelper,
         IFileHelper fileHelper,
-        IDotnetHostHelper dotnetHostHelper,
         IEnvironment environment,
         IEnvironmentVariableHelper environmentVariableHelper)
     {
         _processHelper = processHelper;
         _fileHelper = fileHelper;
-        _dotnetHostHelper = dotnetHostHelper;
         _environment = environment;
         _environmentVariableHelper = environmentVariableHelper;
     }
@@ -209,28 +205,26 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
 
         EqtTrace.Verbose("DefaultTestHostmanager.GetTestHostProcessStartInfo: Trying to use {0} from {1}", originalTestHostProcessName, testhostProcessPath);
 
+        // .NET Framework tests run through testhost.exe, which can only run on Windows.
+        // Running them on other operating systems previously relied on Mono, which is no
+        // longer supported. Fail with a clear message instead of launching Mono.
+        if (!_environment.OperatingSystem.Equals(PlatformOperatingSystem.Windows))
+        {
+            throw new TestPlatformException(TestHostResources.NetFrameworkTestsNotSupportedOnNonWindows);
+        }
+
         var launcherPath = testhostProcessPath;
         var processName = _processHelper.GetCurrentProcessFileName();
         if (processName is not null)
         {
-            if (!_environment.OperatingSystem.Equals(PlatformOperatingSystem.Windows)
-                && !processName.EndsWith(DotnetHostHelper.MONOEXENAME, StringComparison.OrdinalIgnoreCase))
+            // Patching the relative path for IDE scenarios.
+            if (!(processName.EndsWith("dotnet", StringComparison.OrdinalIgnoreCase)
+                    || processName.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase))
+                && !File.Exists(testhostProcessPath))
             {
-                launcherPath = _dotnetHostHelper.GetMonoPath();
-                argumentsString = testhostProcessPath.AddDoubleQuote() + " " + argumentsString;
-            }
-            else
-            {
-                // Patching the relative path for IDE scenarios.
-                if (_environment.OperatingSystem.Equals(PlatformOperatingSystem.Windows)
-                    && !(processName.EndsWith("dotnet", StringComparison.OrdinalIgnoreCase)
-                        || processName.EndsWith("dotnet.exe", StringComparison.OrdinalIgnoreCase))
-                    && !File.Exists(testhostProcessPath))
-                {
-                    testhostProcessPath = Path.Combine(currentWorkingDirectory, "..", originalTestHostProcessName);
-                    EqtTrace.Verbose("DefaultTestHostmanager.GetTestHostProcessStartInfo: Could not find {0} in previous location, now using {1}", originalTestHostProcessName, testhostProcessPath);
-                    launcherPath = testhostProcessPath;
-                }
+                testhostProcessPath = Path.Combine(currentWorkingDirectory, "..", originalTestHostProcessName);
+                EqtTrace.Verbose("DefaultTestHostmanager.GetTestHostProcessStartInfo: Could not find {0} in previous location, now using {1}", originalTestHostProcessName, testhostProcessPath);
+                launcherPath = testhostProcessPath;
             }
         }
 
@@ -267,7 +261,7 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
 
         StringBuilder testHostProcessName = new("testhost");
 
-        if (targetFramework.Name.StartsWith(".NETFramework,Version=v"))
+        if (targetFramework.Name.StartsWith(".NETFramework,Version=v", StringComparison.Ordinal))
         {
             // Transform target framework name into moniker.
             // e.g. ".NETFramework,Version=v4.7.2" -> "net472".
@@ -375,6 +369,7 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
 
         _messageLogger = logger;
         _captureOutput = runConfiguration.CaptureStandardOutput;
+        _createNoNewWindow = runConfiguration.CreateNoNewWindow;
         var forwardOutput = runConfiguration.ForwardStandardOutput;
         _testHostManagerCallbacks = new TestHostManagerCallbacks(forwardOutput, logger);
         _architecture = runConfiguration.TargetPlatform;
@@ -483,7 +478,7 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
         if (conflictingExtensions.Count != 0)
         {
             var extensionsString = string.Join("\n", conflictingExtensions.Select(kv => $"  {kv.Key} : {kv.Value}"));
-            string message = string.Format(CultureInfo.CurrentCulture, Resources.MultipleFileVersions, extensionsString);
+            string message = string.Format(CultureInfo.CurrentCulture, TestHostResources.MultipleFileVersions, extensionsString);
             _messageLogger.SendMessage(TestMessageLevel.Warning, message);
         }
 
@@ -537,7 +532,7 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
         if (_customTestHostLauncher == null
             || (_customTestHostLauncher.IsDebug && _customTestHostLauncher is ITestHostLauncher2))
         {
-            EqtTrace.Verbose("DefaultTestHostManager: Starting process '{0}' with command line '{1}'", testHostStartInfo.FileName, testHostStartInfo.Arguments);
+            EqtTrace.Verbose("DefaultTestHostManager: Starting process '{0}' with command line '{1}', CreateNoWindow={2}", testHostStartInfo.FileName, testHostStartInfo.Arguments, _createNoNewWindow);
             cancellationToken.ThrowIfCancellationRequested();
             var outputCallback = _captureOutput ? OutputReceivedCallback : null;
             _testHostProcess = _processHelper.LaunchProcess(
@@ -547,7 +542,8 @@ public class DefaultTestHostManager : ITestRuntimeProvider2
                 testHostStartInfo.EnvironmentVariables,
                 ErrorReceivedCallback,
                 ExitCallBack,
-                outputCallback) as Process;
+                outputCallback,
+                _createNoNewWindow) as Process;
         }
         else
         {

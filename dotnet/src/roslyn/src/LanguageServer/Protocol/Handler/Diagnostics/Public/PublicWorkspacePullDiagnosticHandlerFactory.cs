@@ -14,8 +14,7 @@ namespace Microsoft.CodeAnalysis.LanguageServer.Handler.Diagnostics.Public;
 [ExportCSharpVisualBasicLspServiceFactory(typeof(PublicWorkspacePullDiagnosticsHandler)), Shared]
 [method: ImportingConstructor]
 [method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
-internal sealed class PublicWorkspacePullDiagnosticHandlerFactory(
-    LspWorkspaceRegistrationService registrationService,
+internal class PublicWorkspacePullDiagnosticHandlerFactory(
     IDiagnosticSourceManager diagnosticSourceManager,
     IDiagnosticsRefresher diagnosticsRefresher,
     IGlobalOptionService globalOptions) : ILspServiceFactory
@@ -23,6 +22,7 @@ internal sealed class PublicWorkspacePullDiagnosticHandlerFactory(
     public ILspService CreateILspService(LspServices lspServices, WellKnownLspServerKinds serverKind)
     {
         var workspaceManager = lspServices.GetRequiredService<LspWorkspaceManager>();
+        var registrationService = lspServices.GetRequiredService<LspWorkspaceRegistrationService>();
         return new PublicWorkspacePullDiagnosticsHandler(workspaceManager, registrationService, diagnosticSourceManager, diagnosticsRefresher, globalOptions);
     }
 }

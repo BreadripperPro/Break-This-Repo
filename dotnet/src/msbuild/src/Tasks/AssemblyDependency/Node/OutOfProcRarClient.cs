@@ -1,4 +1,4 @@
-// Licensed to the .NET Foundation under one or more agreements.
+﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -73,27 +73,12 @@ namespace Microsoft.Build.Tasks.AssemblyDependency
                     RarNodeBufferedLogEvents logEvents = (RarNodeBufferedLogEvents)packet;
                     foreach (LogMessagePacketBase logMessagePacket in logEvents.EventQueue)
                     {
-                        BuildEventArgs buildEvent = logMessagePacket.NodeBuildEvent?.Value!;
-                        switch (logMessagePacket.EventType)
-                        {
-                            case LoggingEventType.BuildErrorEvent:
-                                rarTask.BuildEngine.LogErrorEvent((BuildErrorEventArgs)buildEvent);
-                                break;
-                            case LoggingEventType.BuildWarningEvent:
-                                rarTask.BuildEngine.LogWarningEvent((BuildWarningEventArgs)buildEvent);
-                                break;
-                            case LoggingEventType.BuildMessageEvent:
-                                rarTask.BuildEngine.LogMessageEvent((BuildMessageEventArgs)buildEvent);
-                                break;
-                            default:
-                                ErrorUtilities.ThrowInternalError($"Received unexpected log event type {logMessagePacket.Type}");
-                                break;
-                        }
+                        DispatchBuildEvent(rarTask, logMessagePacket.NodeBuildEvent?.Value!);
                     }
                 }
                 else
                 {
-                    ErrorUtilities.ThrowInternalError($"Received unexpected packet type {packet.Type}");
+                    Assumed.Unreachable($"Received unexpected packet type {packet.Type}");
                 }
 
                 packet = _pipeClient.ReadPacket();
@@ -103,6 +88,25 @@ namespace Microsoft.Build.Tasks.AssemblyDependency
             response.SetTaskOutputs(rarTask);
 
             return response.Success;
+        }
+
+        internal static void DispatchBuildEvent(ResolveAssemblyReference rarTask, BuildEventArgs buildEvent)
+        {
+            switch (buildEvent)
+            {
+                case BuildErrorEventArgs error:
+                    rarTask.BuildEngine.LogErrorEvent(error);
+                    break;
+                case BuildWarningEventArgs warning:
+                    rarTask.BuildEngine.LogWarningEvent(warning);
+                    break;
+                case BuildMessageEventArgs message:
+                    rarTask.BuildEngine.LogMessageEvent(message);
+                    break;
+                default:
+                    Assumed.Unreachable($"Received unexpected log event type {buildEvent.GetType()}");
+                    break;
+            }
         }
     }
 }

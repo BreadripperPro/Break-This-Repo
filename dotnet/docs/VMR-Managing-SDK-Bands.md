@@ -4,6 +4,8 @@
 
 This document describes how multiple .NET SDK bands are managed in the Unified Build world using the VMR (Virtual Monolithic Repository). This approach allows us to maintain multiple SDK versions that share common components while keeping band-specific components separate.
 
+> **For tooling repo developers:** If you contribute to a band-specific tooling repo (e.g. `sdk`, `roslyn`, `msbuild`) and want a focused summary of the constraints that apply when your code lands in a non-1xx band branch, see [Feature Band Constraints for Tooling Repo Devs](./VMR-Feature-Band-Tooling-Constraints.md).
+
 ## Terminology
 
 This section presents more precise definitions of common terms used in this document that may be prone to confusion. Also see the [Unified Build terminology](./Terminology.md) for more.
@@ -55,6 +57,16 @@ The VMR uses SDK branches to manage different bands, similar to how individual r
 A shared component is a component that is shared between multiple SDK bands. For instance, the .NET runtime is a good example of a shared component while the Roslyn compiler would typically differ between bands.
 
 During the development cycle, it can happen that shared components require band-specific changes and they can become band-specific for some time. Usually, this is a point in time event and the component becomes shared again after some time. A good example of this is the Arcade repository which contains build tools/infrastructure. However, there are no strict rules about this and it is possible that a component remains band-specific.
+
+### Servicing fixes across bands
+
+For 10.0+ releases, the runtime source code is only present in the 1xx band branch (e.g., `release/10.0.1xx`) and in release-specific branches derived from it (e.g., `internal/release/10.0.101`). Non-1xx band branches (e.g., `release/10.0.2xx`) do not contain runtime source code; they consume the runtime as build output packages produced by the 1xx branch build.
+
+This distinction has important implications when servicing fixes are applied:
+
+- **SDK fixes (band-specific components)**: A fix to a band-specific component (e.g., the SDK or Roslyn) must be applied to **each** band branch that requires the fix. For example, if both the 1xx and 2xx bands need the same SDK fix, it must be submitted to `release/10.0.1xx` and `release/10.0.2xx` separately.
+
+- **Runtime fixes (shared components)**: A fix to the runtime or another shared component only needs to be applied to the **1xx band branch** (e.g., `release/10.0.1xx`). Once the 1xx branch builds with the fix, the updated runtime packages automatically flow to the 2xx and higher band branches. Release-specific branches (e.g., `internal/release/10.0.101`) also contain runtime sources and receive runtime fixes directly.
 
 ### Example
 

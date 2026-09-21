@@ -25,10 +25,24 @@
     <ProjectReference Include="..\Microsoft.TestPlatform.CoreUtilities\Microsoft.TestPlatform.CoreUtilities.csproj">
       <FromP2P>true</FromP2P>
     </ProjectReference>
+    <!--
+      The Microsoft.Testing.Platform runtime provider (MtpTestRuntimeProvider) drives MTP sources over the MTP
+      proxy managers that live in CrossPlatEngine, and implements the internal IProxyManagerFactory defined there.
+      CrossPlatEngine ships alongside this provider in the runner, so this reference adds no new payload.
+    -->
+    <ProjectReference Include="..\Microsoft.TestPlatform.CrossPlatEngine\Microsoft.TestPlatform.CrossPlatEngine.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
+  <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
+    <!-- The MTP proxy managers this provider drives are compiled out of source-only builds, so the provider
+         goes with them. Temporary, see dotnet/dotnet#8349 and CrossPlatEngine.csproj. -->
+    <Compile Remove="Hosting\MtpTestRuntimeProvider.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
     <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="$(MicrosoftExtensionsDependencyModelPackageVersion)" />
+  </ItemGroup>
+  <!-- Jsonite source for .NET Framework builds (no STJ dependency) -->
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp'">
+    <Compile Include="..\Microsoft.TestPlatform.CommunicationUtilities\Json\Jsonite\Jsonite.cs" Link="Json\Jsonite\Jsonite.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="NullableHelpers.cs">

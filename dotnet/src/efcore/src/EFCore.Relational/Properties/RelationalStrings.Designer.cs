@@ -35,6 +35,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, storeObject);
 
         /// <summary>
+        ///     The property '{property}' on type '{type}' is mapped to a JSON entity and cannot be configured as not auto-loaded. JSON-mapped entities are always loaded as a unit.
+        /// </summary>
+        public static string AutoLoadedJsonProperty(object? property, object? type)
+            => string.Format(
+                GetString("AutoLoadedJsonProperty", nameof(property), nameof(type)),
+                property, type);
+
+        /// <summary>
         ///     Unable to deserialize a sequence from model metadata. See inner exception for details.
         /// </summary>
         [Obsolete]
@@ -572,6 +580,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 foreignKeyProperties1, entityType1, foreignKeyProperties2, entityType2, table, foreignKeyName, deleteBehavior1, deleteBehavior2);
 
         /// <summary>
+        ///     The foreign keys {foreignKeyProperties1} on '{entityType1}' and {foreignKeyProperties2} on '{entityType2}' are both mapped to '{table}.{foreignKeyName}', but with different migration exclusion configurations.
+        /// </summary>
+        public static string DuplicateForeignKeyExcludedFromMigrationsMismatch(object? foreignKeyProperties1, object? entityType1, object? foreignKeyProperties2, object? entityType2, object? table, object? foreignKeyName)
+            => string.Format(
+                GetString("DuplicateForeignKeyExcludedFromMigrationsMismatch", nameof(foreignKeyProperties1), nameof(entityType1), nameof(foreignKeyProperties2), nameof(entityType2), nameof(table), nameof(foreignKeyName)),
+                foreignKeyProperties1, entityType1, foreignKeyProperties2, entityType2, table, foreignKeyName);
+
+        /// <summary>
         ///     The foreign keys {foreignKeyProperties1} on '{entityType1}' and {foreignKeyProperties2} on '{entityType2}' are both mapped to '{table}.{foreignKeyName}', but referencing different principal columns ({principalColumnNames1} and {principalColumnNames2}).
         /// </summary>
         public static string DuplicateForeignKeyPrincipalColumnMismatch(object? foreignKeyProperties1, object? entityType1, object? foreignKeyProperties2, object? entityType2, object? table, object? foreignKeyName, object? principalColumnNames1, object? principalColumnNames2)
@@ -744,6 +760,22 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 entityType, storeObject, requiredDependentConfig);
 
         /// <summary>
+        ///     Entity type '{entityType}' has an optional split mapping for '{storeObject}', but the non-nullable property '{property}' is mapped to it. All non-key properties mapped to an optional split fragment must be configured as nullable for '{storeObject}'.
+        /// </summary>
+        public static string EntitySplittingNonNullablePropertyOnOptionalFragment(object? entityType, object? storeObject, object? property)
+            => string.Format(
+                GetString("EntitySplittingNonNullablePropertyOnOptionalFragment", nameof(entityType), nameof(storeObject), nameof(property)),
+                entityType, storeObject, property);
+
+        /// <summary>
+        ///     Entity type '{entityType}' has an optional split mapping for '{storeObject}', but that store object is also shared with entity type '{principalEntityType}' via table splitting. Combining an optional split fragment with table sharing on the same store object is not supported.
+        /// </summary>
+        public static string EntitySplittingOptionalFragmentSharedTable(object? entityType, object? storeObject, object? principalEntityType)
+            => string.Format(
+                GetString("EntitySplittingOptionalFragmentSharedTable", nameof(entityType), nameof(storeObject), nameof(principalEntityType)),
+                entityType, storeObject, principalEntityType);
+
+        /// <summary>
         ///     Entity type '{entityType}' has a split mapping for '{storeObject}', but it doesn't have a main mapping of the same type. Map '{entityType}' to '{storeObjectType}'.
         /// </summary>
         public static string EntitySplittingUnmappedMainFragment(object? entityType, object? storeObject, object? storeObjectType)
@@ -878,6 +910,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => string.Format(
                 GetString("ExecuteUpdateDeleteOnEntityNotMappedToTable", nameof(entityType)),
                 entityType);
+
+        /// <summary>
+        ///     'ExecuteUpdate' is being used to set the property '{entityType}.{property}', which is mapped to the optional entity-splitting fragment '{storeObject}'. Since the row for an optional fragment isn't guaranteed to exist, 'ExecuteUpdate' on properties mapped to one is not supported. Use 'SaveChanges' instead.
+        /// </summary>
+        public static string ExecuteUpdateOnOptionalEntitySplittingFragment(object? entityType, object? property, object? storeObject)
+            => string.Format(
+                GetString("ExecuteUpdateOnOptionalEntitySplittingFragment", nameof(entityType), nameof(property), nameof(storeObject)),
+                entityType, property, storeObject);
 
         /// <summary>
         ///     'ExecuteUpdate' is being used over type '{structuralType}' which is mapped to JSON; 'ExecuteUpdate' on JSON is not supported.
@@ -1030,6 +1070,22 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 value, valueType, property, propertyType, entityType);
 
         /// <summary>
+        ///     The index {indexProperties} on the entity type '{entityType}' cannot contain the complex property '{property}' because it's mapped to multiple columns. Reference each scalar property of the complex type individually instead.
+        /// </summary>
+        public static string IndexOnNonJsonComplexProperty(object? indexProperties, object? entityType, object? property)
+            => string.Format(
+                GetString("IndexOnNonJsonComplexProperty", nameof(indexProperties), nameof(entityType), nameof(property)),
+                indexProperties, entityType, property);
+
+        /// <summary>
+        ///     The index {indexProperties} on the entity type '{entityType}' cannot be configured because some of its properties are contained within a complex property mapped to a JSON column while others are not. All properties of an index must either all be mapped to JSON or all be mapped to regular columns.
+        /// </summary>
+        public static string IndexPropertiesMixedJsonAndNonJsonMapping(object? indexProperties, object? entityType)
+            => string.Format(
+                GetString("IndexPropertiesMixedJsonAndNonJsonMapping", nameof(indexProperties), nameof(entityType)),
+                indexProperties, entityType);
+
+        /// <summary>
         ///     The data insertion operation on '{table}' is not associated with a model. Either add a model to the migration, or specify the column types in all data operations.
         /// </summary>
         public static string InsertDataOperationNoModel(object? table)
@@ -1178,6 +1234,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
                 jsonEntity, parentEntity, navigation);
 
         /// <summary>
+        ///     No JSON element mapping was found for '{structuralType}.{name}' on column '{columnName}'.
+        /// </summary>
+        public static string JsonElementMappingNotFound(object? structuralType, object? name, object? columnName)
+            => string.Format(
+                GetString("JsonElementMappingNotFound", nameof(structuralType), nameof(name), nameof(columnName)),
+                structuralType, name, columnName);
+
+        /// <summary>
         ///     The database returned the empty string when a JSON object was expected.
         /// </summary>
         public static string JsonEmptyString
@@ -1320,6 +1384,30 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => GetString("JsonPartialExecuteUpdateNotSupportedByProvider");
 
         /// <summary>
+        ///     The number of elements ({elementCount}) must match the number of collection-index entries ({collectionIndicesCount}) when creating a RelationalJsonIndex.
+        /// </summary>
+        public static string JsonPathIndexElementsCollectionIndicesMismatch(object? elementCount, object? collectionIndicesCount)
+            => string.Format(
+                GetString("JsonPathIndexElementsCollectionIndicesMismatch", nameof(elementCount), nameof(collectionIndicesCount)),
+                elementCount, collectionIndicesCount);
+
+        /// <summary>
+        ///     The index {indexProperties} on the entity type '{entityType}' cannot be configured because its properties are mapped to different JSON columns ('{firstColumn}' and '{secondColumn}'). All leaves of a JSON-path index (an index whose properties traverse a complex collection) must be contained in a single JSON column.
+        /// </summary>
+        public static string JsonPathIndexPropertiesInDifferentJsonColumns(object? indexProperties, object? entityType, object? firstColumn, object? secondColumn)
+            => string.Format(
+                GetString("JsonPathIndexPropertiesInDifferentJsonColumns", nameof(indexProperties), nameof(entityType), nameof(firstColumn), nameof(secondColumn)),
+                indexProperties, entityType, firstColumn, secondColumn);
+
+        /// <summary>
+        ///     The index {indexProperties} on the entity type '{entityType}' cannot be configured because its property '{property}' traverses a complex collection but is not mapped to a JSON column.
+        /// </summary>
+        public static string JsonPathIndexPropertyMissingJsonColumn(object? indexProperties, object? entityType, object? property)
+            => string.Format(
+                GetString("JsonPathIndexPropertyMissingJsonColumn", nameof(indexProperties), nameof(entityType), nameof(property)),
+                indexProperties, entityType, property);
+
+        /// <summary>
         ///     Using a parameter to access the element of a JSON collection '{entityTypeName}' is not supported when using '{asNoTrackingWithIdentityResolution}'. Use a constant, or project the entire JSON entity collection instead.
         /// </summary>
         public static string JsonProjectingCollectionElementAccessedUsingParmeterNoTrackingWithIdentityResolution(object? entityTypeName, object? asNoTrackingWithIdentityResolution)
@@ -1350,6 +1438,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => GetString("JsonPropertyNameShouldBeConfiguredOnNestedNavigation");
 
         /// <summary>
+        ///     The JSON query expression for '{structuralType}' has no underlying column.
+        /// </summary>
+        public static string JsonQueryExpressionWithoutUnderlyingColumn(object? structuralType)
+            => string.Format(
+                GetString("JsonQueryExpressionWithoutUnderlyingColumn", nameof(structuralType)),
+                structuralType);
+
+        /// <summary>
         ///     Composing LINQ operators over collections inside JSON documents isn't supported or hasn't been implemented by your EF provider.
         /// </summary>
         public static string JsonQueryLinqOperatorsNotSupported
@@ -1378,6 +1474,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => string.Format(
                 GetString("KeylessMappingStrategy", nameof(mappingStrategy), nameof(entityType)),
                 mappingStrategy, entityType);
+
+        /// <summary>
+        ///     The key {keyProperties} on the entity type '{entityType}' cannot be configured because the property '{property}' is contained in a complex type mapped to a JSON column. Keys cannot reference properties that are stored inside a JSON document.
+        /// </summary>
+        public static string KeyPropertyInJsonComplexType(object? keyProperties, object? entityType, object? property)
+            => string.Format(
+                GetString("KeyPropertyInJsonComplexType", nameof(keyProperties), nameof(entityType), nameof(property)),
+                keyProperties, entityType, property);
 
         /// <summary>
         ///     Queries performing '{method}' operation must have a deterministic sort order. Rewrite the query to apply an 'OrderBy' operation on the sequence before calling '{method}'.
@@ -1492,6 +1596,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => string.Format(
                 GetString("ModificationCommandInvalidEntityStateSensitive", nameof(entityType), nameof(keyValues), nameof(entityState)),
                 entityType, keyValues, entityState);
+
+        /// <summary>
+        ///     The annotation '{annotationName}' was specified twice with potentially different values. Specifying the same annotation multiple times for different providers is no longer supported. Review the generated Migration to ensure it is correct and, if necessary, edit the Migration to fix any issues.
+        /// </summary>
+        public static string MultipleAnnotationConflict(object? annotationName)
+            => string.Format(
+                GetString("MultipleAnnotationConflict", nameof(annotationName)),
+                annotationName);
 
         /// <summary>
         ///     Entity type '{entityType}' is mapped to multiple columns with name '{columnName}', and one of them is configured as a JSON column. Assign different names to the columns.
@@ -1808,6 +1920,12 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => string.Format(
                 GetString("SetOperationsRequireAtLeastOneSideWithValidTypeMapping", nameof(setOperationType)),
                 setOperationType);
+
+        /// <summary>
+        ///     The results of a split query could not be correlated because the data was modified concurrently while the query was executing. Re-execute the query, or execute it within a serializable or snapshot transaction to prevent concurrent modifications.
+        /// </summary>
+        public static string SplitQueryConcurrentModification
+            => GetString("SplitQueryConcurrentModification");
 
         /// <summary>
         ///     This LINQ query is being executed in split-query mode, and the SQL shown is for the first query to be executed. Additional queries may also be executed depending on the results of the first query.
@@ -2256,6 +2374,14 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics
             => string.Format(
                 GetString("UnhandledExpressionInVisitor", nameof(expression), nameof(expressionType), nameof(visitor)),
                 expression, expressionType, visitor);
+
+        /// <summary>
+        ///     The index {indexProperties} on the entity type '{entityType}' cannot be configured as unique because it contains the complex property '{property}'. Unique indexes are not supported on complex properties.
+        /// </summary>
+        public static string UniqueIndexOnComplexProperty(object? indexProperties, object? entityType, object? property)
+            => string.Format(
+                GetString("UniqueIndexOnComplexProperty", nameof(indexProperties), nameof(entityType), nameof(property)),
+                indexProperties, entityType, property);
 
         /// <summary>
         ///     The current migration SQL generator '{sqlGeneratorType}' is unable to generate SQL for operations of type '{operationType}'.
@@ -3282,6 +3408,31 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics.Internal
         }
 
         /// <summary>
+        ///     The optionality of the entity-splitting fragment '{storeObject}' for entity type '{entityType}' changed to '{optionality}' since the last migration. This may be a purely behavioral change with no corresponding schema change; review the generated migration to confirm it reflects the intended change.
+        /// </summary>
+        public static EventDefinition<string, string, string> LogEntitySplittingFragmentOptionalityChangedWarning(IDiagnosticsLogger logger)
+        {
+            var definition = ((RelationalLoggingDefinitions)logger.Definitions).LogEntitySplittingFragmentOptionalityChangedWarning;
+            if (definition == null)
+            {
+                definition = NonCapturingLazyInitializer.EnsureInitialized(
+                    ref ((RelationalLoggingDefinitions)logger.Definitions).LogEntitySplittingFragmentOptionalityChangedWarning,
+                    logger,
+                    static logger => new EventDefinition<string, string, string>(
+                        logger.Options,
+                        RelationalEventId.EntitySplittingFragmentOptionalityChangedWarning,
+                        LogLevel.Warning,
+                        "RelationalEventId.EntitySplittingFragmentOptionalityChangedWarning",
+                        level => LoggerMessage.Define<string, string, string>(
+                            level,
+                            RelationalEventId.EntitySplittingFragmentOptionalityChangedWarning,
+                            _resourceManager.GetString("LogEntitySplittingFragmentOptionalityChangedWarning")!)));
+            }
+
+            return (EventDefinition<string, string, string>)definition;
+        }
+
+        /// <summary>
         ///     An exception occurred while executing an 'ExecuteDelete' operation for context type '{contextType}'.{newline}{error}
         /// </summary>
         public static EventDefinition<Type, string, Exception> LogExceptionDuringExecuteDelete(IDiagnosticsLogger logger)
@@ -3786,7 +3937,7 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics.Internal
                     static logger => new EventDefinition<string>(
                         logger.Options,
                         RelationalEventId.MigrationsNotFound,
-                        LogLevel.Information,
+                        LogLevel.Error,
                         "RelationalEventId.MigrationsNotFound",
                         level => LoggerMessage.Define<string>(
                             level,
@@ -3867,6 +4018,31 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics.Internal
                             level,
                             RelationalEventId.NonTransactionalMigrationOperationWarning,
                             _resourceManager.GetString("LogNonTransactionalMigrationOperationWarning")!)));
+            }
+
+            return (EventDefinition<string, string>)definition;
+        }
+
+        /// <summary>
+        ///     Pending model changes were detected for context '{contextType}', but the model snapshot was created with EF Core version '{efVersion}'. These changes may be caused by improvements in snapshot generation in newer versions of EF Core. Consider adding an empty migration to regenerate the snapshot.
+        /// </summary>
+        public static EventDefinition<string, string> LogOldMigrationVersion(IDiagnosticsLogger logger)
+        {
+            var definition = ((RelationalLoggingDefinitions)logger.Definitions).LogOldMigrationVersion;
+            if (definition == null)
+            {
+                definition = NonCapturingLazyInitializer.EnsureInitialized(
+                    ref ((RelationalLoggingDefinitions)logger.Definitions).LogOldMigrationVersion,
+                    logger,
+                    static logger => new EventDefinition<string, string>(
+                        logger.Options,
+                        RelationalEventId.OldMigrationVersionWarning,
+                        LogLevel.Warning,
+                        "RelationalEventId.OldMigrationVersionWarning",
+                        level => LoggerMessage.Define<string, string>(
+                            level,
+                            RelationalEventId.OldMigrationVersionWarning,
+                            _resourceManager.GetString("LogOldMigrationVersion")!)));
             }
 
             return (EventDefinition<string, string>)definition;
@@ -3992,6 +4168,31 @@ namespace Microsoft.EntityFrameworkCore.Diagnostics.Internal
                             level,
                             RelationalEventId.OptionalDependentWithoutIdentifyingPropertyWarning,
                             _resourceManager.GetString("LogOptionalDependentWithoutIdentifyingProperty")!)));
+            }
+
+            return (EventDefinition<string>)definition;
+        }
+
+        /// <summary>
+        ///     The entity type '{entityType}' is an owned entity type mapped to JSON as a collection, which uses a synthesized ordinal key. Mapping owned entity collections to JSON is obsolete; map it as a complex type collection or configure a non-shadow key instead. See https://aka.ms/efcore-docs-json-owned-entities for more information.
+        /// </summary>
+        public static EventDefinition<string> LogOwnedEntityMappedToJsonCollection(IDiagnosticsLogger logger)
+        {
+            var definition = ((RelationalLoggingDefinitions)logger.Definitions).LogOwnedEntityMappedToJsonCollection;
+            if (definition == null)
+            {
+                definition = NonCapturingLazyInitializer.EnsureInitialized(
+                    ref ((RelationalLoggingDefinitions)logger.Definitions).LogOwnedEntityMappedToJsonCollection,
+                    logger,
+                    static logger => new EventDefinition<string>(
+                        logger.Options,
+                        RelationalEventId.OwnedEntityMappedToJsonCollectionWarning,
+                        LogLevel.Warning,
+                        "RelationalEventId.OwnedEntityMappedToJsonCollectionWarning",
+                        level => LoggerMessage.Define<string>(
+                            level,
+                            RelationalEventId.OwnedEntityMappedToJsonCollectionWarning,
+                            _resourceManager.GetString("LogOwnedEntityMappedToJsonCollection")!)));
             }
 
             return (EventDefinition<string>)definition;

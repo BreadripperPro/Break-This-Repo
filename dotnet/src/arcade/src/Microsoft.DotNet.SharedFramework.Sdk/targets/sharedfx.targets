@@ -181,7 +181,6 @@
     </ItemGroup>
   </Target>
 
-  <UsingTask TaskName="GenerateSharedFrameworkDepsFile" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_GenerateSharedFrameworkDepsFile"
           DependsOnTargets="GetFilesToPackage"
           Condition="'$(PlatformPackageType)' == 'RuntimePack'">
@@ -305,7 +304,6 @@
            Text="The following files are missing entries in the templated manifest:&#10;@(_FilesMissingInManifestEntries, '&#10;'). Add these file names with extensions to the 'PlatformManifestFileEntry' item group for the runtime pack and corresponding ref pack to include them in the platform manifest." />
   </Target>
 
-  <UsingTask TaskName="GeneratePlatformManifestEntriesFromTemplate" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_GenerateTemplatedPlatformManifest"
           DependsOnTargets="GetFilesToPackage;_SetDefaultPlatformManifestFallbackVersions"
           Condition="'$(PlatformPackageType)' == 'TargetingPack' and '$(UseTemplatedPlatformManifest)' == 'true'">
@@ -335,7 +333,6 @@
       If the chosen RID doesn't have a superset of files for all shipping platforms,
       then you may have unexpected behavior when using the produced targeting pack.
   -->
-  <UsingTask TaskName="GeneratePlatformManifestEntriesFromFileList" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_GeneratePlatformManifestFromRuntimePack"
           DependsOnTargets="_CalculatePackageInformation"
           Condition="'$(PlatformPackageType)' == 'TargetingPack' and '$(UseTemplatedPlatformManifest)' != 'true'">
@@ -393,7 +390,6 @@
     </ItemGroup>
   </Target>
 
-  <UsingTask TaskName="CreateFrameworkListFile" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_GenerateFrameworkList"
           DependsOnTargets="GetFilesToPackage"
           Condition="'$(PlatformPackageType)' == 'TargetingPack' or '$(PlatformPackageType)' == 'RuntimePack'">
@@ -466,7 +462,6 @@
     </ItemGroup>
   </Target>
 
-  <UsingTask TaskName="VerifyClosure" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_VerifyClosure"
           DependsOnTargets="GetFilesToPackage"
           Condition="'$(SkipValidatePackage)' != 'true'">
@@ -495,7 +490,6 @@
       DependencyGraphFilePath="$(IntermediateOutputPath)assembly-graph.dgml" />
   </Target>
 
-  <UsingTask TaskName="VerifyTypes" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_VerifyNoDuplicateTypes"
           DependsOnTargets="GetFilesToPackage"
           Condition="'$(SkipValidatePackage)' != 'true'">
@@ -516,7 +510,6 @@
       IgnoredTypes="@(IgnoredDuplicateType)" />
   </Target>
 
-  <UsingTask TaskName="ValidateFileVersions" AssemblyFile="$(DotNetSharedFrameworkTaskFile)" />
   <Target Name="_ValidateFileVersions"
           DependsOnTargets="GetFilesToPackage"
           Condition="'$(PermitDllAndExeFilesLackingFileVersion)' != 'true' and '$(PlatformPackageType)' == 'RuntimePack'">
@@ -609,7 +602,8 @@
     <Copy
       SourceFiles="@(FilesToPublish)"
       DestinationFolder="$(OutputPath)%(FilesToPublish.TargetPath)%(FilesToPublish.Culture)"
-      Condition="'%(FilesToPublish.IsSymbolFile)' != 'true' or '%(FilesToPublish.IncludeAlways)' == 'true'"
+      Condition="('%(FilesToPublish.IsSymbolFile)' != 'true' or '%(FilesToPublish.IncludeAlways)' == 'true') and
+                 '%(FilesToPublish.InstallerOnly)' != 'true'"
       OverwriteReadOnlyFiles="true"
       SkipUnchangedFiles="true" />
 
@@ -623,13 +617,24 @@
     <Exec Condition="!$([MSBuild]::IsOsPlatform(Windows))" Command='find "$(OutputPath)" -type f ! -name "*.*" -exec chmod 755 {} \;' />
   </Target>
 
+  <!-- Installer-only files are copied after PublishToDisk performs its permission fix-up. -->
+  <Target Name="_SetInstallerOnlyPublishedFilePermissions"
+          AfterTargets="_PublishInstallerOnlyFilesToDisk"
+          Condition="!$([MSBuild]::IsOsPlatform(Windows))">
+    <Exec Command='find "$(OutputPath)" -type f -name "*" -exec chmod 644 {} \;' />
+    <Exec Command='find "$(OutputPath)" -type f -name "*.dylib" -exec chmod 755 {} \;' />
+    <Exec Command='find "$(OutputPath)" -type f -name "*.so" -exec chmod 755 {} \;' />
+    <Exec Command='find "$(OutputPath)" -type f ! -name "*.*" -exec chmod 755 {} \;' />
+  </Target>
+
   <Target Name="PublishSymbolsToDisk"
           DependsOnTargets="GetFilesToPublish">
     <Error Condition="'$(SymbolsOutputPath)' == ''" Text="Publishing a shared framework to disk requires the OutputPath to be set to the root of the path to write to." />
     <Copy
       SourceFiles="@(FilesToPublish)"
       DestinationFolder="$(SymbolsOutputPath)%(FilesToPublish.Culture)"
-      Condition="'%(FilesToPublish.IsSymbolFile)' == 'true'"
+      Condition="'%(FilesToPublish.IsSymbolFile)' == 'true' and
+                 '%(FilesToPublish.InstallerOnly)' != 'true'"
       OverwriteReadOnlyFiles="true"
       SkipUnchangedFiles="true" />
   </Target>

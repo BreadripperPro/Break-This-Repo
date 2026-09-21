@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
@@ -31,7 +31,7 @@ public class EnvironmentArgumentProcessorTests
 
     public EnvironmentArgumentProcessorTests()
     {
-        _commandLineOptions = CommandLineOptions.Instance;
+        _commandLineOptions = new CommandLineOptions();
         _settingsProvider = new TestableRunSettingsProvider();
         _settingsProvider.UpdateRunSettings(DefaultRunSettings);
         _mockOutput = new Mock<IOutput>();
@@ -40,7 +40,6 @@ public class EnvironmentArgumentProcessorTests
     [TestCleanup]
     public void Cleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
@@ -76,7 +75,7 @@ public class EnvironmentArgumentProcessorTests
         Assert.IsNotNull(inIsolation, "Isolation must be forced, an InIsolation entry was missing!");
 
         var variables = environmentVariables.Elements().ToArray();
-        Assert.AreEqual(1, variables.Length, "Environment variable count mismatched!");
+        Assert.HasCount(1, variables);
 
         Assert.AreEqual("true", inIsolation.Value, "Isolation must be forced, InIsolation is not set to true.");
         Assert.AreEqual("VARIABLE", variables[0].Name.LocalName);
@@ -107,7 +106,7 @@ public class EnvironmentArgumentProcessorTests
 
         Assert.AreEqual("true", inIsolation.Value, "Isolation must be forced, InIsolation is not set to true.");
         var variables = environmentVariables.Elements().ToArray();
-        Assert.AreEqual(3, variables.Length, "Environment variable count mismatched!");
+        Assert.HasCount(3, variables);
 
         Assert.AreEqual("VARIABLE_ONE", variables[0].Name.LocalName);
         Assert.AreEqual("VALUE", variables[0].Value);
@@ -140,7 +139,7 @@ public class EnvironmentArgumentProcessorTests
 
         Assert.AreEqual("true", inIsolation.Value, "Isolation must be forced, InIsolation is overriden to true.");
         var variables = environmentVariables.Elements().ToArray();
-        Assert.AreEqual(1, variables.Length, "Environment variable count mismatched!");
+        Assert.HasCount(1, variables);
 
         Assert.AreEqual("VARIABLE", variables[0].Name.LocalName);
         Assert.AreEqual("VALUE", variables[0].Value);

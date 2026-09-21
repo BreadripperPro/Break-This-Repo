@@ -124,7 +124,7 @@
     <MakeDir Directories="$(_LayoutDocs)" />
 
     <MSBuild Projects="$(MSBuildProjectFullPath)"
-             Targets="PublishToDisk"
+             Targets="PublishToDisk;_PublishInstallerOnlyFilesToDisk"
              Properties="OutputPath=$([MSBuild]::EnsureTrailingSlash('$(_LayoutPackageRoot)'))"
              RemoveProperties="@(_GlobalPropertiesToRemoveForPublish)"  />
 
@@ -171,7 +171,7 @@
         MaintainerEmail="dotnetpackages@dotnetfoundation.org"
         MaintainerName=".NET Team"
         PackageName="$(VersionedInstallerName)"
-        PackageVersion="$(InstallerPackageVersion)_$(InstallerPackageRelease)"
+        PackageVersion="$(InstallerPackageVersion)-$(InstallerPackageRelease)"
         ReleaseNotes="https://github.com/dotnet/core/tree/master/release-notes" />
   
     <ItemGroup>
@@ -210,7 +210,7 @@
     <CreateControlFile
         ControlFileOutputPath="@(_ControlFile)"
         PackageName="$(VersionedInstallerName)"
-        PackageVersion="$(InstallerPackageVersion)"
+        PackageVersion="$(InstallerPackageVersion)-$(InstallerPackageRelease)"
         PackageArchitecture="$(LinuxPackageArchitecture)"
         Maintainer=".NET Team &lt;dotnetpackages@dotnetfoundation.org&gt;"
         Description="$(_ShortDescription)%0A $(_PackageLongDescription)"
@@ -249,11 +249,11 @@
     <Exec Command="chmod ugo+x '$(_LayoutControlRoot)postrm'"
           Condition="'@(LinuxPostRemoveScript)' != ''" />
 
-    <Exec Command="tar -C '$(_LayoutControlRoot)' -czf '$(_LayoutDirectory)/control.tar.gz' ."
+    <Exec Command="tar --owner=root --group=root -C '$(_LayoutControlRoot)' -czf '$(_LayoutDirectory)/control.tar.gz' ."
           IgnoreExitCode="true"
           IgnoreStandardErrorWarningFormat="true" />
     
-    <Exec Command="tar -C '$(_LayoutDataRoot)' -czf '$(_LayoutDirectory)/data.tar.gz' ."
+    <Exec Command="tar --owner=root --group=root -C '$(_LayoutDataRoot)' -czf '$(_LayoutDirectory)/data.tar.gz' ."
           IgnoreExitCode="true"
           IgnoreStandardErrorWarningFormat="true" />
 
@@ -295,9 +295,21 @@
       <Output TaskParameter="ConsoleOutput" ItemName="_RawFileKindInfo" />
     </Exec>
 
+    <!--
+      Wire the RPM Postun scriptlet from the documented 'LinuxPostRemoveScript' item.
+      Historically only the undocumented 'LinuxPostRmScript' item fed the RPM Postun scriptlet, so a project
+      that set the documented item (which is used for the Debian 'postrm') silently got no RPM Postun.
+      Support both, deterministically preferring 'LinuxPostRemoveScript' when both are provided.
+    -->
+    <Warning
+      Condition="'@(LinuxPostRemoveScript)' != '' and '@(LinuxPostRmScript)' != ''"
+      Text="Both LinuxPostRemoveScript and LinuxPostRmScript are set; using LinuxPostRemoveScript for the RPM Postun scriptlet. Prefer LinuxPostRemoveScript; LinuxPostRmScript is a compatibility alias." />
+
     <ItemGroup>
+      <_RpmPostRemoveScript Include="@(LinuxPostRemoveScript)" />
+      <_RpmPostRemoveScript Include="@(LinuxPostRmScript)" Condition="'@(LinuxPostRemoveScript)' == ''" />
       <_RpmScriptlet Include="@(LinuxPostInstallScript)" Kind="Postin" />
-      <_RpmScriptlet Include="@(LinuxPostRmScript)" Kind="Postun" />
+      <_RpmScriptlet Include="@(_RpmPostRemoveScript)" Kind="Postun" />
     </ItemGroup>
 
     <CreateRpmPackage
@@ -320,6 +332,8 @@
       Description="$(_PackageLongDescription)"
       PackageUrl="https://github.com/dotnet/core"
       Scripts="@(_RpmScriptlet)"
+      GhostFiles="@(RpmGhostFile)"
+      FileTriggers="@(RpmFileTrigger)"
        />
 
     <Message Text="$(MSBuildProjectName) -> $(_InstallerFile)" Importance="high" />
@@ -433,12 +447,12 @@
       <_MacOSSharedInstallDir>/usr/local/share/dotnet</_MacOSSharedInstallDir>
 
       <_pkgArgs></_pkgArgs>
-      <_pkgArgs>$(_pkgArgs) --root $(_OutputPathRoot)</_pkgArgs>
-      <_pkgArgs>$(_pkgArgs) --identifier $(_MacOSComponentName)</_pkgArgs>
-      <_pkgArgs>$(_pkgArgs) --version $(InstallerPackageVersion)</_pkgArgs>
-      <_pkgArgs>$(_pkgArgs) --install-location $(_MacOSSharedInstallDir)</_pkgArgs>
-      <_pkgArgs Condition="'$(MacOSScriptsDirectory)' != ''">$(_pkgArgs) --scripts $(MacOSScriptsDirectory)</_pkgArgs>
-      <_pkgArgs>$(_pkgArgs) $(_InstallerFile)</_pkgArgs>
+      <_pkgArgs>$(_pkgArgs) --root &quot;$(_OutputPathRoot)&quot;</_pkgArgs>
+      <_pkgArgs>$(_pkgArgs) --identifier &quot;$(_MacOSComponentName)&quot;</_pkgArgs>
+      <_pkgArgs>$(_pkgArgs) --version &quot;$(InstallerPackageVersion)&quot;</_pkgArgs>
+      <_pkgArgs>$(_pkgArgs) --install-location &quot;$(_MacOSSharedInstallDir)&quot;</_pkgArgs>
+      <_pkgArgs Condition="'$(MacOSScriptsDirectory)' != ''">$(_pkgArgs) --scripts &quot;$(MacOSScriptsDirectory)&quot;</_pkgArgs>
+      <_pkgArgs>$(_pkgArgs) &quot;$(_InstallerFile)&quot;</_pkgArgs>
     </PropertyGroup>
 
     <Exec Command="pkgbuild $(_pkgArgs)" />

@@ -9,7 +9,7 @@ namespace Microsoft.EntityFrameworkCore.Infrastructure;
 
 public class SqliteModelValidatorTest : RelationalModelValidatorTest
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Detects_duplicate_column_names_within_hierarchy_with_different_srid()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -23,7 +23,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
                 nameof(Cat), nameof(Cat.Breed), nameof(Dog), nameof(Dog.Breed), nameof(Cat.Breed), nameof(Animal)), modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_schemas()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -34,7 +34,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
             modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_sequences()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -45,7 +45,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
             modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_insert_stored_procedures()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -60,7 +60,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
         VerifyError(SqliteStrings.StoredProceduresNotSupported(nameof(Person)), modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_update_stored_procedures()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -75,7 +75,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
         VerifyError(SqliteStrings.StoredProceduresNotSupported(nameof(Person)), modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_delete_stored_procedures()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -85,7 +85,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
         VerifyError(SqliteStrings.StoredProceduresNotSupported(nameof(Person)), modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Detects_incompatible_sql_returning_clause_shared_table()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -103,8 +103,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Passes_for_stored_procedure_without_parameter_for_insert_non_save_property()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(()
-                => base.Passes_for_stored_procedure_without_parameter_for_insert_non_save_property());
+            Assert.Throws<InvalidOperationException>(base.Passes_for_stored_procedure_without_parameter_for_insert_non_save_property);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), exception.Message);
     }
@@ -112,8 +111,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Passes_for_stored_procedure_without_parameter_for_update_non_save_property()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(()
-                => base.Passes_for_stored_procedure_without_parameter_for_update_non_save_property());
+            Assert.Throws<InvalidOperationException>(base.Passes_for_stored_procedure_without_parameter_for_update_non_save_property);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), exception.Message);
     }
@@ -121,7 +119,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Passes_on_valid_UsingDeleteStoredProcedure_in_TPT()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(() => base.Passes_on_valid_UsingDeleteStoredProcedure_in_TPT());
+            Assert.Throws<InvalidOperationException>(base.Passes_on_valid_UsingDeleteStoredProcedure_in_TPT);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), exception.Message);
     }
@@ -129,7 +127,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Passes_on_derived_entity_type_mapped_to_a_stored_procedure_in_TPT()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(() => base.Passes_on_derived_entity_type_mapped_to_a_stored_procedure_in_TPT());
+            Assert.Throws<InvalidOperationException>(base.Passes_on_derived_entity_type_mapped_to_a_stored_procedure_in_TPT);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Cat)), exception.Message);
     }
@@ -137,7 +135,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Passes_on_derived_entity_type_not_mapped_to_a_stored_procedure_in_TPT()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(() => base.Passes_on_derived_entity_type_not_mapped_to_a_stored_procedure_in_TPT());
+            Assert.Throws<InvalidOperationException>(base.Passes_on_derived_entity_type_not_mapped_to_a_stored_procedure_in_TPT);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), exception.Message);
     }
@@ -145,7 +143,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
     public override void Detects_unmapped_concurrency_token()
     {
         var exception =
-            Assert.Throws<InvalidOperationException>(() => base.Detects_unmapped_concurrency_token());
+            Assert.Throws<InvalidOperationException>(base.Detects_unmapped_concurrency_token);
 
         Assert.Equal(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), exception.Message);
     }
@@ -252,7 +250,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
         VerifyError(SqliteStrings.StoredProceduresNotSupported(nameof(Animal)), modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_conflicting_autoincrement_and_default_value_sql()
     {
         var modelBuilder = CreateConventionModelBuilder();
@@ -267,7 +265,7 @@ public class SqliteModelValidatorTest : RelationalModelValidatorTest
             modelBuilder);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Detects_conflicting_autoincrement_and_computed_column()
     {
         var modelBuilder = CreateConventionModelBuilder();

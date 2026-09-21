@@ -1,11 +1,9 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 
 namespace Microsoft.EntityFrameworkCore.Query.Inheritance;
-
-#nullable disable
 
 public abstract class TPCInheritanceQueryTestBase<TFixture> : InheritanceQueryTestBase<TFixture>
     where TFixture : TPCInheritanceQueryFixture, new()
@@ -37,7 +35,7 @@ public abstract class TPCInheritanceQueryTestBase<TFixture> : InheritanceQueryTe
     public override Task Discriminator_with_cast_in_shadow_property(bool async)
         => Task.CompletedTask;
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Using_from_sql_throws()
     {
         using var context = CreateContext();

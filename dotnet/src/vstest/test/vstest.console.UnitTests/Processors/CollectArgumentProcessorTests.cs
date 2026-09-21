@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -46,14 +46,14 @@ public class CollectArgumentProcessorTests
     [TestMethod]
     public void GetMetadataShouldReturnCollectArgumentProcessorCapabilities()
     {
-        var processor = new CollectArgumentProcessor();
+        var processor = new CollectArgumentProcessor(new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Metadata.Value is CollectArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnCollectArgumentProcessorCapabilities()
     {
-        var processor = new CollectArgumentProcessor();
+        var processor = new CollectArgumentProcessor(new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Executor!.Value is CollectArgumentExecutor);
     }
 
@@ -86,19 +86,19 @@ public class CollectArgumentProcessorTests
     [TestMethod]
     public void InitializeShouldThrowIfArgumentIsNull()
     {
-        Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(null));
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(null));
     }
 
     [TestMethod]
     public void InitializeShouldNotThrowIfArgumentIsEmpty()
     {
-        Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(string.Empty));
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(string.Empty));
     }
 
     [TestMethod]
     public void InitializeShouldNotThrowIfArgumentIsWhiteSpace()
     {
-        Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(" "));
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(" "));
     }
 
     [TestMethod]
@@ -114,21 +114,10 @@ public class CollectArgumentProcessorTests
         runsettings.LoadSettingsXml(runsettingsString);
         _settingsProvider.SetActiveRunSettings(runsettings);
 
-        bool exceptionThrown = false;
-
-        try
-        {
-            _executor.Initialize("MyDataCollector");
-        }
-        catch (SettingsException ex)
-        {
-            exceptionThrown = true;
-            Assert.AreEqual(
-                "--Collect|/Collect:\"MyDataCollector\" is not supported if test run is configured using testsettings.",
-                ex.Message);
-        }
-
-        Assert.IsTrue(exceptionThrown, "Initialize should throw exception");
+        var ex = Assert.ThrowsExactly<SettingsException>(() => _executor.Initialize("MyDataCollector"));
+        Assert.AreEqual(
+            "--Collect|/Collect:\"MyDataCollector\" is not supported if test run is configured using testsettings.",
+            ex.Message);
     }
 
     [TestMethod]
@@ -597,7 +586,7 @@ public class CollectArgumentProcessorTests
         runsettings.LoadSettingsXml(runsettingsString);
         _settingsProvider.SetActiveRunSettings(runsettings);
 
-        Assert.ThrowsException<CommandLineException>(() => _executor.Initialize("MyDataCollector=SomeSetting"));
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize("MyDataCollector=SomeSetting"));
     }
 
     [TestMethod]
@@ -608,7 +597,7 @@ public class CollectArgumentProcessorTests
         runsettings.LoadSettingsXml(runsettingsString);
         _settingsProvider.SetActiveRunSettings(runsettings);
 
-        Assert.ThrowsException<CommandLineException>(() => _executor.Initialize("MyDataCollector;SomeSetting"));
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize("MyDataCollector;SomeSetting"));
     }
 
     [TestMethod]

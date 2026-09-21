@@ -162,6 +162,11 @@ namespace Analyzer.Utilities.Extensions
             return symbol is IMethodSymbol { MethodKind: MethodKind.Conversion };
         }
 
+        public static bool IsExtension([NotNullWhen(returnValue: true)] this ISymbol? symbol)
+        {
+            return symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.IsExtension();
+        }
+
         public static ImmutableArray<IParameterSymbol> GetParameters(this ISymbol? symbol)
         {
             return symbol switch
@@ -856,10 +861,8 @@ namespace Analyzer.Utilities.Extensions
             {
                 IFieldSymbol field => field.IsReadOnly,
                 IPropertySymbol property => property.IsReadOnly,
-#if CODEANALYSIS_V3_OR_BETTER
                 IMethodSymbol method => method.IsReadOnly,
                 ITypeSymbol type => type.IsReadOnly,
-#endif
                 _ => false,
             };
     }

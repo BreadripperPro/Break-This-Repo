@@ -6,29 +6,8 @@
   <PropertyGroup>
     <RepositoryName>$(MSBuildProjectName)</RepositoryName>
     <UseBootstrapArcade Condition="$([System.String]::new(';$(BootstrapArcadeRepos);').Contains(';$(RepositoryName);'))">true</UseBootstrapArcade>
-
-    <!-- MSBuild -mt mode configuration.
-         UseMSBuildMT controls whether this repository builds with -mt flag when DotNetBuildMT=true.
-         
-         Default exclusions are defined here so local builds match CI behavior.
-         Override via MSBuild property /p:MSBuildMTExcludedReposOverride=... or
-         MSBUILD_MT_EXCLUDED_REPOS environment variable (colon-separated for bash compatibility).
-         
-         Priority (highest to lowest):
-         1. Per-repo .proj file setting <UseMSBuildMT>false</UseMSBuildMT>
-         2. MSBuildMTExcludedReposOverride MSBuild property
-         3. MSBUILD_MT_EXCLUDED_REPOS environment variable override
-         4. Default exclusion list below
-         5. Default: enabled for all repos
-    -->
-    <_MSBuildMTExcludedRepos>arcade;runtime;roslyn;aspnetcore;sdk;efcore;winforms;wpf;razor;source-build-reference-packages</_MSBuildMTExcludedRepos>
-    <!-- Allow override via MSBuild property (e.g. /p:MSBuildMTExcludedReposOverride=...) or environment variable -->
-    <_MSBuildMTExcludedRepos Condition="'$(MSBuildMTExcludedReposOverride)' != ''">$(MSBuildMTExcludedReposOverride)</_MSBuildMTExcludedRepos>
-    <_MSBuildMTExcludedReposOverride>$([System.Environment]::GetEnvironmentVariable('MSBUILD_MT_EXCLUDED_REPOS'))</_MSBuildMTExcludedReposOverride>
-    <_MSBuildMTExcludedRepos Condition="'$(_MSBuildMTExcludedReposOverride)' != ''">$(_MSBuildMTExcludedReposOverride.Replace(':',';'))</_MSBuildMTExcludedRepos>
-    <!-- Use same pattern as UseBootstrapArcade check above -->
-    <UseMSBuildMT Condition="'$(UseMSBuildMT)' == '' and $([System.String]::new(';$(_MSBuildMTExcludedRepos);').Contains(';$(RepositoryName);'))">false</UseMSBuildMT>
-    <UseMSBuildMT Condition="'$(UseMSBuildMT)' == ''">true</UseMSBuildMT>
+    <!-- Bootstrap Arcade repos must bootstrap from PSB rather than current 1xx shared components. -->
+    <_UseSharedComponentsInputs Condition="'$(UseBootstrapArcade)' != 'true'">true</_UseSharedComponentsInputs>
 
     <BuildInParallel Condition="'$(BuildInParallel)' == ''">true</BuildInParallel>
     <RunEachTargetSeparately>false</RunEachTargetSeparately>
@@ -70,7 +49,7 @@
 
     <SourceBuiltSdksDir>$([MSBuild]::NormalizeDirectory('$(ArtifactsDir)', 'source-built-sdks'))</SourceBuiltSdksDir>
 
-    <SbrpCacheNuGetSourceName>source-build-reference-package-cache</SbrpCacheNuGetSourceName>
+    <SbaCacheNuGetSourceName>source-build-assets-cache</SbaCacheNuGetSourceName>
     <SourceBuiltSourceNamePrefix>source-built-</SourceBuiltSourceNamePrefix>
     <PreviousBuildPassSourceNamePrefix>previous-build-pass-</PreviousBuildPassSourceNamePrefix>
 
@@ -94,16 +73,21 @@
 
   <PropertyGroup Condition="'$(BuildOS)' == 'windows'">
     <FlagParameterPrefix>-</FlagParameterPrefix>
-    <ArcadeFalseBoolBuildArg>0</ArcadeFalseBoolBuildArg>
   </PropertyGroup>
   <PropertyGroup Condition="'$(BuildOS)' != 'windows'">
     <FlagParameterPrefix>--</FlagParameterPrefix>
-    <ArcadeFalseBoolBuildArg>false</ArcadeFalseBoolBuildArg>
   </PropertyGroup>
 
   <!-- Add 100 to the revision number to avoid clashing with the existing msft official builds. -->
   <PropertyGroup Condition="'$(OfficialBuildId)' != ''">
     <OfficialBuildId>$(OfficialBuildId.Split('.')[0]).$([MSBuild]::Add($(OfficialBuildId.Split('.')[1]), 100))</OfficialBuildId>
+  </PropertyGroup>
+
+  <!-- Warning codes surfaced from each repo's build log into the orchestrator build so they're
+       visible in the CI/build summary (see the LogRepoBuildWarnings task in Directory.Build.targets).
+       The below downgrades NuGet Audit warnings.-->
+  <PropertyGroup>
+    <RepoBuildWarningCodesToSurface>NU1901;NU1902;NU1903;NU1904</RepoBuildWarningCodesToSurface>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -130,19 +114,31 @@
     <!-- Pass down configuration properties -->
     <CommonArgs>$(CommonArgs) $(FlagParameterPrefix)configuration $(Configuration)</CommonArgs>
     <CommonArgs>$(CommonArgs) $(FlagParameterPrefix)verbosity $(LogVerbosity)</CommonArgs>
+
+    <!-- Prevent NuGet audit warnings from being promoted to errors in the repo build.
+         On Windows the list passes through PowerShell's Invoke-Expression (see runtime's build.ps1),
+         so each ';' is backtick-escaped to survive as a single argument. On other platforms the
+         quoted value is handed straight to the shell, where ';' is already literal, so it's used as-is. -->
+    <CommonArgs Condition="'$(RepoBuildWarningCodesToSurface)' != '' and '$(BuildOS)' == 'windows'">$(CommonArgs) $(FlagParameterPrefix)warnnotaserror "$(RepoBuildWarningCodesToSurface.Replace(';','`;'))"</CommonArgs>
+    <CommonArgs Condition="'$(RepoBuildWarningCodesToSurface)' != '' and '$(BuildOS)' != 'windows'">$(CommonArgs) $(FlagParameterPrefix)warnnotaserror "$(RepoBuildWarningCodesToSurface)"</CommonArgs>
+    <CommonArgs>$(CommonArgs) /clp:NoSummary</CommonArgs>
+
     <CommonArgs>$(CommonArgs) /p:TargetRid=$(TargetRid)</CommonArgs>
 
     <!-- Pass through DotNetBuildPass for join point vertical support. -->
     <CommonArgs Condition="'$(DotNetBuildPass)' != '' and '$(DotNetBuildPass)' != '1'">$(CommonArgs) /p:DotNetBuildPass=$(DotNetBuildPass)</CommonArgs>
 
     <!-- Only pass these properites through when necessary to reduce command line noise. -->
-    <CommonArgs Condition="'$(CrossBuild)' == 'true'">$(CommonArgs) /p:CrossBuild=true</CommonArgs>
     <CommonArgs Condition="'$(DotNetBuildUseMonoRuntime)' == 'true'">$(CommonArgs) /p:DotNetBuildUseMonoRuntime=$(DotNetBuildUseMonoRuntime)</CommonArgs>
     <CommonArgs Condition="'$(OfficialBuildId)' != ''">$(CommonArgs) /p:OfficialBuildId=$(OfficialBuildId)</CommonArgs>
     <CommonArgs Condition="'$(OfficialBuilder)' != ''">$(CommonArgs) /p:OfficialBuilder="$(OfficialBuilder)"</CommonArgs>
     <CommonArgs Condition="'$(ForceDryRunSigning)' != ''">$(CommonArgs) /p:ForceDryRunSigning=$(ForceDryRunSigning)</CommonArgs>
     <CommonArgs Condition="'$(DotNetSignType)' != ''">$(CommonArgs) /p:DotNetSignType=$(DotNetSignType)</CommonArgs>
     <CommonArgs Condition="'$(KeepNativeSymbols)' != ''">$(CommonArgs) /p:KeepNativeSymbols=$(KeepNativeSymbols)</CommonArgs>
+
+    <!-- Mobile builds and windows host (for Android-on-windows etc.) are never "cross" builds as they don't have a rootfs-based filesystem build. -->
+    <TargetsMobile Condition="'$(TargetOS)' == 'ios' or '$(TargetOS)' == 'iossimulator' or '$(TargetOS)' == 'maccatalyst' or '$(TargetOS)' == 'tvos' or '$(TargetOS)' == 'tvossimulator' or '$(TargetOS)' == 'android' or '$(TargetOS)' == 'browser' or '$(TargetOS)' == 'wasi'">true</TargetsMobile>
+    <CommonArgs Condition="'$(CrossBuild)' == 'true' or ('$(TargetOS)-$(TargetArchitecture)' != '$(BuildOS)-$(BuildArchitecture)' and '$(TargetsMobile)' != 'true' and '$(TargetOS)' != 'windows' and '$(TargetOS)' != 'linux-bionic')">$(CommonArgs) /p:CrossBuild=true</CommonArgs>
 
     <CommonArgs>$(CommonArgs) /p:DotNetPackageVersionPropsPath=$(PackageVersionPropsPath)</CommonArgs>
 
@@ -167,7 +163,7 @@
 
   <PropertyGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
     <CommonArgs>$(CommonArgs) /p:PreviouslySourceBuiltNupkgCacheDir="$(PreviouslySourceBuiltPackagesPath)"</CommonArgs>
-    <CommonArgs Condition="Exists('$(SharedComponentsArtifactsPath)')">$(CommonArgs) /p:AdditionalSourceBuiltNupkgCacheDir="$(SharedComponentsArtifactsPath)"</CommonArgs>
+    <CommonArgs Condition="'$(_UseSharedComponentsInputs)' == 'true' and Exists('$(SharedComponentsArtifactsPath)')">$(CommonArgs) /p:AdditionalSourceBuiltNupkgCacheDir="$(SharedComponentsArtifactsPath)"</CommonArgs>
     <CommonArgs>$(CommonArgs) /p:ReferencePackageNupkgCacheDir="$(ReferencePackagesDir)"</CommonArgs>
     <CommonArgs>$(CommonArgs) /p:TrackPrebuiltUsageReportDir="$(ArtifactsLogRepoDir)"</CommonArgs>
   </PropertyGroup>
@@ -183,7 +179,6 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(EnableExtraDebugging)' == 'true'">
-    <MSBuildDebugPathTargetDir>$([MSBuild]::NormalizeDirectory('$(ArtifactsDir)', 'msbuild-debug'))</MSBuildDebugPathTargetDir>
     <RoslynDebugPathTargetDir>$([MSBuild]::NormalizeDirectory('$(ArtifactsDir)', 'roslyn-debug'))</RoslynDebugPathTargetDir>
 
     <AspNetRazorBuildServerLogDir>$([MSBuild]::NormalizeDirectory('$(ArtifactsDir)', 'aspnet-debug'))</AspNetRazorBuildServerLogDir>
@@ -198,14 +193,13 @@
 
     <EnvironmentVariables Include="_InitializeDotNetCli=$(DotNetRoot.TrimEnd('/\'))" />
     <EnvironmentVariables Include="_DotNetInstallDir=$(DotNetRoot)" />
-    <EnvironmentVariables Include="_InitializeToolset=$(SourceBuiltSdksDir)Microsoft.DotNet.Arcade.Sdk/tools/Build.proj"
-                          Condition="'$(UseBootstrapArcade)' != 'true'" />
 
     <EnvironmentVariables Include="DeterministicSourcePaths=true" />
     <EnvironmentVariables Include="SourceRoot=$(ProjectDirectory)" />
 
     <!-- Needed for miscellanous projects in various repos - see https://github.com/dotnet/source-build/issues/4081-->
     <EnvironmentVariables Include="RestoreConfigFile=$(NuGetConfigFile)" Condition="'$(NuGetConfigFile)' != ''" />
+    <EnvironmentVariables Include="NUGET_CONFIG=$(NuGetConfigFile)" Condition="'$(NuGetConfigFile)' != ''" />
 
     <!-- Need to be passed in here so that repo builds don't restore into the orchestrator package cache (CI builds)
          or the user package cache (local dev builds). -->
@@ -213,11 +207,6 @@
 
     <!-- If MSBuild exits early, make sure debug output like 'MSBuild_*.failure.txt' ends up in a place we can see it. -->
     <EnvironmentVariables Include="MSBUILDDEBUGPATH=$(ArtifactsLogRepoDir)" />
-  </ItemGroup>
-
-  <!-- Enable MSBuild -mt mode when DotNetBuildMT is set and the repository hasn't opted out -->
-  <ItemGroup Condition="'$(DotNetBuildMT)' == 'true' and '$(UseMSBuildMT)' != 'false'">
-    <EnvironmentVariables Include="MSBUILD_MT_ENABLED=1" />
   </ItemGroup>
 
   <ItemGroup  Condition="'$(DotNetBuildSourceOnly)' == 'true'">

@@ -8,8 +8,12 @@ using System.Text;
 namespace Microsoft.TestPlatform.AdapterUtilities;
 
 /// <summary>
-/// Used to generate id for tests.
+/// Used to generate id for tests, using SHA1.
 /// </summary>
+/// <remarks>
+/// This is the algorithm test case ids are computed with by default. See <see cref="TestIdProviderXxHash128"/>
+/// for the xxHash128 based successor, which is available but not yet the default.
+/// </remarks>
 public class TestIdProvider
 {
     private Guid _id = Guid.Empty;
@@ -103,7 +107,7 @@ public class TestIdProvider
             return _id;
         }
 
-#if NET6_0_OR_GREATER
+#if NET
         var hashSlice = GetHash().AsSpan().Slice(0, 16);
         _id = new Guid(hashSlice);
 #else

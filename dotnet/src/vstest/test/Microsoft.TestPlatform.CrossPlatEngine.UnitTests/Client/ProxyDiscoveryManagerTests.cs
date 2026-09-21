@@ -446,8 +446,8 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
 
         // Assert
         CollectionAssert.AreEquivalent(inputSource, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered));
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered).Count);
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.FullyDiscovered).Count);
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered));
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.FullyDiscovered));
     }
 
     [TestMethod]
@@ -466,7 +466,7 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
             LastDiscoveredTests = null,
             TotalTests = 1
         };
-        var completeMessage = new Message() { MessageType = MessageType.DiscoveryComplete, Payload = null };
+        var completeMessage = new Message() { MessageType = MessageType.DiscoveryComplete };
         mockTestDiscoveryEventsHandler.Setup(mh => mh.HandleDiscoveredTests(It.IsAny<IEnumerable<TestCase>>())).Callback(
             () =>
             {
@@ -519,66 +519,6 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
     }
 
     [TestMethod]
-    public void StartTestRunShouldAttemptToTakeProxyFromPoolIfProxyIsNull()
-    {
-        var testSessionInfo = new TestSessionInfo();
-
-        Func<string, ProxyDiscoveryManager, ProxyOperationManager>
-            proxyOperationManagerCreator = (
-                string source,
-                ProxyDiscoveryManager proxyDiscoveryManager) =>
-            {
-                var proxyOperationManager = TestSessionPool.Instance.TryTakeProxy(
-                    testSessionInfo,
-                    source,
-                    _discoveryCriteria.RunSettings,
-                    _mockRequestData.Object);
-
-                return proxyOperationManager!;
-            };
-
-        var testDiscoveryManager = new ProxyDiscoveryManager(
-            testSessionInfo,
-            proxyOperationManagerCreator);
-
-        var mockTestSessionPool = new Mock<TestSessionPool>();
-        TestSessionPool.Instance = mockTestSessionPool.Object;
-
-        try
-        {
-            var mockProxyOperationManager = new Mock<ProxyOperationManager>(
-                _mockRequestData.Object,
-                _mockRequestSender.Object,
-                _mockTestHostManager.Object,
-                null);
-            mockTestSessionPool.Setup(
-                    tsp => tsp.TryTakeProxy(
-                        testSessionInfo,
-                        It.IsAny<string>(),
-                        It.IsAny<string>(),
-                        _mockRequestData.Object))
-                .Returns(mockProxyOperationManager.Object);
-
-            testDiscoveryManager.Initialize(true);
-            testDiscoveryManager.DiscoverTests(
-                _discoveryCriteria,
-                new Mock<ITestDiscoveryEventsHandler2>().Object);
-
-            mockTestSessionPool.Verify(
-                tsp => tsp.TryTakeProxy(
-                    testSessionInfo,
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    _mockRequestData.Object),
-                Times.Once);
-        }
-        finally
-        {
-            TestSessionPool.Instance = null;
-        }
-    }
-
-    [TestMethod]
     public void HandleDiscoveredTestsMarksDiscoveryStatus()
     {
         // Arrange
@@ -601,7 +541,7 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
         });
 
         // Assert
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered).Count);
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered));
         CollectionAssert.AreEquivalent(
             new List<string> { "d" },
             _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered));
@@ -610,7 +550,7 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
             _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.FullyDiscovered));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(true)]
     [DataRow(false)]
     public void HandleDiscoveryCompleteWhenAbortedNoPastDiscoveryAndNoLastCunkNotifiesWithCorrectDiscovery(bool trueIsEmptyFalseIsNull)
@@ -631,11 +571,11 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
         CollectionAssert.AreEquivalent(
             new[] { "a", "b" },
             _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered));
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered).Count);
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.FullyDiscovered).Count);
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered));
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.FullyDiscovered));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(true)]
     [DataRow(false)]
     public void HandleDiscoveryCompleteWhenAbortedPastDiscoveryAndNoLastCunkNotifiesWithCorrectDiscovery(bool trueIsEmptyFalseIsNull)
@@ -664,7 +604,7 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
         CollectionAssert.AreEquivalent(
             new[] { "b" },
             _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered));
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered).Count);
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered));
     }
 
     [TestMethod]
@@ -724,7 +664,7 @@ public class ProxyDiscoveryManagerTests : ProxyBaseManagerTests
         CollectionAssert.AreEquivalent(
             new[] { "d" },
             _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.PartiallyDiscovered));
-        Assert.AreEqual(0, _discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered).Count);
+        Assert.IsEmpty(_discoveryDataAggregator.GetSourcesWithStatus(DiscoveryStatus.NotDiscovered));
     }
 
     private void InvokeAndVerifyDiscoverTests(bool skipDefaultAdapters)

@@ -61,6 +61,7 @@ namespace NuGet.CommandLine.XPlat
                 };
 
                 msBuild.AddPackageReference(packageReferenceArgs.ProjectPath, libraryDependency, packageReferenceArgs.NoVersion);
+                LogPackageIdWarningIfNeeded(packageReferenceArgs.PackageId, packageReferenceArgs.Logger);
                 return 0;
             }
 
@@ -77,6 +78,11 @@ namespace NuGet.CommandLine.XPlat
             packageReferenceArgs.Logger.LogDebug("Project Dependency Graph Read");
 
             var projectFullPath = Path.GetFullPath(packageReferenceArgs.ProjectPath);
+
+            if (msBuild.VirtualProjectBuilder?.IsValidEntryPointPath(projectFullPath) == true)
+            {
+                projectFullPath = msBuild.VirtualProjectBuilder.GetVirtualProjectPath(projectFullPath);
+            }
 
             var matchingPackageSpecs = dgSpec
                 .Projects
@@ -104,7 +110,7 @@ namespace NuGet.CommandLine.XPlat
             var originalPackageSpec = matchingPackageSpecs.FirstOrDefault();
 
             // Check if the project files are correct for CPM
-            if (originalPackageSpec.RestoreMetadata.CentralPackageVersionsEnabled && !MSBuildAPIUtility.AreCentralVersionRequirementsSatisfied(packageReferenceArgs, originalPackageSpec))
+            if (originalPackageSpec.RestoreMetadata.CentralPackageVersionsEnabled && !msBuild.AreCentralVersionRequirementsSatisfied(packageReferenceArgs, originalPackageSpec))
             {
                 return 1;
             }
@@ -271,7 +277,19 @@ namespace NuGet.CommandLine.XPlat
             // 6. Commit restore result
             await RestoreRunner.CommitAsync(restorePreviewResult, CancellationToken.None);
 
+            LogPackageIdWarningIfNeeded(packageReferenceArgs.PackageId, packageReferenceArgs.Logger);
             return 0;
+        }
+
+        internal static void LogPackageIdWarningIfNeeded(string packageId, ILogger logger)
+        {
+            if (!PackageIdValidator.IsValidPackageId(packageId, useRestrictedCharacterSet: true))
+            {
+                logger.LogWarning(string.Format(
+                    CultureInfo.CurrentCulture,
+                    Strings.Warn_AddPkgNonCompliantPackageId,
+                    packageId));
+            }
         }
 
         internal static bool TryFindResolvedVersion(List<string> userSpecifiedFrameworks, string packageId, RestoreResult restoreResult, ILogger logger, out NuGetVersion resolvedVersion)
@@ -307,9 +325,23 @@ namespace NuGet.CommandLine.XPlat
 
         public static async Task<NuGetVersion> GetLatestVersionAsync(PackageSpec originalPackageSpec, string packageId, ILogger logger, bool prerelease)
         {
-            IList<PackageSource> sources = AddPackageCommandUtility.EvaluateSources(originalPackageSpec.RestoreMetadata.Sources, originalPackageSpec.RestoreMetadata.ConfigFilePaths);
+            using var settingsLoadingContext = new SettingsLoadingContext();
+            ISettings settings = Settings.LoadImmutableSettingsGivenConfigPaths(
+                originalPackageSpec.RestoreMetadata.ConfigFilePaths,
+                settingsLoadingContext);
+            IList<PackageSource> sources = AddPackageCommandUtility.EvaluateSources(
+                originalPackageSpec.RestoreMetadata.Sources,
+                settings);
+            var minPublishAgeExceptions = MinPublishAgeExceptions.GetMinPublishAgeExceptions(settings);
+            bool ignoreMinPublishAge = minPublishAgeExceptions.FindException(packageId) != null;
 
-            return await AddPackageCommandUtility.GetLatestVersionFromSourcesAsync(sources, logger, packageId, prerelease, CancellationToken.None);
+            return await AddPackageCommandUtility.GetLatestVersionFromSourcesAsync(
+                sources,
+                logger,
+                packageId,
+                prerelease,
+                ignoreMinPublishAge,
+                CancellationToken.None);
         }
 
         /// <summary>

@@ -3,60 +3,38 @@
 using System;
 using System.IO;
 
-namespace Microsoft.DotNet.Build.Tasks.Installers
+namespace Microsoft.DotNet.Build.Tasks.Installers;
+
+internal static class StreamHelpers
 {
-    internal static class StreamHelpers
+    public static Span<byte> ReadExactly(this Stream stream, int n)
     {
-#if !NET
-        public static void ReadExactly(this Stream stream, byte[] buffer, int offset, int count)
-        {
-            while (count > 0)
-            {
-                int read = stream.Read(buffer, offset, count);
-                if (read == 0)
-                {
-                    throw new InvalidOperationException("Unexpected end of stream");
-                }
-                offset += read;
-                count -= read;
-            }
-        }
+        byte[] buffer = new byte[n];
+        stream.ReadExactly(buffer, 0, n);
+        return buffer;
+    }
 
-        public static void Write(this Stream stream, byte[] buffer)
-        {
-            stream.Write(buffer, 0, buffer.Length);
-        }
-#endif
+    public static int AlignUp(this int value, int alignment)
+    {
+        return (value + alignment - 1) & ~(alignment - 1);
+    }
 
-        public static Span<byte> ReadExactly(this Stream stream, int n)
-        {
-            byte[] buffer = new byte[n];
-            stream.ReadExactly(buffer, 0, n);
-            return buffer;
-        }
+    public static long AlignUp(this long value, int alignment)
+    {
+        return (value + alignment - 1) & ~(alignment - 1);
+    }
 
-        public static int AlignUp(this int value, int alignment)
-        {
-            return (value + alignment - 1) & ~(alignment - 1);
-        }
+    public static void AlignReadTo(this Stream stream, int alignment)
+    {
+        stream.Position = stream.Position.AlignUp(alignment);
+    }
 
-        public static long AlignUp(this long value, int alignment)
+    public static void AlignWriteTo(this Stream stream, int alignment)
+    {
+        int padding = (int)(stream.Position.AlignUp(alignment) - stream.Position);
+        for (int i = 0; i < padding; i++)
         {
-            return (value + alignment - 1) & ~(alignment - 1);
-        }
-
-        public static void AlignReadTo(this Stream stream, int alignment)
-        {
-            stream.Position = stream.Position.AlignUp(alignment);
-        }
-
-        public static void AlignWriteTo(this Stream stream, int alignment)
-        {
-            int padding = (int)(stream.Position.AlignUp(alignment) - stream.Position);
-            for (int i = 0; i < padding; i++)
-            {
-                stream.WriteByte(0);
-            }
+            stream.WriteByte(0);
         }
     }
 }

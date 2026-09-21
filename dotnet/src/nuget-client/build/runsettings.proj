@@ -18,7 +18,22 @@
         <MSBuild
             Projects="template.runsettingsproj"
             Properties="RunName=NuGet.Tests.Apex;
-            FileName=NuGet.Tests.Apex.dll;" />
+            FileName=NuGet.Tests.Apex.dll;
+            BlameHangDumpCollector=$(EnableApexBlameHangDumpCollector);" />
+
+        <!-- NuGet.Tests.Apex.StagingGate.runsettings (VS staging test gate - runs only [TestCategory("StagingGate")] tests) -->
+        <MSBuild
+            Projects="template.runsettingsproj"
+            Properties="RunName=NuGet.Tests.Apex.StagingGate;
+            FileName=NuGet.Tests.Apex.dll;
+            TestCaseFilter=TestCategory=StagingGate;" />
+
+        <!-- NuGet.Tests.Apex.CanaryGate.runsettings (VS canary test gate - runs only [TestCategory("CanaryGate")] tests) -->
+        <MSBuild
+            Projects="template.runsettingsproj"
+            Properties="RunName=NuGet.Tests.Apex.CanaryGate;
+            FileName=NuGet.Tests.Apex.dll;
+            TestCaseFilter=TestCategory=CanaryGate;" />
 
         <!-- NuGet.Tests.Apex.Daily.runsettings -->
         <MSBuild

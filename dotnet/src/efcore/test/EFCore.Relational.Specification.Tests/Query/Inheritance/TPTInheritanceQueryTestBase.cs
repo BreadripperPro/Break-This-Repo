@@ -5,8 +5,6 @@ using Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 
 namespace Microsoft.EntityFrameworkCore.Query.Inheritance;
 
-#nullable disable
-
 public abstract class TPTInheritanceQueryTestBase<TFixture> : InheritanceQueryTestBase<TFixture>
     where TFixture : TPTInheritanceQueryFixture, new()
 {
@@ -37,7 +35,7 @@ public abstract class TPTInheritanceQueryTestBase<TFixture> : InheritanceQueryTe
     public override Task Discriminator_with_cast_in_shadow_property(bool async)
         => Task.CompletedTask;
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Using_from_sql_throws()
     {
         using var context = CreateContext();

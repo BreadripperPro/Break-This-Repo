@@ -2,47 +2,43 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Text.Json.Nodes;
 using Microsoft.OpenApi;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Interfaces;
-using Microsoft.OpenApi.Writers;
 
-namespace Microsoft.DotNet.SwaggerGenerator.Modeler
+namespace Microsoft.DotNet.SwaggerGenerator.Modeler;
+
+public class PaginatedOpenApiExtension : IOpenApiExtension
 {
-    public class PaginatedOpenApiExtension : IOpenApiExtension
+    private JsonObject _value;
+
+    public PaginatedOpenApiExtension(JsonObject value)
     {
-        private OpenApiObject _value;
+        _value = value;
+    }
 
-        public PaginatedOpenApiExtension(OpenApiObject value)
-        {
-            _value = value;
-        }
+    public string PageParameterName
+    {
+        get => _value["page"]?.GetValue<string>();
+        set => _value["page"] = JsonValue.Create(value);
+    }
 
-        public string PageParameterName
-        {
-            get => ((OpenApiString) _value["page"]).Value;
-            set => _value["page"] = new OpenApiString(value);
-        }
+    public string PageSizeParameterName
+    {
+        get => _value["pageSize"]?.GetValue<string>();
+        set => _value["pageSize"] = JsonValue.Create(value);
+    }
 
-        public string PageSizeParameterName
+    public static IOpenApiExtension Parse(JsonNode value, OpenApiSpecVersion version)
+    {
+        if (value is not JsonObject obj)
         {
-            get => ((OpenApiString) _value["pageSize"]).Value;
-            set => _value["pageSize"] = new OpenApiString(value);
+            throw new ArgumentException("x-ms-paginated extension only accepts an object");
         }
+        return new PaginatedOpenApiExtension(obj);
+    }
 
-        public static IOpenApiExtension Parse(IOpenApiAny value, OpenApiSpecVersion version)
-        {
-            if (value.AnyType != AnyType.Object)
-            {
-                throw new ArgumentException("x-ms-paginated extension only accepts an object");
-            }
-            var obj = (OpenApiObject) value;
-            return new PaginatedOpenApiExtension(obj);
-        }
-
-        public void Write(IOpenApiWriter writer, OpenApiSpecVersion specVersion)
-        {
-            _value.Write(writer, specVersion);
-        }
+    public void Write(IOpenApiWriter writer, OpenApiSpecVersion specVersion)
+    {
+        writer.WriteAny(_value);
     }
 }

@@ -63,8 +63,8 @@
         <note />
       </trans-unit>
       <trans-unit id="ConsolePasswordProvider_DisplayFile">
-        <source>Please provide password for: {0}</source>
-        <target state="translated">次のパスワードを指定してください: {0}</target>
+        <source>Provide password for: {0}</source>
+        <target state="translated">パスワードの入力: {0}</target>
         <note>0 - file that requires password</note>
       </trans-unit>
       <trans-unit id="ConsolePasswordProvider_PromptForPassword">
@@ -73,8 +73,8 @@
         <note />
       </trans-unit>
       <trans-unit id="Credentials_ForbiddenCredentials">
-        <source>The remote server indicated that the previous request was forbidden. Please provide credentials for: {0}</source>
-        <target state="translated">リモート サーバーは、前の要求が禁止されていることを示しました。次の資格情報を指定してください: {0}</target>
+        <source>The remote server indicated that the previous request was forbidden. Provide credentials for: {0}</source>
+        <target state="translated">リモート サーバーは、前の要求が禁止されていることを示しました。資格情報の入力: {0}</target>
         <note>{0} will be replaced with the URL that needs credentials.</note>
       </trans-unit>
       <trans-unit id="Credentials_Password">
@@ -83,13 +83,13 @@
         <note />
       </trans-unit>
       <trans-unit id="Credentials_ProxyCredentials">
-        <source>Please provide proxy credentials:</source>
-        <target state="translated">プロキシ資格情報を指定してください:</target>
+        <source>Provide proxy credentials:</source>
+        <target state="translated">プロキシ資格情報の入力:</target>
         <note />
       </trans-unit>
       <trans-unit id="Credentials_RequestCredentials">
-        <source>Please provide credentials for: {0}</source>
-        <target state="translated">次の資格情報を指定してください: {0}</target>
+        <source>Provide credentials for: {0}</source>
+        <target state="translated">資格情報の入力: {0}</target>
         <note />
       </trans-unit>
       <trans-unit id="Credentials_UserName">
@@ -213,6 +213,11 @@ Do not localize `SDK`, `dotnet pack`, msbuild -t:pack` and 'true'.</note>
         <target state="translated">ソース パラメーターが指定されていませんでした。</target>
         <note />
       </trans-unit>
+      <trans-unit id="Error_MsBuildIsNetCoreMsBuild">
+        <source>The MSBuild directory '{0}' appears to be a .NET SDK (dotnet) MSBuild installation. NuGet.exe requires the .NET Framework version of MSBuild, which is included with Visual Studio. Use 'dotnet restore' instead, or provide the path to a Visual Studio MSBuild installation.</source>
+        <target state="translated">MSBuild ディレクトリ '{0}' は 、.NET SDK (dotnet) MSBuild インストールのようです。NuGet.exe には、Visual Studio に含まれる .NET Framework バージョンの MSBuild が必要です。代わりに 'dotnet restore' を使用するか、Visual Studio MSBuild インストールへのパスを指定してください。</target>
+        <note>{0} is the MSBuild directory path. Do not localize 'NuGet.exe', 'MSBuild', '.NET SDK', '.NET Framework', 'dotnet restore', 'Visual Studio'.</note>
+      </trans-unit>
       <trans-unit id="Error_MsBuildTimedOut">
         <source>MsBuild timeout out while trying to get project to project references.</source>
         <target state="translated">プロジェクトからプロジェクトへの参照を取得しようとしているときに MSBuild がタイムアウトしました。</target>
@@ -250,7 +255,7 @@ Do not localize `SDK`, `dotnet pack`, msbuild -t:pack` and 'true'.</note>
       </trans-unit>
       <trans-unit id="Error_ProjectJson_Deprecated_And_Removed">
         <source>`project.json` pack is disabled in the current NuGet version, and will be permanently removed in a future version.
-Please consider migrating '{0}' to `PackageReference` and using the pack targets.
+Consider migrating '{0}' to `PackageReference` and using the pack targets.
 You can set the '{1}' environment variable to 'true' to temporarily reenable this functionality.</source>
         <target state="translated">`project.json` パックは現在の NuGet バージョンでは無効になっており、今後のバージョンでは完全に削除されます。
 '{0}' を `PackageReference` に移行し、パック ターゲットを使用することを検討してください。
@@ -318,13 +323,13 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note>Please don't localize "DependencyVersion".</note>
       </trans-unit>
       <trans-unit id="Error_UnsupportedMsBuildForSlnx">
-        <source>This version of MSBuild not support the slnx format: '{0}'. Please use a MSBuild version greater or equal to 17.13 to use this feature.</source>
-        <target state="translated">このバージョンの MSBuild では slnx 形式はサポートされていません: '{0}'。この機能を使用するには、17.13 以上のバージョンの MSBuild を使用してください。</target>
+        <source>This version of MSBuild not support the slnx format: '{0}'. Use a MSBuild version greater than or equal to 17.13 to use this feature.</source>
+        <target state="translated">このバージョンの MSBuild では slnx 形式はサポートされていません: '{0}'。この機能を使用するには、17.13 以降の MSBuild を使用してください。</target>
         <note />
       </trans-unit>
       <trans-unit id="Error_UnsupportedMsBuildForSolutionFilter">
-        <source>This version of MSBuild not support Solution filter: '{0}'. Please use a MSBuild version greater or equal to 16.7 to use this feature.</source>
-        <target state="translated">このバージョンの MSBuild ではソリューション フィルターはサポートされいません: '{0}'。この機能を使用するには、16.7 以上のバージョンの MSBuild を使用してください。</target>
+        <source>This version of MSBuild not support Solution filter: '{0}'. Use a MSBuild version greater than or equal to 16.7 to use this feature.</source>
+        <target state="translated">このバージョンの MSBuild ではソリューション フィルターはサポートされていません: '{0}'。この機能を使用するには、16.7 以降の MSBuild を使用してください。</target>
         <note />
       </trans-unit>
       <trans-unit id="Error_UnsupportedMsbuild">
@@ -343,8 +348,8 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="FailedToLoadExtension">
-        <source>Failed to load {0}, if this extension was downloaded from the internet please make sure it got unblocked (right click, properties, unblock).</source>
-        <target state="translated">{0} を読み込めませんでした。この拡張機能がインターネットからダウンロードされた場合は、ブロックが解除されていることを確認してください (右クリック、プロパティ、ブロック解除)。</target>
+        <source>Failed to load {0}, if this extension was downloaded from the internet make sure it got unblocked (right click, properties, unblock).</source>
+        <target state="translated">{0} を読み込めませんでした。この拡張機能がインターネットからダウンロードされた場合は、ブロックが解除されていることを確認してください (右クリック、[プロパティ]、[ブロックを解除])。</target>
         <note />
       </trans-unit>
       <trans-unit id="FailedToLoadExtensionDuringMefComposition">
@@ -448,7 +453,7 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="InvalidSource">
-        <source>The specified source '{0}' is invalid. Please provide a valid source.</source>
+        <source>The specified source '{0}' is invalid. Provide a valid source.</source>
         <target state="translated">指定されたソース '{0}' が正しくありません。有効なソースを指定してください。</target>
         <note />
       </trans-unit>
@@ -503,7 +508,7 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="LocalsCommand_InvalidLocalResourceName">
-        <source>An invalid local resource name was provided. Please provide one of the following values: http-cache, packages-cache, global-packages, all.</source>
+        <source>An invalid local resource name was provided. Provide one of the following values: http-cache, packages-cache, global-packages, all.</source>
         <target state="translated">無効なローカル リソース名が指定されました。次のいずれかの値を指定してください: http-cache、packages-cache、global-packages、all。</target>
         <note />
       </trans-unit>
@@ -663,7 +668,7 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="PackageCommandSpecifyInputFileError">
-        <source>Please specify a nuspec or project file to use.</source>
+        <source>Specify a nuspec or project file to use.</source>
         <target state="translated">nuspec、または使用するプロジェクト ファイルを指定してください。</target>
         <note />
       </trans-unit>
@@ -698,8 +703,8 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="ProjectJsonPack_Deprecated">
-        <source>`project.json` pack is deprecated. Please consider migrating '{0}' to `PackageReference` and using the pack targets.</source>
-        <target state="translated">'project.json' パックは非推奨です。'{0}' を 'PackageReference' に移行し、パック ターゲットを使用することを検討してください。</target>
+        <source>`project.json` pack is deprecated. Consider migrating '{0}' to `PackageReference` and using the pack targets.</source>
+        <target state="translated">`project.json` パックは非推奨です。'{0}' を `PackageReference` に移行し、パック ターゲットを使用することを検討してください。</target>
         <note>Do not localize project.json and `PackageReference` 
 0 - project path (project.json file path)</note>
       </trans-unit>
@@ -709,7 +714,7 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="PushCommandNoSourceError">
-        <source>There is no default source, please specify a source.</source>
+        <source>There is no default source, specify a source.</source>
         <target state="translated">既定のソースはありません。ソースを指定してください。</target>
         <note />
       </trans-unit>
@@ -729,12 +734,12 @@ You can set the '{1}' environment variable to 'true' to temporarily reenable thi
         <note />
       </trans-unit>
       <trans-unit id="RestoreCommandCannotDetermineGlobalPackagesFolder">
-        <source>'globalPackagesFolder' setting is a relative path. To determine full path, please specify either -SolutionDirectory or a solution file as a parameter. To ignore 'globalPackagesFolder' setting, specify -PackagesDirectory.</source>
+        <source>'globalPackagesFolder' setting is a relative path. To determine full path, specify either -SolutionDirectory or a solution file as a parameter. To ignore 'globalPackagesFolder' setting, specify -PackagesDirectory.</source>
         <target state="translated">'globalPackagesFolder' 設定は相対パスです。完全なパスを特定するには、-SolutionDirectory またはソリューション ファイルをパラメーターとして指定してください。'globalPackagesFolder' 設定を無視するには、-PackagesDirectory を指定してください。</target>
         <note>Please do not localize 'globalPackagesFolder', -SolutionDirectory or -PackagesDirectory</note>
       </trans-unit>
       <trans-unit id="RestoreCommandCannotDeterminePackagesFolder">
-        <source>Cannot determine the packages folder to restore NuGet packages. Please specify either -PackagesDirectory or -SolutionDirectory.</source>
+        <source>Cannot determine the packages folder to restore NuGet packages. Specify either -PackagesDirectory or -SolutionDirectory.</source>
         <target state="translated">NuGet パッケージを復元するパッケージ フォルダーを特定できません。-PackagesDirectory または -SolutionDirectory のいずれかを指定してください。</target>
         <note />
       </trans-unit>
@@ -958,17 +963,17 @@ NuGet がビルド中にパッケージを復元しないようにするには�
         <note />
       </trans-unit>
       <trans-unit id="Warning_LongPath_DisabledPolicy">
-        <source>Please enbale long file path support in local group policy. Fore more details, please refer to https://aka.ms/nuget-long-path.</source>
-        <target state="translated">ローカル グループ ポリシーで長いファイル パスのサポートを有効にしてください。詳細については、https://aka.ms/nuget-long-path を参照してください。</target>
+        <source>Enable long file path support in local group policy. Fore more details, refer to https://aka.ms/nuget-long-path.</source>
+        <target state="translated">ローカル グループ ポリシーで長いファイル パスのサポートを有効にします。詳細については、https://aka.ms/nuget-long-path を参照してください。</target>
         <note />
       </trans-unit>
       <trans-unit id="Warning_LongPath_UnsupportedNetFramework">
-        <source>Please install .NET Framework 4.6.2 or above that supports long file paths. Fore more details, please refer to https://aka.ms/nuget-long-path.</source>
+        <source>Install .NET Framework 4.6.2 or above that supports long file paths. Fore more details, refer to https://aka.ms/nuget-long-path.</source>
         <target state="translated">長いファイル パスをサポートする .NET Framework 4.6.2 以降をインストールします。詳細については、https://aka.ms/nuget-long-path を参照してください。</target>
         <note />
       </trans-unit>
       <trans-unit id="Warning_LongPath_UnsupportedOS">
-        <source>Long file path is currently only supported on Windows 10. Fore more details, please refer to https://aka.ms/nuget-long-path.</source>
+        <source>Long file path is currently only supported on Windows 10. Fore more details, refer to https://aka.ms/nuget-long-path.</source>
         <target state="translated">現在、長いファイル パスは Windows 10 でのみサポートされています。詳細については、https://aka.ms/nuget-long-path を参照してください。</target>
         <note />
       </trans-unit>

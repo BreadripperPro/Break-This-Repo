@@ -32,6 +32,8 @@ parameters:
 
   # additional parameters
   artifacts: { artifactsReference }
+  # captures MSBuild binlogs and uploads an Astred digest for an internal non-PR job; enable on at most one Windows job per build; defaults to false
+  enableAstred: boolean
   # 'true' if Microbuild plugin should be installed for internal builds.
   #           if 'true', these "variables" must be specified in the variables object or as part of the queue matrix
   #             _TeamName - the name of your team
@@ -113,8 +115,3 @@ artifacts:
     artifacts | logs | manifests:
       name: string # Azure DevOps artifact name
 ```
-
-
-<!-- Begin Generated Content: Doc Feedback -->
-<sub>Was this helpful? [![Yes](https://helix.dot.net/f/ip/5?p=Documentation%5CAzureDevOps%5CTemplateSchema.md)](https://helix.dot.net/f/p/5?p=Documentation%5CAzureDevOps%5CTemplateSchema.md) [![No](https://helix.dot.net/f/in)](https://helix.dot.net/f/n/5?p=Documentation%5CAzureDevOps%5CTemplateSchema.md)</sub>
-<!-- End Generated Content-->

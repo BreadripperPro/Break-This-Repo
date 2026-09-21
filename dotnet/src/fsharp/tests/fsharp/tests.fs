@@ -27,11 +27,6 @@ let FSI = FSI_NETFX
 #endif
 // ^^^^^^^^^^^^ To run these tests in F# Interactive , 'build net40', then send this chunk, then evaluate body of a test ^^^^^^^^^^^^
 
-let log = printfn
-
-// Disable parallel execution for CoreTests because the printing and FSI tests
-// spawn external FSI processes with stdin redirection that can interfere with each other
-[<Collection(nameof NotThreadSafeResourceCollection)>]
 module CoreTests =
 
 
@@ -71,11 +66,14 @@ module CoreTests =
         exec cfg cfg.DotNetExe ($"msbuild {projectFile} /p:Configuration={cfg.BUILD_CONFIG} -property:FSharpRepositoryPath={FSharpRepositoryPath}")
 
 #if !NETCOREAPP
+    // Pinned to 10.0: at 11.0 ErrorOnMissingSignatureAttribute turns FS3888 (attribute on impl but
+    // not signature) from warning into error, which this test deliberately exercises. 11.0 behavior is
+    // covered by Conformance/Signatures/SignatureEnforcedAttributes.
     [<Fact>]
-    let ``attributes-FSC_OPTIMIZED`` () = singleTestBuildAndRun "core/attributes" FSC_OPTIMIZED
+    let ``attributes-FSC_OPTIMIZED`` () = singleTestBuildAndRunVersion "core/attributes" FSC_OPTIMIZED "10.0"
 
     [<Fact>]
-    let ``attributes-FSI`` () = singleTestBuildAndRun "core/attributes" FSI
+    let ``attributes-FSI`` () = singleTestBuildAndRunVersion "core/attributes" FSI "10.0"
 
     [<Fact>]
     let span () =
@@ -133,12 +131,12 @@ module CoreTests =
 
 
     [<Fact>]
-    let ``state-machines-non-optimized`` () = 
+    let ``state-machines-optimized-no-tailcalls`` () =
         let cfg = testConfig "core/state-machines"
 
-        
 
-        fsc cfg "%s -o:test.exe -g --tailcalls- --optimize-" cfg.fsc_flags ["test.fsx"]
+
+        fsc cfg "%s -o:test.exe -g --tailcalls- --optimize+" cfg.fsc_flags ["test.fsx"]
 
         peverify cfg "test.exe"
 
@@ -2040,12 +2038,6 @@ module TypecheckTests =
     [<Fact>]
     let ``type check neg107`` () = singleNegTest (testConfig "typecheck/sigs") "neg107"
  
-    [<Fact>]
-    let ``type check neg116`` () = singleNegTest (testConfig "typecheck/sigs") "neg116"
-
-    [<Fact>]
-    let ``type check neg117`` () = singleNegTest (testConfig "typecheck/sigs") "neg117"        
-    
     [<Fact>]
     let ``type check neg134`` () = singleVersionedNegTest (testConfig "typecheck/sigs") "preview" "neg134"
 

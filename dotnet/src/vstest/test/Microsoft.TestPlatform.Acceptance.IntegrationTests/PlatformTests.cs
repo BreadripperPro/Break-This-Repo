@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.TestPlatform.TestUtilities;
@@ -15,8 +15,8 @@ public class PlatformTests : AcceptanceTestBase
     /// The run test execution with platform x64.
     /// </summary>
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
+    [TestMatrix(testHost: Net)]
     public void RunTestExecutionWithPlatformx64(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -29,8 +29,8 @@ public class PlatformTests : AcceptanceTestBase
     /// The run test execution with platform x86.
     /// </summary>
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
+    [TestMatrix(testHost: Net)]
     public void RunTestExecutionWithPlatformx86(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -48,10 +48,10 @@ public class PlatformTests : AcceptanceTestBase
             string.Empty, FrameworkArgValue,
             _testEnvironment.InIsolationValue, resultsDirectory: TempDirectory.Path);
 
-        arguments = string.Concat(arguments, platformArg, GetDiagArg(TempDirectory.Path));
+        arguments = string.Concat(arguments, platformArg);
         InvokeVsTest(arguments);
 
-        AssertExpectedNumberOfHostProcesses(expectedNumOfProcessCreated, TempDirectory.Path, new[] { testhostProcessName }, arguments, GetConsoleRunnerPath());
+        AssertExpectedNumberOfHostProcesses(expectedNumOfProcessCreated, DiagLogsDirectory, new[] { testhostProcessName }, arguments, GetConsoleRunnerPath());
         ValidateSummaryStatus(1, 1, 1);
     }
 }

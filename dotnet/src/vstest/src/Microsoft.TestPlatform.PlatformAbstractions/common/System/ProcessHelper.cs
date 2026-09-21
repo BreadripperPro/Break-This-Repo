@@ -1,15 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#if NETFRAMEWORK || NETCOREAPP || NETSTANDARD2_0
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
-#if !NET5_0_OR_GREATER
+#if !NET
 using System.Threading.Tasks;
 #endif
 
@@ -25,7 +23,7 @@ public partial class ProcessHelper : IProcessHelper
     private static readonly string Arm = "arm";
     private readonly Process _currentProcess = Process.GetCurrentProcess();
 
-#if !NET5_0_OR_GREATER
+#if !NET
     private readonly IEnvironment _environment;
 #endif
 
@@ -38,20 +36,17 @@ public partial class ProcessHelper : IProcessHelper
 
     internal ProcessHelper(IEnvironment environment)
     {
-#if !NET5_0_OR_GREATER
+#if !NET
         _environment = environment;
 #endif
     }
 
-    /// <summary>
-    /// Gets or sets the set of environment variables to be used when spawning a new process.
-    /// Should this set of environment variables be null, the environment variables inherited from
-    /// the parent process will be used.
-    /// </summary>
-    internal static IDictionary<string, string?>? ExternalEnvironmentVariables { get; set; }
-
     /// <inheritdoc/>
     public object LaunchProcess(string processPath, string? arguments, string? workingDirectory, IDictionary<string, string?>? envVariables, Action<object?, string?>? errorCallback, Action<object?>? exitCallBack, Action<object?, string?>? outputCallBack)
+        => LaunchProcess(processPath, arguments, workingDirectory, envVariables, errorCallback, exitCallBack, outputCallBack, createNoNewWindow: true);
+
+    /// <inheritdoc/>
+    public object LaunchProcess(string processPath, string? arguments, string? workingDirectory, IDictionary<string, string?>? envVariables, Action<object?, string?>? errorCallback, Action<object?>? exitCallBack, Action<object?, string?>? outputCallBack, bool createNoNewWindow)
     {
         if (!File.Exists(processPath))
         {
@@ -77,7 +72,7 @@ public partial class ProcessHelper : IProcessHelper
         void InitializeAndStart()
         {
             process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = true;
+            process.StartInfo.CreateNoWindow = createNoNewWindow;
             process.StartInfo.WorkingDirectory = workingDirectory;
 
             process.StartInfo.FileName = processPath;
@@ -85,30 +80,6 @@ public partial class ProcessHelper : IProcessHelper
             process.StartInfo.RedirectStandardError = true;
 
             process.EnableRaisingEvents = true;
-
-            // When vstest.console is started in its own process in VisualStudio it is TestWindowStoreHost that starts it.
-            // TestWindowStoreHost inherits environment variables from ServiceHost and DevEnv. Those env variables,
-            // contain multiple "internal" environment variables, and they also contain DOTNET_ROOT pointing to the 
-            // .NET that is shipped with VisualStudio. So to work around this, vstest.console is given a set of environment
-            // variables that has only variables that DevEnv was started with. So it gets a "clean" set of env variables.
-            //
-            // When we run vstest.console in process, we cannot start ourselves with the same clean set of env variables,
-            // and the best we can do is to start our child processes (testhost / datacollector) with this environment.
-            // To do that we pass that set of "clean" env variables down to the ProcessHelper, and use those instead
-            // of all the variables that are set in the current process.
-            if (ExternalEnvironmentVariables is not null)
-            {
-                process.StartInfo.EnvironmentVariables.Clear();
-                foreach (var kvp in ExternalEnvironmentVariables)
-                {
-                    if (kvp.Value is null)
-                    {
-                        continue;
-                    }
-
-                    process.StartInfo.AddEnvironmentVariable(kvp.Key, kvp.Value);
-                }
-            }
 
             // Set additional environment variables.
             if (envVariables != null)
@@ -125,9 +96,24 @@ public partial class ProcessHelper : IProcessHelper
                 process.OutputDataReceived += (sender, args) => outputCallBack(sender as Process, args.Data);
             }
 
+            // Set once the redirected stderr stream reaches EOF (signaled by a null Data event,
+            // which is raised after all stderr lines have been handed to errorCallback). This is
+            // the only reliable signal that the asynchronously-collected error output is complete:
+            // neither WaitForExit(timeout) nor WaitForExitAsync guarantees the ErrorDataReceived
+            // callbacks have run. The exit handler below waits (bounded) on this before reading.
+            ManualResetEventSlim? errorStreamClosed = null;
             if (errorCallback != null)
             {
-                process.ErrorDataReceived += (sender, args) => errorCallback(sender as Process, args.Data);
+                errorStreamClosed = new ManualResetEventSlim(initialState: false);
+                process.ErrorDataReceived += (sender, args) =>
+                {
+                    if (args.Data is null)
+                    {
+                        errorStreamClosed.Set();
+                    }
+
+                    errorCallback(sender as Process, args.Data);
+                };
             }
 
             if (exitCallBack != null)
@@ -135,6 +121,7 @@ public partial class ProcessHelper : IProcessHelper
                 process.Exited += async (sender, args) =>
                 {
                     const int timeout = 500;
+                    var stopwatch = Stopwatch.StartNew();
 
                     if (sender is Process p)
                     {
@@ -146,14 +133,16 @@ public partial class ProcessHelper : IProcessHelper
                             // See ticket https://github.com/microsoft/vstest/issues/3375 to get the links to all
                             // issues, discussions and documentations.
                             //
-                            // On .NET 5 and later, the solution is simple, we can simply use WaitForExitAsync which
-                            // correctly ensure that some time is given to the child process (or any grandchild) to
-                            // flush before exit happens.
+                            // On .NET 5 and later we use WaitForExitAsync to give the child process (and any
+                            // grandchild) some time to exit. NOTE: WaitForExitAsync only waits for the process
+                            // to exit; it does NOT guarantee that the asynchronous Output/ErrorDataReceived
+                            // callbacks have finished delivering. The bounded stderr drain after this block
+                            // ensures the captured error output is complete before exitCallBack reads it.
                             //
                             // For older frameworks, the solution is more tricky but it seems we can get the expected
                             // behavior using the parameterless 'WaitForExit()' combined with an awaited Task.Run call.
                             var cts = new CancellationTokenSource(timeout);
-#if NET5_0_OR_GREATER
+#if NET
                             await p.WaitForExitAsync(cts.Token);
 #else
                             // NOTE: In case we run on Windows we must call 'WaitForExit(timeout)' instead of calling
@@ -201,6 +190,13 @@ public partial class ProcessHelper : IProcessHelper
                             // We "expect" TaskCanceledException, COMException (if process was disposed before calling
                             // the exit) or InvalidOperationException.
                         }
+
+                        // The process has exited. Within the SAME bounded budget used above, wait for the
+                        // redirected stderr to reach EOF so that asynchronously-collected error output
+                        // (e.g. a testhost crash callstack such as "Stack overflow.") is complete before the
+                        // exit callback consumes it. WaitForExit(timeout)/WaitForExitAsync do not guarantee
+                        // the ErrorDataReceived callbacks have run.
+                        WaitForErrorStreamToDrain(errorStreamClosed, timeout, stopwatch.ElapsedMilliseconds);
                     }
 
                     // If exit callback has code that access Process object, ensure that the exceptions handling should be done properly.
@@ -221,6 +217,28 @@ public partial class ProcessHelper : IProcessHelper
             {
                 process.BeginOutputReadLine();
             }
+        }
+    }
+
+    /// <summary>
+    /// Waits, bounded by the time remaining in <paramref name="budgetMilliseconds"/>, for the redirected
+    /// standard error stream to reach EOF (signaled via <paramref name="errorStreamClosed"/>). This ensures
+    /// all <see cref="Process.ErrorDataReceived"/> callbacks have completed - and therefore the captured
+    /// error output is complete - before it is consumed by the exit callback. It returns immediately when
+    /// there is no redirected error stream, when it has already drained, or when the budget is already
+    /// exhausted (e.g. a grandchild process keeps the pipe open), so the caller can never hang.
+    /// </summary>
+    internal static void WaitForErrorStreamToDrain(ManualResetEventSlim? errorStreamClosed, int budgetMilliseconds, long elapsedMilliseconds)
+    {
+        if (errorStreamClosed is null)
+        {
+            return;
+        }
+
+        var remainingMilliseconds = budgetMilliseconds - (int)elapsedMilliseconds;
+        if (remainingMilliseconds > 0)
+        {
+            errorStreamClosed.Wait(remainingMilliseconds);
         }
     }
 
@@ -266,6 +284,7 @@ public partial class ProcessHelper : IProcessHelper
         }
         catch (InvalidOperationException)
         {
+            // Process may have already exited — exit code unavailable.
         }
 
         exitCode = 0;
@@ -301,6 +320,7 @@ public partial class ProcessHelper : IProcessHelper
         }
         catch (InvalidOperationException)
         {
+            // Process may have already exited — exit code unavailable.
         }
     }
 
@@ -323,9 +343,7 @@ public partial class ProcessHelper : IProcessHelper
     private string GetFormattedCurrentProcessArchitecture()
         => GetCurrentProcessArchitecture().ToString()
             .ToLower(
-#if !NETCOREAPP1_0
         CultureInfo.InvariantCulture
-#endif
             );
 
     /// <inheritdoc/>
@@ -337,5 +355,3 @@ public partial class ProcessHelper : IProcessHelper
         }
     }
 }
-
-#endif

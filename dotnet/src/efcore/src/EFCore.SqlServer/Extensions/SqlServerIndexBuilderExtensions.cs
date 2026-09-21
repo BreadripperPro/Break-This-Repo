@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
 // ReSharper disable once CheckNamespace
@@ -48,7 +49,7 @@ public static class SqlServerIndexBuilderExtensions
     public static IndexBuilder<TEntity> IsClustered<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         bool clustered = true)
-        => (IndexBuilder<TEntity>)IsClustered((IndexBuilder)indexBuilder, clustered);
+        => (IndexBuilder<TEntity>)((IndexBuilder)indexBuilder).IsClustered(clustered);
 
     /// <summary>
     ///     Configures whether the index is clustered when targeting SQL Server.
@@ -165,9 +166,12 @@ public static class SqlServerIndexBuilderExtensions
     {
         Check.NotNull(includeExpression);
 
-        IncludeProperties(
-            indexBuilder,
-            includeExpression.GetMemberAccessList().Select(EntityFrameworkMemberInfoExtensions.GetSimpleMemberName).ToArray());
+        indexBuilder.IncludeProperties(
+#pragma warning disable EF1001 // Internal EF Core API usage.
+            includeExpression.GetMemberAccessChainList()
+                .Select(chain => string.Join(".", chain.Select(EntityFrameworkMemberInfoExtensions.GetSimpleMemberName)))
+                .ToArray());
+#pragma warning restore EF1001 // Internal EF Core API usage.
 
         return indexBuilder;
     }
@@ -220,9 +224,9 @@ public static class SqlServerIndexBuilderExtensions
         bool fromDataAnnotation = false)
         => (fromDataAnnotation ? ConfigurationSource.DataAnnotation : ConfigurationSource.Convention)
             .Overrides(indexBuilder.Metadata.GetIncludePropertiesConfigurationSource())
-            || indexBuilder.Metadata.GetIncludeProperties() is var currentProperties
-            && ((propertyNames is null && currentProperties is null)
-                || (propertyNames is not null && currentProperties is not null && propertyNames.SequenceEqual(currentProperties)));
+            || (indexBuilder.Metadata.GetIncludeProperties() is var currentProperties
+                && ((propertyNames is null && currentProperties is null)
+                    || (propertyNames is not null && currentProperties is not null && propertyNames.SequenceEqual(currentProperties))));
 
     /// <summary>
     ///     Configures whether the index is created with online option when targeting SQL Server.
@@ -256,7 +260,7 @@ public static class SqlServerIndexBuilderExtensions
     public static IndexBuilder<TEntity> IsCreatedOnline<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         bool createdOnline = true)
-        => (IndexBuilder<TEntity>)IsCreatedOnline((IndexBuilder)indexBuilder, createdOnline);
+        => (IndexBuilder<TEntity>)((IndexBuilder)indexBuilder).IsCreatedOnline(createdOnline);
 
     /// <summary>
     ///     Configures whether the index is created with online option when targeting SQL Server.
@@ -342,7 +346,7 @@ public static class SqlServerIndexBuilderExtensions
     public static IndexBuilder<TEntity> HasFillFactor<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         int fillFactor)
-        => (IndexBuilder<TEntity>)HasFillFactor((IndexBuilder)indexBuilder, fillFactor);
+        => (IndexBuilder<TEntity>)((IndexBuilder)indexBuilder).HasFillFactor(fillFactor);
 
     /// <summary>
     ///     Configures whether the index is created with fill factor option when targeting SQL Server.
@@ -424,7 +428,7 @@ public static class SqlServerIndexBuilderExtensions
     public static IndexBuilder<TEntity> SortInTempDb<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         bool sortInTempDb = true)
-        => (IndexBuilder<TEntity>)SortInTempDb((IndexBuilder)indexBuilder, sortInTempDb);
+        => (IndexBuilder<TEntity>)((IndexBuilder)indexBuilder).SortInTempDb(sortInTempDb);
 
     /// <summary>
     ///     Configures whether the index is created with sort in tempdb option when targeting SQL Server.
@@ -510,7 +514,7 @@ public static class SqlServerIndexBuilderExtensions
     public static IndexBuilder<TEntity> UseDataCompression<TEntity>(
         this IndexBuilder<TEntity> indexBuilder,
         DataCompressionType dataCompressionType)
-        => (IndexBuilder<TEntity>)UseDataCompression((IndexBuilder)indexBuilder, dataCompressionType);
+        => (IndexBuilder<TEntity>)((IndexBuilder)indexBuilder).UseDataCompression(dataCompressionType);
 
     /// <summary>
     ///     Configures whether the index is created with data compression option when targeting SQL Server.
@@ -572,41 +576,7 @@ public static class SqlServerIndexBuilderExtensions
     ///     for more information on SQL Server full-text search.
     /// </remarks>
     /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="keyIndexName">The name of the KEY INDEX.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder HasFullTextKeyIndex(this IndexBuilder indexBuilder, string keyIndexName)
-    {
-        Check.NotEmpty(keyIndexName);
-
-        indexBuilder.Metadata.SetFullTextKeyIndex(keyIndexName);
-
-        return indexBuilder;
-    }
-
-    /// <summary>
-    ///     Configures the KEY INDEX for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="keyIndexName">The name of the KEY INDEX.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder<TEntity> HasFullTextKeyIndex<TEntity>(
-        this IndexBuilder<TEntity> indexBuilder,
-        string keyIndexName)
-        => (IndexBuilder<TEntity>)HasFullTextKeyIndex((IndexBuilder)indexBuilder, keyIndexName);
-
-    /// <summary>
-    ///     Configures the KEY INDEX for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="keyIndexName">The name of the KEY INDEX.</param>
+    /// <param name="keyIndex">The name of the KEY INDEX.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
     ///     The same builder instance if the configuration was applied,
@@ -614,12 +584,12 @@ public static class SqlServerIndexBuilderExtensions
     /// </returns>
     public static IConventionIndexBuilder? HasFullTextKeyIndex(
         this IConventionIndexBuilder indexBuilder,
-        string? keyIndexName,
+        string? keyIndex,
         bool fromDataAnnotation = false)
     {
-        if (indexBuilder.CanSetFullTextKeyIndex(keyIndexName, fromDataAnnotation))
+        if (indexBuilder.CanSetFullTextKeyIndex(keyIndex, fromDataAnnotation))
         {
-            indexBuilder.Metadata.SetFullTextKeyIndex(keyIndexName, fromDataAnnotation);
+            indexBuilder.Metadata.SetFullTextKeyIndex(keyIndex, fromDataAnnotation);
 
             return indexBuilder;
         }
@@ -635,14 +605,14 @@ public static class SqlServerIndexBuilderExtensions
     ///     for more information on SQL Server full-text search.
     /// </remarks>
     /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="keyIndexName">The name of the KEY INDEX.</param>
+    /// <param name="keyIndex">The name of the KEY INDEX.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns><see langword="true" /> if the index can be configured with the specified KEY INDEX when targeting SQL Server.</returns>
     public static bool CanSetFullTextKeyIndex(
         this IConventionIndexBuilder indexBuilder,
-        string? keyIndexName,
+        string? keyIndex,
         bool fromDataAnnotation = false)
-        => indexBuilder.CanSetAnnotation(SqlServerAnnotationNames.FullTextIndex, keyIndexName, fromDataAnnotation);
+        => indexBuilder.CanSetAnnotation(SqlServerAnnotationNames.FullTextIndex, keyIndex, fromDataAnnotation);
 
     /// <summary>
     ///     Configures the full-text catalog for the full-text index when targeting SQL Server.
@@ -652,41 +622,7 @@ public static class SqlServerIndexBuilderExtensions
     ///     for more information on SQL Server full-text search.
     /// </remarks>
     /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="catalogName">The name of the full-text catalog.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder HasFullTextCatalog(this IndexBuilder indexBuilder, string catalogName)
-    {
-        Check.NotEmpty(catalogName);
-
-        indexBuilder.Metadata.SetFullTextCatalog(catalogName);
-
-        return indexBuilder;
-    }
-
-    /// <summary>
-    ///     Configures the full-text catalog for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="catalogName">The name of the full-text catalog.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder<TEntity> HasFullTextCatalog<TEntity>(
-        this IndexBuilder<TEntity> indexBuilder,
-        string catalogName)
-        => (IndexBuilder<TEntity>)HasFullTextCatalog((IndexBuilder)indexBuilder, catalogName);
-
-    /// <summary>
-    ///     Configures the full-text catalog for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="catalogName">The name of the full-text catalog.</param>
+    /// <param name="catalog">The name of the full-text catalog.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns>
     ///     The same builder instance if the configuration was applied,
@@ -694,12 +630,12 @@ public static class SqlServerIndexBuilderExtensions
     /// </returns>
     public static IConventionIndexBuilder? HasFullTextCatalog(
         this IConventionIndexBuilder indexBuilder,
-        string? catalogName,
+        string? catalog,
         bool fromDataAnnotation = false)
     {
-        if (indexBuilder.CanSetFullTextCatalog(catalogName, fromDataAnnotation))
+        if (indexBuilder.CanSetFullTextCatalog(catalog, fromDataAnnotation))
         {
-            indexBuilder.Metadata.SetFullTextCatalog(catalogName, fromDataAnnotation);
+            indexBuilder.Metadata.SetFullTextCatalog(catalog, fromDataAnnotation);
 
             return indexBuilder;
         }
@@ -715,46 +651,14 @@ public static class SqlServerIndexBuilderExtensions
     ///     for more information on SQL Server full-text search.
     /// </remarks>
     /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="catalogName">The name of the full-text catalog.</param>
+    /// <param name="catalog">The name of the full-text catalog.</param>
     /// <param name="fromDataAnnotation">Indicates whether the configuration was specified using a data annotation.</param>
     /// <returns><see langword="true" /> if the index can be configured with the specified full-text catalog when targeting SQL Server.</returns>
     public static bool CanSetFullTextCatalog(
         this IConventionIndexBuilder indexBuilder,
-        string? catalogName,
+        string? catalog,
         bool fromDataAnnotation = false)
-        => indexBuilder.CanSetAnnotation(SqlServerAnnotationNames.FullTextCatalog, catalogName, fromDataAnnotation);
-
-    /// <summary>
-    ///     Configures the change tracking mode for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="changeTracking">The change tracking mode.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder HasFullTextChangeTracking(this IndexBuilder indexBuilder, FullTextChangeTracking changeTracking)
-    {
-        indexBuilder.Metadata.SetFullTextChangeTracking(changeTracking);
-
-        return indexBuilder;
-    }
-
-    /// <summary>
-    ///     Configures the change tracking mode for the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="changeTracking">The change tracking mode.</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder<TEntity> HasFullTextChangeTracking<TEntity>(
-        this IndexBuilder<TEntity> indexBuilder,
-        FullTextChangeTracking changeTracking)
-        => (IndexBuilder<TEntity>)HasFullTextChangeTracking((IndexBuilder)indexBuilder, changeTracking);
+        => indexBuilder.CanSetAnnotation(SqlServerAnnotationNames.FullTextCatalog, catalog, fromDataAnnotation);
 
     /// <summary>
     ///     Configures the change tracking mode for the full-text index when targeting SQL Server.
@@ -804,44 +708,6 @@ public static class SqlServerIndexBuilderExtensions
         FullTextChangeTracking? changeTracking,
         bool fromDataAnnotation = false)
         => indexBuilder.CanSetAnnotation(SqlServerAnnotationNames.FullTextChangeTracking, changeTracking, fromDataAnnotation);
-
-    /// <summary>
-    ///     Configures the language for a specific property in the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="propertyName">The name of the property.</param>
-    /// <param name="language">The language term (e.g. "English", "1033").</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder HasFullTextLanguage(this IndexBuilder indexBuilder, string propertyName, string language)
-    {
-        Check.NotEmpty(propertyName);
-        Check.NotEmpty(language);
-
-        indexBuilder.Metadata.SetFullTextLanguage(propertyName, language);
-
-        return indexBuilder;
-    }
-
-    /// <summary>
-    ///     Configures the language for a specific property in the full-text index when targeting SQL Server.
-    /// </summary>
-    /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/relational-databases/search/full-text-search">Full-Text Search</see>
-    ///     for more information on SQL Server full-text search.
-    /// </remarks>
-    /// <param name="indexBuilder">The builder for the index being configured.</param>
-    /// <param name="propertyName">The name of the property.</param>
-    /// <param name="language">The language term (e.g. "English", "1033").</param>
-    /// <returns>A builder to further configure the index.</returns>
-    public static IndexBuilder<TEntity> HasFullTextLanguage<TEntity>(
-        this IndexBuilder<TEntity> indexBuilder,
-        string propertyName,
-        string language)
-        => (IndexBuilder<TEntity>)HasFullTextLanguage((IndexBuilder)indexBuilder, propertyName, language);
 
     /// <summary>
     ///     Configures the languages for properties in the full-text index when targeting SQL Server.

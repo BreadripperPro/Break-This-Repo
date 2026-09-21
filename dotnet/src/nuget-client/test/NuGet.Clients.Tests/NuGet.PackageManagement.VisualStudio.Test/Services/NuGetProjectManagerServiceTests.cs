@@ -157,13 +157,13 @@ namespace NuGet.PackageManagement.VisualStudio.Test
 
                 Initialize(packageSources);
 
-                var unconfiguredProject = new Mock<UnconfiguredProject>();
+                var mockUnconfiguredProject = new Mock<UnconfiguredProject>();
                 var configuredProject = new Mock<ConfiguredProject>();
                 var projectServices = new Mock<ConfiguredProjectServices>();
                 var packageReferencesService = new Mock<IPackageReferencesService>();
                 var result = new Mock<IUnresolvedPackageReference>();
 
-                unconfiguredProject.Setup(x => x.GetSuggestedConfiguredProjectAsync())
+                mockUnconfiguredProject.Setup(x => x.GetSuggestedConfiguredProjectAsync())
                     .ReturnsAsync(configuredProject.Object);
 
                 configuredProject.SetupGet(x => x.Services)
@@ -174,6 +174,9 @@ namespace NuGet.PackageManagement.VisualStudio.Test
 
                 packageReferencesService.Setup(x => x.AddAsync(It.IsNotNull<string>(), It.IsNotNull<string>()))
                     .ReturnsAsync(new AddReferenceResult<IUnresolvedPackageReference>(result.Object, added: true));
+
+                var unconfiguredProject = new Microsoft.VisualStudio.Threading.AsyncLazy<UnconfiguredProject>(
+                    () => Task.FromResult(mockUnconfiguredProject.Object));
 
                 var nuGetProjectServices = new Mock<INuGetProjectServices>();
 
@@ -188,7 +191,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
                     projectUniqueName: projectFullPath,
                     projectFullPath: projectFullPath,
                     projectSystemCache,
-                    unconfiguredProject.Object,
+                    unconfiguredProject,
                     nuGetProjectServices.Object,
                     projectId);
 
@@ -429,13 +432,13 @@ namespace NuGet.PackageManagement.VisualStudio.Test
 
                 Initialize(packageSources);
 
-                var unconfiguredProject = new Mock<UnconfiguredProject>();
+                var mockUnconfiguredProject = new Mock<UnconfiguredProject>();
                 var configuredProject = new Mock<ConfiguredProject>();
                 var projectServices = new Mock<ConfiguredProjectServices>();
                 var packageReferencesService = new Mock<IPackageReferencesService>();
                 var result = new Mock<IUnresolvedPackageReference>();
 
-                unconfiguredProject.Setup(x => x.GetSuggestedConfiguredProjectAsync())
+                mockUnconfiguredProject.Setup(x => x.GetSuggestedConfiguredProjectAsync())
                     .ReturnsAsync(configuredProject.Object);
 
                 configuredProject.SetupGet(x => x.Services)
@@ -446,6 +449,9 @@ namespace NuGet.PackageManagement.VisualStudio.Test
 
                 packageReferencesService.Setup(x => x.AddAsync(It.IsNotNull<string>(), It.IsNotNull<string>()))
                     .ReturnsAsync(new AddReferenceResult<IUnresolvedPackageReference>(result.Object, added: true));
+
+                var unconfiguredProject = new Microsoft.VisualStudio.Threading.AsyncLazy<UnconfiguredProject>(
+                    () => Task.FromResult(mockUnconfiguredProject.Object));
 
                 var nuGetProjectServices = new Mock<INuGetProjectServices>();
 
@@ -460,7 +466,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
                     projectUniqueName: projectFullPath,
                     projectFullPath: projectFullPath,
                     projectSystemCache,
-                    unconfiguredProject.Object,
+                    unconfiguredProject,
                     nuGetProjectServices.Object,
                     projectId);
 
@@ -547,8 +553,11 @@ namespace NuGet.PackageManagement.VisualStudio.Test
             }
         }
 
-        [Fact]
-        public async Task GetInstalledAndTransitivePackagesAsync_TransitiveOriginsWithLegacyPackageReferenceProject_OneTransitiveOriginAsync()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GetInstalledAndTransitivePackagesAsync_TransitiveOriginsWithLegacyPackageReferenceProject_OneTransitiveOriginAsync(
+            bool usePackageSpecFactory)
         {
             // packageA_2.15.3 -> packageB_1.0.0 -> packageC_2.1.43
 
@@ -556,7 +565,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
 
             using TestDirectory testDirectory = TestDirectory.Create();
             // Arrange
-            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService);
+            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService, usePackageSpecFactory);
 
             NullSettings settings = NullSettings.Instance;
             var context = new DependencyGraphCacheContext(NullLogger.Instance, settings);
@@ -690,9 +699,11 @@ namespace NuGet.PackageManagement.VisualStudio.Test
         }
 
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task GetInstalledAndTransitivePackagesAsync_TransitiveOriginsWithLegacyPackageReferenceProject_MultipleOriginsAsync(bool useSameVersions)
+        [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        public async Task GetInstalledAndTransitivePackagesAsync_TransitiveOriginsWithLegacyPackageReferenceProject_MultipleOriginsAsync(bool useSameVersions, bool usePackageSpecFactory)
         {
             // case useSameversions = true
             // packageX_3.0.0 -> packageD_0.1.1
@@ -725,7 +736,7 @@ namespace NuGet.PackageManagement.VisualStudio.Test
                     },
                 };
 
-            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, _threadingService, onedep);
+            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, _threadingService, onedep, usePackageSpecFactory);
 
             NullSettings settings = NullSettings.Instance;
             var context = new DependencyGraphCacheContext(NullLogger.Instance, settings);
@@ -1377,14 +1388,16 @@ namespace NuGet.PackageManagement.VisualStudio.Test
             Assert.Equal(1, folders.Count); // only globalPackagesFolder is listed
         }
 
-        [Fact]
-        public async Task GetPackageFoldersAsync_LegacyProject_ReturnsPackageFolderAsync()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GetPackageFoldersAsync_LegacyProject_ReturnsPackageFolderAsync(bool usePackageSpecFactory)
         {
             string projectId = Guid.NewGuid().ToString();
 
             using TestDirectory testDirectory = TestDirectory.Create();
             // Arrange
-            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService);
+            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService, usePackageSpecFactory);
 
             NullSettings settings = NullSettings.Instance;
             var context = new DependencyGraphCacheContext(_logger, settings);
@@ -1423,14 +1436,16 @@ namespace NuGet.PackageManagement.VisualStudio.Test
             Assert.Equal(1, folders.Count);
         }
 
-        [Fact]
-        public async Task GetPackageFoldersAsync_LegacyProjectWithFallbackFolder_ReturnsPackageFoldersAsync()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GetPackageFoldersAsync_LegacyProjectWithFallbackFolder_ReturnsPackageFoldersAsync(bool usePackageSpecFactory)
         {
             string projectId = Guid.NewGuid().ToString();
 
             using TestDirectory testDirectory = TestDirectory.Create();
             // Arrange
-            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService);
+            LegacyPackageReferenceProject testProject = CreateLegacyPackageReferenceProject(testDirectory, projectId, "[1.0.0, )", _threadingService, usePackageSpecFactory);
 
             NullSettings settings = NullSettings.Instance;
             var context = new DependencyGraphCacheContext(_logger, settings);
@@ -1773,8 +1788,6 @@ namespace NuGet.PackageManagement.VisualStudio.Test
             public string DefaultNuGetProjectName { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public bool IsInitialized => throw new NotImplementedException();
-
-            public Task InitializationTask { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public string SolutionDirectory => _directory.Path;
 

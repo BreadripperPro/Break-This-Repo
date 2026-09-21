@@ -298,7 +298,7 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
         _mockRequestSender.Setup(s => s.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
         _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Returns(Task.FromResult(false));
 
-        Assert.ThrowsException<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source.dll" }, runsettings));
+        Assert.ThrowsExactly<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source.dll" }, runsettings));
     }
 
     [TestMethod]
@@ -309,7 +309,7 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
         _mockRequestSender.Setup(s => s.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
         _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Returns(Task.FromResult(true)).Callback(() => _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs("I crashed!")));
 
-        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.Resources.TestHostExitedWithError, "source.dll", "I crashed!"), Assert.ThrowsException<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source.dll" }, runsettings)).Message);
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.Resources.TestHostExitedWithError, "source.dll", "I crashed!"), Assert.ThrowsExactly<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source.dll" }, runsettings)).Message);
     }
 
     [TestMethod]
@@ -320,7 +320,7 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
         _mockRequestSender.Setup(s => s.WaitForRequestHandlerConnection(It.IsAny<int>(), It.IsAny<CancellationToken>())).Returns(false);
         _mockTestHostManager.Setup(tmh => tmh.LaunchTestHostAsync(It.IsAny<TestProcessStartInfo>(), It.IsAny<CancellationToken>())).Returns(Task.FromResult(true)).Callback(() => _mockTestHostManager.Raise(t => t.HostExited += null, new HostProviderEventArgs("I crashed!")));
 
-        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.Resources.TestHostExitedWithError, string.Join("', '", ["source1.dll", "source2.dll"]), "I crashed!"), Assert.ThrowsException<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source1.dll", "source2.dll" }, runsettings)).Message);
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.Resources.TestHostExitedWithError, string.Join("', '", ["source1.dll", "source2.dll"]), "I crashed!"), Assert.ThrowsExactly<TestPlatformException>(() => _testExecutionManager.SetupChannel(new List<string> { "source1.dll", "source2.dll" }, runsettings)).Message);
     }
 
     [TestMethod]
@@ -636,7 +636,7 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
             RunAttachments = null,
             TestRunCompleteArgs = null
         };
-        var completeMessage = new Message() { MessageType = MessageType.ExecutionComplete, Payload = null };
+        var completeMessage = new Message() { MessageType = MessageType.ExecutionComplete };
         SetupChannelMessage(MessageType.StartTestExecutionWithTests, MessageType.TestRunStatsChange, testRunChangedArgs);
 
         mockTestRunEventsHandler.Setup(mh => mh.HandleTestRunStatsChange(It.IsAny<TestRunChangedEventArgs>())).Callback(
@@ -706,7 +706,7 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
             RunAttachments = null,
             TestRunCompleteArgs = null
         };
-        var completeMessage = new Message() { MessageType = MessageType.ExecutionComplete, Payload = null };
+        var completeMessage = new Message() { MessageType = MessageType.ExecutionComplete };
         SetupChannelMessage(MessageType.StartTestExecutionWithTests,
             MessageType.LaunchAdapterProcessWithDebuggerAttached, payload);
 
@@ -733,67 +733,6 @@ public class ProxyExecutionManagerTests : ProxyBaseManagerTests
 
         // Verify
         mockTestRunEventsHandler.Verify(mtdeh => mtdeh.LaunchProcessWithDebuggerAttached(It.IsAny<TestProcessStartInfo>()), Times.Once);
-    }
-
-    [TestMethod]
-    public void StartTestRunShouldAttemptToTakeProxyFromPoolIfProxyIsNull()
-    {
-        var testSessionInfo = new TestSessionInfo();
-
-        Func<string, ProxyExecutionManager, ProxyOperationManager>
-            proxyOperationManagerCreator = (
-                string source,
-                ProxyExecutionManager proxyExecutionManager) =>
-            {
-                var proxyOperationManager = TestSessionPool.Instance.TryTakeProxy(
-                    testSessionInfo,
-                    source,
-                    string.Empty,
-                    _mockRequestData.Object);
-
-                return proxyOperationManager!;
-            };
-
-        var testExecutionManager = new ProxyExecutionManager(
-            testSessionInfo,
-            proxyOperationManagerCreator,
-            false);
-
-        var mockTestSessionPool = new Mock<TestSessionPool>();
-        TestSessionPool.Instance = mockTestSessionPool.Object;
-
-        try
-        {
-            var mockProxyOperationManager = new Mock<ProxyOperationManager>(
-                _mockRequestData.Object,
-                _mockRequestSender.Object,
-                _mockTestHostManager.Object,
-                null);
-            mockTestSessionPool.Setup(
-                    tsp => tsp.TryTakeProxy(
-                        testSessionInfo,
-                        It.IsAny<string>(),
-                        It.IsAny<string>(),
-                        _mockRequestData.Object))
-                .Returns(mockProxyOperationManager.Object);
-
-            testExecutionManager.Initialize(true);
-            testExecutionManager.StartTestRun(
-                _mockTestRunCriteria.Object,
-                new Mock<IInternalTestRunEventsHandler>().Object);
-
-            mockTestSessionPool.Verify(
-                tsp => tsp.TryTakeProxy(
-                    testSessionInfo,
-                    It.IsAny<string>(),
-                    It.IsAny<string>(),
-                    _mockRequestData.Object),
-                Times.Once);
-        }
-        finally
-        {
-            TestSessionPool.Instance = null;
-        }
     }
 
     private static void SignalEvent(ManualResetEvent manualResetEvent)

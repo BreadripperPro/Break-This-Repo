@@ -108,7 +108,7 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
         // First, store the LSP view of the text as the uri is now owned by the LSP client.
         Contract.ThrowIfTrue(_trackedDocuments.ContainsKey(uri), $"didOpen received for {uri} which is already open.");
 
-        if (uri.ParsedUri is null)
+        if (uri.ParsedDocumentUri is null)
         {
             _logger.LogError($"Unable to parse URI {uri}");
         }
@@ -157,7 +157,7 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
         {
             try
             {
-                await _lspMiscellaneousFilesWorkspaceProvider.TryRemoveMiscellaneousDocumentAsync(uri).ConfigureAwait(false);
+                await _lspMiscellaneousFilesWorkspaceProvider.CloseDocumentAsync(uri).ConfigureAwait(false);
             }
             catch (Exception ex) when (FatalError.ReportAndCatch(ex))
             {
@@ -257,29 +257,11 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
                 // We have at least one document, so find the one in the right project context.
                 var document = documents.FindDocumentInProjectContext(textDocumentIdentifier, (sln, id) => sln.GetRequiredTextDocument(id));
 
-                if (_lspMiscellaneousFilesWorkspaceProvider is not null)
+                if (workspace.Kind != WorkspaceKind.MiscellaneousFiles && _lspMiscellaneousFilesWorkspaceProvider is not null)
                 {
-                    // It is possible that a document that was previously a misc file is now part of a real workspace (e.g. project system told us about a file we already had open).
-                    // If we found a non-misc document, we should clean up any references to it in the misc provider.
-                    var foundNonMiscDocument = await documents
-                        .AnyAsync(async doc => !await _lspMiscellaneousFilesWorkspaceProvider.IsMiscellaneousFilesDocumentAsync(doc, cancellationToken).ConfigureAwait(false))
-                        .ConfigureAwait(false);
-                    if (foundNonMiscDocument)
-                    {
-                        try
-                        {
-                            var didRemove = await _lspMiscellaneousFilesWorkspaceProvider.TryRemoveMiscellaneousDocumentAsync(uri).ConfigureAwait(false);
-                            if (didRemove)
-                            {
-                                // If we actually removed something, lookup the document again to ensure we return updated solutions without the misc document.
-                                return await GetLspDocumentInfoAsync(textDocumentIdentifier, cancellationToken).ConfigureAwait(false);
-                            }
-                        }
-                        catch (Exception ex) when (FatalError.ReportAndCatch(ex))
-                        {
-                            _logger.LogException(ex);
-                        }
-                    }
+                    // Found the document in a non-miscellaneous files workspace.
+                    // Unload it from the miscellaneous files workspace.
+                    await _lspMiscellaneousFilesWorkspaceProvider.TryRemoveMiscellaneousDocumentAsync(uri).ConfigureAwait(false);
                 }
 
                 // Record metadata on how we got this document.
@@ -298,12 +280,17 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
         _logger.LogDebug($"Could not find '{textDocumentIdentifier.DocumentUri}'.  Searched {searchedWorkspaceKinds}");
         _requestTelemetryLogger.UpdateFindDocumentTelemetryData(success: false, workspaceKind: null);
 
-        // Add the document to our loose files workspace (if we have one) if it is open.
-        if (_trackedDocuments.TryGetValue(uri, out var trackedDocument) && _lspMiscellaneousFilesWorkspaceProvider is not null)
+        // Ask the loose files provider for the document (if we have one). The provider may add tracked documents to
+        // a workspace or return an untracked file URI in a transient solution.
+        if (_lspMiscellaneousFilesWorkspaceProvider is not null)
         {
+            TrackedDocumentInfo? documentInfo = _trackedDocuments.TryGetValue(uri, out var trackedDocument)
+                ? trackedDocument
+                : null;
+
             try
             {
-                var miscDocument = await _lspMiscellaneousFilesWorkspaceProvider.AddMiscellaneousDocumentAsync(uri, trackedDocument.SourceText, trackedDocument.LanguageId, _logger).ConfigureAwait(false);
+                var miscDocument = await _lspMiscellaneousFilesWorkspaceProvider.AddDocumentAsync(uri, documentInfo).ConfigureAwait(false);
                 if (miscDocument is not null)
                     return (miscDocument.Project.Solution.Workspace, miscDocument.Project.Solution, miscDocument);
             }
@@ -390,9 +377,9 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
 
             var documentsInWorkspace = GetDocumentsForUris([.. _trackedDocuments.Keys], workspaceCurrentSolution);
             var sourceGeneratedDocuments =
-                _trackedDocuments.Keys.Where(static trackedDocument => trackedDocument.ParsedUri?.Scheme == SourceGeneratedDocumentUri.Scheme)
+                _trackedDocuments.Keys.Where(static trackedDocument => trackedDocument.IsSourceGeneratedUri())
                     // We know we have a non null URI with a source generated scheme.
-                    .Select(uri => (identity: SourceGeneratedDocumentUri.DeserializeIdentity(workspaceCurrentSolution, uri.ParsedUri!), _trackedDocuments[uri].SourceText))
+                    .Select(uri => (identity: SourceGeneratedDocumentUri.DeserializeIdentity(workspaceCurrentSolution, uri.GetRequiredParsedUri()), _trackedDocuments[uri].SourceText))
                     .SelectAsArray(
                         predicate: tuple => tuple.identity.HasValue,
                         selector: tuple => (tuple.identity!.Value, DateTime.Now, tuple.SourceText));
@@ -511,14 +498,16 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
     {
         foreach (var (uriInWorkspace, documentsForUri) in documentsInWorkspace)
         {
-            // We're comparing text, so we can take any of the linked documents.
-            var firstDocument = documentsForUri.First();
-            var isTextEquivalent = await AreChecksumsEqualAsync(firstDocument, _trackedDocuments[uriInWorkspace].SourceText, cancellationToken).ConfigureAwait(false);
-
-            if (!isTextEquivalent)
+            var lspText = _trackedDocuments[uriInWorkspace].SourceText;
+            foreach (var document in documentsForUri)
             {
-                _logger.LogWarning($"Text for {uriInWorkspace} did not match document text {firstDocument.Id} in workspace's {firstDocument.Project.Solution.WorkspaceKind} current solution");
-                return false;
+                // Linked documents can temporarily have different text when only part of the linked set has been updated.
+                var isTextEquivalent = await AreChecksumsEqualAsync(document, lspText, cancellationToken).ConfigureAwait(false);
+                if (!isTextEquivalent)
+                {
+                    _logger.LogWarning($"Text for {uriInWorkspace} did not match document text {document.Id} in workspace's {document.Project.Solution.WorkspaceKind} current solution");
+                    return false;
+                }
             }
         }
 
@@ -587,7 +576,7 @@ internal sealed class LspWorkspaceManager : IDocumentChangeTracker, ILspService
 
         public ValueTask<bool> IsMiscellaneousFilesDocumentAsync(TextDocument document)
         {
-            return _manager._lspMiscellaneousFilesWorkspaceProvider!.IsMiscellaneousFilesDocumentAsync(document, CancellationToken.None);
+            return ValueTask.FromResult(document.Project.Solution.WorkspaceKind == WorkspaceKind.MiscellaneousFiles);
         }
 
         public async IAsyncEnumerable<T> GetMiscellaneousDocumentsAsync<T>(Func<Project, IEnumerable<T>> documentSelector) where T : TextDocument

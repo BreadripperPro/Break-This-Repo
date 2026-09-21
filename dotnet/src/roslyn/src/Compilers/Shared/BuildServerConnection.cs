@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Roslyn.Utilities;
+using Microsoft.CodeAnalysis.CommandLine;
 using static Microsoft.CodeAnalysis.CommandLine.NativeMethods;
 
 namespace Microsoft.CodeAnalysis.CommandLine
@@ -130,12 +131,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
                     {
                         try
                         {
-                            var process = Process.GetProcessById(shutdownBuildResponse.ServerProcessId);
-#if NET5_0_OR_GREATER
-                            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-#else
-                            process.WaitForExit();
-#endif
+                            await WaitForServerProcessExitAsync(pipeName, shutdownBuildResponse.ServerProcessId, cancellationToken).ConfigureAwait(false);
                         }
                         catch (Exception)
                         {
@@ -165,17 +161,37 @@ namespace Microsoft.CodeAnalysis.CommandLine
             }
         }
 
+        internal static async Task WaitForServerProcessExitAsync(
+            string pipeName,
+            int serverProcessId,
+            CancellationToken cancellationToken)
+        {
+            var mutexName = GetServerMutexName(pipeName);
+            using var process = Process.GetProcessById(serverProcessId);
+
+            while (!process.HasExited && WasServerMutexOpen(mutexName))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         internal static Task<BuildResponse> RunServerBuildRequestAsync(
             BuildRequest buildRequest,
             string pipeName,
             string clientDirectory,
+            IBuildEnvironment buildEnvironment,
             ICompilerServerLogger logger,
-            CancellationToken cancellationToken)
-                => RunServerBuildRequestAsync(
+            CancellationToken cancellationToken) =>
+                RunServerBuildRequestAsync(
                     buildRequest,
                     pipeName,
                     timeoutOverride: null,
-                    tryCreateServerFunc: (pipeName, logger) => TryCreateServer(clientDirectory, pipeName, logger, out int _),
+                    tryCreateServerFunc: (pipeName, logger) => TryCreateServer(
+                        clientDirectory,
+                        pipeName,
+                        buildEnvironment,
+                        logger,
+                        out int _),
                     logger,
                     cancellationToken);
 
@@ -324,7 +340,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
                 }
                 else
                 {
-                    logger.LogError($"Client disconnect for {request.RequestId}");
+                    logger.Log($"Client disconnect for {request.RequestId}");
                     response = new RejectedBuildResponse($"Client disconnected");
                 }
 
@@ -424,7 +440,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
                 if (!NamedPipeUtil.CheckPipeConnectionOwnership(pipeStream))
                 {
                     pipeStream.Dispose();
-                    logger.LogError("Owner of named pipe is incorrect");
+                    logger.Log("Owner of named pipe is incorrect");
                     return null;
                 }
 
@@ -438,16 +454,22 @@ namespace Microsoft.CodeAnalysis.CommandLine
             }
         }
 
-        internal static (string processFilePath, string commandLineArguments) GetServerProcessInfo(string clientDir, string pipeName)
+        static (string processFilePath, string commandLineArguments) GetServerProcessInfo(
+            string clientDir,
+            string pipeName,
+            IBuildEnvironment buildEnvironment)
         {
+            Debug.Assert(Path.IsPathFullyQualified(clientDir));
             var processFilePath = Path.Combine(clientDir, $"VBCSCompiler{PlatformInformation.ExeExtension}");
             var commandLineArgs = $@"""-pipename:{pipeName}""";
 
+#pragma warning disable RS0030 // MSBuild Task path guarantees full path
             if (!File.Exists(processFilePath))
+#pragma warning restore RS0030
             {
                 // Fallback to not use the apphost if it is not present (can happen in compiler toolset scenarios for example).
                 commandLineArgs = RuntimeHostInfo.GetDotNetExecCommandLine(Path.ChangeExtension(processFilePath, ".dll"), commandLineArgs);
-                processFilePath = RuntimeHostInfo.GetDotNetPathOrDefault();
+                processFilePath = RuntimeHostInfo.GetDotNetHostPath(buildEnvironment);
             }
 
             return (processFilePath, commandLineArgs);
@@ -458,7 +480,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
         /// </summary>
         /// <param name="environmentVariables">Dictionary of environment variables to include</param>
         /// <returns>Pointer to environment block that must be freed with <see cref="Marshal.FreeHGlobal"/></returns>
-        private static IntPtr CreateEnvironmentBlock(Dictionary<string, string> environmentVariables)
+        private static IntPtr CreateEnvironmentBlock(IReadOnlyDictionary<string, string> environmentVariables)
         {
             if (environmentVariables.Count == 0)
             {
@@ -485,39 +507,55 @@ namespace Microsoft.CodeAnalysis.CommandLine
         /// <summary>
         /// Gets the environment variables that should be passed to the server process.
         /// </summary>
-        /// <param name="currentEnvironment">Current environment variables to use as a base</param>
+        /// <param name="buildEnvironment">Current build environment</param>
         /// <param name="logger">Optional logger for logging environment variable setup</param>
-        /// <returns>Dictionary of environment variables to set, or null if no custom environment is needed</returns>
-        internal static Dictionary<string, string>? GetServerEnvironmentVariables(System.Collections.IDictionary currentEnvironment, ICompilerServerLogger? logger = null)
+        /// <returns>Dictionary of environment variables to set</returns>
+        internal static IReadOnlyDictionary<string, string> GetServerEnvironmentVariables(
+            IBuildEnvironment buildEnvironment,
+            ICompilerServerLogger? logger = null)
         {
-            if (!IsBuiltinToolRunningOnCoreClr || RuntimeHostInfo.GetToolDotNetRoot(logger is null ? null : logger.Log) is not { } dotNetRoot)
+            var dotNetRoot = IsBuiltinToolRunningOnCoreClr
+                ? RuntimeHostInfo.GetToolDotNetRoot(
+                    buildEnvironment,
+                    logger is null ? null : logger.Log)
+                : null;
+            if (dotNetRoot == null && !RuntimeHostInfo.ShouldDisableTieredCompilation)
             {
-                return null;
+                return buildEnvironment.GetEnvironmentVariables();
             }
 
             // Start with current environment
-            var environmentVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (System.Collections.DictionaryEntry entry in currentEnvironment)
+            var environmentVariables = new Dictionary<string, string>(Environment.EnvironmentVariableComparer);
+            foreach (var entry in buildEnvironment.GetEnvironmentVariables())
             {
-                var key = (string)entry.Key;
-                var value = (string?)entry.Value;
+                var key = entry.Key;
+                var value = entry.Value;
 
                 // Clear DOTNET_ROOT* variables such as DOTNET_ROOT_X64 by setting them to empty,
                 // as we want to set our own DOTNET_ROOT and avoid conflicts
-                if (key.StartsWith(RuntimeHostInfo.DotNetRootEnvironmentName, StringComparison.OrdinalIgnoreCase))
+                if (dotNetRoot != null && key.StartsWith(RuntimeHostInfo.DotNetRootEnvironmentName, Environment.EnvironmentVariableComparison))
                 {
                     environmentVariables[key] = string.Empty;
                 }
                 else
                 {
-                    environmentVariables[key] = value ?? string.Empty;
+                    environmentVariables[key] = value;
                 }
             }
 
             // Set our DOTNET_ROOT
-            environmentVariables[RuntimeHostInfo.DotNetRootEnvironmentName] = dotNetRoot;
+            if (dotNetRoot != null)
+            {
+                logger?.Log("Setting {0} to '{1}'", RuntimeHostInfo.DotNetRootEnvironmentName, dotNetRoot);
+                environmentVariables[RuntimeHostInfo.DotNetRootEnvironmentName] = dotNetRoot;
+            }
 
-            logger?.Log("Setting {0} to '{1}'", RuntimeHostInfo.DotNetRootEnvironmentName, dotNetRoot);
+            if (RuntimeHostInfo.ShouldDisableTieredCompilation && !environmentVariables.ContainsKey(RuntimeHostInfo.DotNetTieredCompilationEnvironmentName))
+            {
+                var value = "0";
+                logger?.Log("Setting {0} to '{1}'", RuntimeHostInfo.DotNetTieredCompilationEnvironmentName, value);
+                environmentVariables[RuntimeHostInfo.DotNetTieredCompilationEnvironmentName] = value;
+            }
 
             return environmentVariables;
         }
@@ -528,21 +566,29 @@ namespace Microsoft.CodeAnalysis.CommandLine
         /// compiler server process was successful, it does not state whether the server successfully
         /// started or not (it could crash on startup).
         /// </summary>
-        internal static bool TryCreateServer(string clientDirectory, string pipeName, ICompilerServerLogger logger, out int processId)
+        internal static bool TryCreateServer(
+            string clientDirectory,
+            string pipeName,
+            IBuildEnvironment buildEnvironment,
+            ICompilerServerLogger logger,
+            out int processId)
         {
-            processId = 0;
-            var serverInfo = GetServerProcessInfo(clientDirectory, pipeName);
+            Debug.Assert(Path.IsPathFullyQualified(clientDirectory));
 
-            if (!File.Exists(serverInfo.processFilePath))
+            processId = 0;
+            var serverInfo = GetServerProcessInfo(clientDirectory, pipeName, buildEnvironment);
+
+#pragma warning disable RS0030 // Path is fully qualified here
+            if (Path.IsPathFullyQualified(serverInfo.processFilePath) && !File.Exists(serverInfo.processFilePath))
             {
+#pragma warning restore RS0030
                 return false;
             }
 
             logger.Log("Attempting to create process '{0}' {1}", serverInfo.processFilePath, serverInfo.commandLineArguments);
 
-            var environmentVariables = GetServerEnvironmentVariables(Environment.GetEnvironmentVariables(), logger);
-
-            if (PlatformInformation.IsWindows)
+            var environmentVariables = GetServerEnvironmentVariables(buildEnvironment, logger);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 // As far as I can tell, there isn't a way to use the Process class to
                 // create a process with no stdin/stdout/stderr, so we use P/Invoke.
@@ -563,12 +609,9 @@ namespace Microsoft.CodeAnalysis.CommandLine
                 IntPtr environmentBlockPtr = IntPtr.Zero;
                 try
                 {
-                    if (environmentVariables != null)
-                    {
-                        environmentBlockPtr = CreateEnvironmentBlock(environmentVariables);
-                        // When passing a Unicode environment block, we must set the CREATE_UNICODE_ENVIRONMENT flag
-                        dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT;
-                    }
+                    environmentBlockPtr = CreateEnvironmentBlock(environmentVariables);
+                    // When passing a Unicode environment block, we must set the CREATE_UNICODE_ENVIRONMENT flag
+                    dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT;
 
                     bool success = CreateProcess(
                         lpApplicationName: null,
@@ -619,13 +662,11 @@ namespace Microsoft.CodeAnalysis.CommandLine
                         CreateNoWindow = true
                     };
 
-                    // Set environment variables directly on ProcessStartInfo
-                    if (environmentVariables != null)
+                    // Replace the inherited process environment with the caller-provided snapshot.
+                    startInfo.EnvironmentVariables.Clear();
+                    foreach (var kvp in environmentVariables)
                     {
-                        foreach (var kvp in environmentVariables)
-                        {
-                            startInfo.EnvironmentVariables[kvp.Key] = kvp.Value;
-                        }
+                        startInfo.EnvironmentVariables[kvp.Key] = kvp.Value;
                     }
 
                     if (Process.Start(startInfo) is { } process)
@@ -740,6 +781,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
         bool IsDisposed { get; }
     }
 
+#pragma warning disable RS0030 // This will all be deleted when we move to the .NET 12 tree
     /// <summary>
     /// An interprocess mutex abstraction based on file sharing permission (FileShare.None).
     /// If multiple processes running as the same user create FileMutex instances with the same name,
@@ -938,6 +980,7 @@ namespace Microsoft.CodeAnalysis.CommandLine
             }
         }
     }
+#pragma warning restore RS0030 // Do not use banned APIs
 
     internal sealed class ServerNamedMutex : IServerMutex
     {

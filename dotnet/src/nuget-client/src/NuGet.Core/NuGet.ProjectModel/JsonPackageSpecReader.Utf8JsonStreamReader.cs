@@ -95,6 +95,8 @@ namespace NuGet.ProjectModel
         private static readonly byte[] SdkAnalysisLevel = Encoding.UTF8.GetBytes("SdkAnalysisLevel");
         private static readonly byte[] UsingMicrosoftNETSdk = Encoding.UTF8.GetBytes("UsingMicrosoftNETSdk");
         private static readonly byte[] UseLegacyDependencyResolverPropertyName = Encoding.UTF8.GetBytes("restoreUseLegacyDependencyResolver");
+        private static readonly byte[] RestoreDoNotWriteDependencyGraphSpecPropertyName = Encoding.UTF8.GetBytes("restoreDoNotWriteDependencyGraphSpec");
+        private static readonly byte[] RestoreEnableAnalyzerAssetsPropertyName = Encoding.UTF8.GetBytes("restoreEnableAnalyzerAssets");
         private static readonly byte[] PackagesToPrunePropertyName = Encoding.UTF8.GetBytes("packagesToPrune");
 
         internal static PackageSpec GetPackageSpecUtf8JsonStreamReader(Stream stream, string name, string packageSpecPath, IEnvironmentVariableReader environmentVariableReader, string snapshotValue = null)
@@ -775,6 +777,8 @@ namespace NuGet.ProjectModel
             bool usingMicrosoftNetSdk = true;
             NuGetVersion sdkAnalysisLevel = null;
             bool useLegacyDependencyResolver = false;
+            bool restoreDoNotWriteDependencyGraphSpec = false;
+            bool restoreEnableAnalyzerAssets = false;
 
             if (jsonReader.Read() && jsonReader.TokenType == JsonTokenType.StartObject)
             {
@@ -1007,6 +1011,10 @@ namespace NuGet.ProjectModel
                     {
                         usingMicrosoftNetSdk = jsonReader.ReadNextTokenAsBoolOrThrowAnException(UsingMicrosoftNETSdk, Strings.Invalid_AttributeValue);
                     }
+                    else if (jsonReader.ValueTextEquals(RestoreEnableAnalyzerAssetsPropertyName))
+                    {
+                        restoreEnableAnalyzerAssets = jsonReader.ReadNextTokenAsBoolOrFalse();
+                    }
                     else if (jsonReader.ValueTextEquals(SdkAnalysisLevel))
                     {
                         string sdkAnalysisLevelString = jsonReader.ReadNextTokenAsString();
@@ -1032,6 +1040,10 @@ namespace NuGet.ProjectModel
                     else if (jsonReader.ValueTextEquals(UseLegacyDependencyResolverPropertyName))
                     {
                         useLegacyDependencyResolver = jsonReader.ReadNextTokenAsBoolOrThrowAnException(UseLegacyDependencyResolverPropertyName, Strings.Invalid_AttributeValue);
+                    }
+                    else if (jsonReader.ValueTextEquals(RestoreDoNotWriteDependencyGraphSpecPropertyName))
+                    {
+                        restoreDoNotWriteDependencyGraphSpec = jsonReader.ReadNextTokenAsBoolOrThrowAnException(RestoreDoNotWriteDependencyGraphSpecPropertyName, Strings.Invalid_AttributeValue);
                     }
                     else
                     {
@@ -1060,7 +1072,9 @@ namespace NuGet.ProjectModel
             msbuildMetadata.RestoreAuditProperties = auditProperties;
             msbuildMetadata.SdkAnalysisLevel = sdkAnalysisLevel;
             msbuildMetadata.UsingMicrosoftNETSdk = usingMicrosoftNetSdk;
+            msbuildMetadata.RestoreEnableAnalyzerAssets = restoreEnableAnalyzerAssets;
             msbuildMetadata.UseLegacyDependencyResolver = useLegacyDependencyResolver;
+            msbuildMetadata.RestoreDoNotWriteDependencyGraphSpec = restoreDoNotWriteDependencyGraphSpec;
 
             if (configFilePaths != null)
             {

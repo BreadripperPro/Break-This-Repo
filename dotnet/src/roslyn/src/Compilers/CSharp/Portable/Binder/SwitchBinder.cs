@@ -25,11 +25,14 @@ namespace Microsoft.CodeAnalysis.CSharp
         private ImmutableArray<Diagnostic> _switchGoverningDiagnostics;
         private ImmutableArray<AssemblySymbol> _switchGoverningDependencies;
 
+        private readonly string _labelName;
+
         private SwitchBinder(Binder next, SwitchStatementSyntax switchSyntax)
             : base(next)
         {
             SwitchSyntax = switchSyntax;
             _breakLabel = new GeneratedLabelSymbol("break");
+            _labelName = switchSyntax.Parent is LabeledStatementSyntax labeled ? labeled.Identifier.ValueText : null;
         }
 
         protected bool PatternsEnabled =>
@@ -163,13 +166,10 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
-        internal override GeneratedLabelSymbol BreakLabel
-        {
-            get
-            {
-                return _breakLabel;
-            }
-        }
+#nullable enable
+        internal override GeneratedLabelSymbol? GetBreakLabel(string? labelName)
+            => (labelName is null || labelName == _labelName) ? _breakLabel : NextRequired.GetBreakLabel(labelName);
+#nullable disable
 
         protected override ImmutableArray<LabelSymbol> BuildLabels()
         {
@@ -223,8 +223,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                     case SyntaxKind.CasePatternSwitchLabel:
                         // bind the pattern, to cause its pattern variables to be inferred if necessary
                         var matchLabel = (CasePatternSwitchLabelSyntax)labelSyntax;
+                        NamedTypeSymbol unionType = null;
                         _ = sectionBinder.BindPattern(
-                            matchLabel.Pattern, SwitchGoverningType, permitDesignations: true, labelSyntax.HasErrors, tempDiagnosticBag);
+                            matchLabel.Pattern, ref unionType, SwitchGoverningType, permitDesignations: true, labelSyntax.HasErrors, tempDiagnosticBag, hasUnionMatching: out _, underIsPattern: false);
                         break;
 
                     default:
@@ -267,10 +268,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                     hasErrors = true;
                 }
 
-                caseExpression = CreateConversion(caseExpression, conversion, SwitchGoverningType, diagnostics);
+                if (!conversion.IsUnion && !(caseExpression.IsLiteralNull() && SwitchGoverningType.StrippedType() is NamedTypeSymbol { IsUnionType: true }))
+                {
+                    caseExpression = CreateConversion(caseExpression, conversion, SwitchGoverningType, diagnostics);
+                }
             }
 
-            return ConvertPatternExpression(SwitchGoverningType, node, caseExpression, out constantValueOpt, hasErrors, diagnostics, out _);
+            var inputType = SwitchGoverningType;
+            NamedTypeSymbol unionType = null;
+            PrepareForUnionMatchingIfAppropriateAndReturnUnionMatchingInputType(node, ref inputType, ref unionType, diagnostics);
+            return ConvertPatternExpression(unionType, inputType, node, caseExpression, out constantValueOpt, hasErrors, diagnostics, out _);
         }
 
         private static readonly object s_nullKey = new object();

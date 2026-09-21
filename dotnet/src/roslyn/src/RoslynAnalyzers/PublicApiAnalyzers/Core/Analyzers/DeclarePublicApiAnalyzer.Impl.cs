@@ -555,14 +555,7 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
                         var siblings = containingSymbol.GetMembers();
                         foreach (var sibling in siblings)
                         {
-                            if (sibling.IsImplicitlyDeclared)
-                            {
-                                if (sibling is not IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.PropertyGet or MethodKind.PropertySet })
-                                {
-                                    continue;
-                                }
-                            }
-                            else if (!IsTrackedAPI(sibling, cancellationToken))
+                            if (!IsTrackedAPI(sibling, cancellationToken))
                             {
                                 continue;
                             }
@@ -594,15 +587,17 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
             private ApiName GetApiName(ISymbol symbol)
             {
                 var experimentName = getExperimentName(symbol);
+                var requiresUnsafe = getRequiresUnsafe(symbol);
 
                 return new ApiName(
-                    getApiString(_compilation, symbol, experimentName, s_publicApiFormat),
-                    getApiString(_compilation, symbol, experimentName, s_publicApiFormatWithNullability));
+                    getApiString(_compilation, symbol, experimentName, requiresUnsafe, s_publicApiFormat),
+                    getApiString(_compilation, symbol, experimentName, requiresUnsafe, s_publicApiFormatWithNullability));
 
                 static string? getExperimentName(ISymbol symbol)
                 {
                     for (var current = symbol; current is not null; current = current.ContainingSymbol)
                     {
+start:
                         foreach (var attribute in current.GetAttributes())
                         {
                             if (attribute.AttributeClass is { Name: "ExperimentalAttribute", ContainingSymbol: INamespaceSymbol { Name: nameof(System.Diagnostics.CodeAnalysis), ContainingNamespace: { Name: nameof(System.Diagnostics), ContainingNamespace: { Name: nameof(System), ContainingNamespace.IsGlobalNamespace: true } } } })
@@ -611,15 +606,40 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
                                     return "???";
 
                                 return diagnosticId;
-
                             }
+                        }
+
+                        if (current is IMethodSymbol { AssociatedSymbol: { } associatedSymbol })
+                        {
+                            current = associatedSymbol;
+                            goto start;
                         }
                     }
 
                     return null;
                 }
 
-                static string getApiString(Compilation compilation, ISymbol symbol, string? experimentName, SymbolDisplayFormat format)
+                static bool getRequiresUnsafe(ISymbol symbol)
+                {
+                    foreach (var attribute in symbol.GetAttributes())
+                    {
+                        // https://github.com/dotnet/roslyn/issues/82546: Confirm the attribute shape in BCL API review.
+                        // https://github.com/dotnet/roslyn/issues/82791: Use the public Roslyn API when available.
+                        if (attribute.AttributeClass is { Name: "RequiresUnsafeAttribute", ContainingSymbol: INamespaceSymbol { Name: "CompilerServices", ContainingNamespace: { Name: "Runtime", ContainingNamespace: { Name: nameof(System), ContainingNamespace.IsGlobalNamespace: true } } } })
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (symbol is IMethodSymbol { AssociatedSymbol: { } associatedSymbol })
+                    {
+                        return getRequiresUnsafe(associatedSymbol);
+                    }
+
+                    return false;
+                }
+
+                static string getApiString(Compilation compilation, ISymbol symbol, string? experimentName, bool requiresUnsafe, SymbolDisplayFormat format)
                 {
                     string publicApiName = symbol.ToDisplayString(format);
 
@@ -659,6 +679,11 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
                     if (experimentName != null)
                     {
                         publicApiName = "[" + experimentName + "]" + publicApiName;
+                    }
+
+                    if (requiresUnsafe)
+                    {
+                        publicApiName = "[RequiresUnsafe]" + publicApiName;
                     }
 
                     return publicApiName;
@@ -878,6 +903,17 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
 
                 for (var current = symbol; current != null; current = current.ContainingType)
                 {
+                    // Types marked with '[Microsoft.CodeAnalysis.Embedded]' (as well as their members) are an
+                    // implementation detail that gets embedded into consuming assemblies. They should not be tracked
+                    // as APIs. This also gives authors an opt-out for internal API tracking: applying the attribute to
+                    // an internal type excludes it (and its members) from tracking. We intentionally only inspect named
+                    // types as we walk up the containing-type chain (for perf and because the compiler only emits this
+                    // attribute on types); this is a deliberate restriction, not a claim about the attribute's targets.
+                    if (current is INamedTypeSymbol namedType && HasEmbeddedAttribute(namedType))
+                    {
+                        return false;
+                    }
+
                     switch (current.DeclaredAccessibility)
                     {
                         case Accessibility.Protected:
@@ -893,6 +929,34 @@ namespace Microsoft.CodeAnalysis.PublicApiAnalyzers
                 }
 
                 return true;
+            }
+
+            private static bool HasEmbeddedAttribute(INamedTypeSymbol symbol)
+            {
+                foreach (var attribute in symbol.GetAttributes())
+                {
+                    // Match 'Microsoft.CodeAnalysis.EmbeddedAttribute' by name rather than by symbol identity, since the
+                    // attribute is typically embedded (and hence duplicated) across assemblies, which makes a
+                    // well-known-type lookup ambiguous.
+                    if (attribute.AttributeClass is
+                        {
+                            Name: "EmbeddedAttribute",
+                            ContainingNamespace:
+                            {
+                                Name: "CodeAnalysis",
+                                ContainingNamespace:
+                                {
+                                    Name: "Microsoft",
+                                    ContainingNamespace.IsGlobalNamespace: true,
+                                },
+                            },
+                        })
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
 
             private bool CanTypeBeExtended(ITypeSymbol type)

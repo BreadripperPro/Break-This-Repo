@@ -20,18 +20,16 @@ namespace Microsoft.TestPlatform.AcceptanceTests;
 public class DataCollectionTests : AcceptanceTestBase
 {
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void ExecuteTestsWithDataCollection(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
         var assemblyPaths = GetAssetFullPath("SimpleTestProject2.dll");
         string runSettings = GetRunsettingsFilePath(TempDirectory.Path);
-        string diagFileName = Path.Combine(TempDirectory.Path, "diaglog.txt");
         var extensionsPath = Path.GetDirectoryName(GetTestDllForFramework("OutOfProcDataCollector.dll", "netstandard2.0"));
         var arguments = PrepareArguments(assemblyPaths, null, runSettings, FrameworkArgValue, runnerInfo.InIsolationValue, resultsDirectory: TempDirectory.Path);
-        arguments = string.Concat(arguments, $" /Diag:{diagFileName}", $" /TestAdapterPath:{extensionsPath}");
+        arguments = string.Concat(arguments, $" /TestAdapterPath:{extensionsPath}");
 
         var env = new Dictionary<string, string?>
         {
@@ -45,18 +43,16 @@ public class DataCollectionTests : AcceptanceTestBase
     }
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void ExecuteTestsWithDataCollectionUsingCollectArgument(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
         var assemblyPaths = GetAssetFullPath("SimpleTestProject2.dll");
-        string diagFileName = Path.Combine(TempDirectory.Path, "diaglog.txt");
         var extensionsPath = Path.GetDirectoryName(GetTestDllForFramework("OutOfProcDataCollector.dll", "netstandard2.0"));
 
         var arguments = PrepareArguments(assemblyPaths, null, null, FrameworkArgValue, runnerInfo.InIsolationValue, TempDirectory.Path);
-        arguments = string.Concat(arguments, $" /Diag:{diagFileName}", $" /Collect:SampleDataCollector", $" /TestAdapterPath:{extensionsPath}");
+        arguments = string.Concat(arguments, $" /Collect:SampleDataCollector", $" /TestAdapterPath:{extensionsPath}");
 
         var env = new Dictionary<string, string?>
         {
@@ -70,20 +66,21 @@ public class DataCollectionTests : AcceptanceTestBase
     }
 
     [TestMethod]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void DataCollectorAssemblyLoadingShouldNotThrowErrorForNetCore(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
-        var arguments = PrepareArguments(GetTestDllForFramework("AppDomainGetAssembliesTestProject.dll", DEFAULT_HOST_NETCORE), string.Empty, string.Empty, FrameworkArgValue, resultsDirectory: TempDirectory.Path);
+        var arguments = PrepareArguments(GetTestDllForFramework("AppDomainGetAssembliesTestProject.dll", HOST_NET), string.Empty, string.Empty, FrameworkArgValue, resultsDirectory: TempDirectory.Path);
 
         InvokeVsTest(arguments);
         ValidateSummaryStatus(1, 0, 0);
     }
 
     [TestMethod]
+    // .NET Framework testhost-specific assembly loading; not applicable to the netcore testhost.
     [TestCategory("Windows-Review")]
-    [NetFullTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
     public void DataCollectorAssemblyLoadingShouldNotThrowErrorForFullFramework(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -95,8 +92,7 @@ public class DataCollectionTests : AcceptanceTestBase
     }
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void DataCollectorAttachmentProcessor(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -104,10 +100,9 @@ public class DataCollectionTests : AcceptanceTestBase
         var assemblyPath = GetAssetFullPath("SimpleTestProject.dll");
         var secondAssemblyPath = GetAssetFullPath("SimpleTestProject2.dll");
         string runSettings = GetRunsettingsFilePath(TempDirectory.Path);
-        string diagFileName = Path.Combine(TempDirectory.Path, "diaglog.txt");
         var extensionsPath = Path.GetDirectoryName(GetTestDllForFramework("AttachmentProcessorDataCollector.dll", "netstandard2.0"));
         var arguments = PrepareArguments([assemblyPath, secondAssemblyPath], null, runSettings, FrameworkArgValue, runnerInfo.InIsolationValue, resultsDirectory: TempDirectory.Path);
-        arguments = string.Concat(arguments, $" /Diag:{diagFileName}", $" /TestAdapterPath:{extensionsPath}");
+        arguments = string.Concat(arguments, $" /TestAdapterPath:{extensionsPath}");
 
         XElement runSettingsXml = XElement.Load(runSettings);
 
@@ -140,20 +135,20 @@ public class DataCollectionTests : AcceptanceTestBase
             while (!streamReader.EndOfStream)
             {
                 string? line = streamReader.ReadLine();
-                Assert.IsTrue(line!.StartsWith("SessionEnded_Handler_"));
+                Assert.StartsWith("SessionEnded_Handler_", line!);
                 fileContent.Add(line);
             }
         }
 
         Assert.AreEqual(2, fileContent.Distinct().Count());
 
-        var dataCollectorsLogs = Directory.GetFiles(TempDirectory.Path, "*.datacollector.*", SearchOption.TopDirectoryOnly);
+        var dataCollectorsLogs = Directory.GetFiles(DiagLogsDirectory, "*.datacollector.*", SearchOption.TopDirectoryOnly);
         Assert.AreEqual(2, dataCollectorsLogs.Distinct().Count());
         foreach (var dataCollectorLogFile in dataCollectorsLogs)
         {
             string dataCollectorLog = File.ReadAllText(dataCollectorLogFile);
-            Assert.IsTrue(dataCollectorLog.Contains("MetadataReaderExtensionsHelper: Valid extension found: extension type 'DataCollector' identifier 'my://sample/datacollector' implementation 'AttachmentProcessorDataCollector.SampleDataCollectorV1' version '1'"));
-            Assert.IsTrue(dataCollectorLog.Contains("MetadataReaderExtensionsHelper: Valid extension found: extension type 'DataCollector' identifier 'my://sample/datacollector' implementation 'AttachmentProcessorDataCollector.SampleDataCollectorV2' version '2'"));
+            Assert.Contains("MetadataReaderExtensionsHelper: Valid extension found: extension type 'DataCollector' identifier 'my://sample/datacollector' implementation 'AttachmentProcessorDataCollector.SampleDataCollectorV1' version '1'", dataCollectorLog);
+            Assert.Contains("MetadataReaderExtensionsHelper: Valid extension found: extension type 'DataCollector' identifier 'my://sample/datacollector' implementation 'AttachmentProcessorDataCollector.SampleDataCollectorV2' version '2'", dataCollectorLog);
             Assert.IsTrue(Regex.IsMatch(dataCollectorLog, @"GetTestExtensionFromType: Discovered multiple test extensions with identifier data 'my://sample/datacollector' and type 'AttachmentProcessorDataCollector\.SampleDataCollectorV1, AttachmentProcessorDataCollector, Version=.*, Culture=neutral, PublicKeyToken=null' inside file '.*AttachmentProcessorDataCollector\.dll'; keeping the first one 'AttachmentProcessorDataCollector\.SampleDataCollectorV2, AttachmentProcessorDataCollector, Version=.*, Culture=neutral, PublicKeyToken=null'\."));
         }
     }
@@ -200,7 +195,6 @@ public class DataCollectionTests : AcceptanceTestBase
         // Verify attachments
         var isTestRunLevelAttachmentFound = false;
         var testCaseLevelAttachmentsCount = 0;
-        var diaglogsFileCount = 0;
 
         var resultFiles = Directory.GetFiles(resultsDir, "*.txt", SearchOption.AllDirectories);
 
@@ -217,15 +211,16 @@ public class DataCollectionTests : AcceptanceTestBase
             {
                 testCaseLevelAttachmentsCount++;
             }
-
-            if (file.Contains("diaglog"))
-            {
-                diaglogsFileCount++;
-            }
         }
 
         Assert.IsTrue(isTestRunLevelAttachmentFound);
         Assert.AreEqual(3, testCaseLevelAttachmentsCount);
+
+        // Diag logs are placed in DiagLogsDirectory by the auto-injected --diag flag.
+        // The files are named log.txt, log.host.*.txt, log.datacollector.*.txt.
+        var diaglogsFileCount = Directory.Exists(DiagLogsDirectory)
+            ? Directory.GetFiles(DiagLogsDirectory, "log*", SearchOption.TopDirectoryOnly).Length
+            : 0;
         Assert.AreEqual(3, diaglogsFileCount);
     }
 
@@ -240,5 +235,37 @@ public class DataCollectionTests : AcceptanceTestBase
 
         CreateDataCollectionRunSettingsFile(runsettingsPath, dataCollectionAttributes);
         return runsettingsPath;
+    }
+
+    [TestMethod]
+    [TestMatrix(testHost: Net)]
+    public void DataCollectorReceivesTestCaseStartForEveryDataDrivenRow(RunnerInfo runnerInfo)
+    {
+        // Regression test for https://github.com/microsoft/vstest/issues/4997
+        // MSTest data rows share the ManagedType and ManagedMethod values used to calculate
+        // TestCase.Id, so TestCaseStart must still fire for every row execution.
+        SetTestEnvironment(_testEnvironment, runnerInfo);
+
+        var assemblyPaths = GetAssetFullPath("DataDrivenTestProject.dll");
+        string runSettings = GetRunsettingsFilePath(TempDirectory.Path);
+        var extensionsPath = Path.GetDirectoryName(GetTestDllForFramework("OutOfProcDataCollector.dll", "netstandard2.0"));
+        var arguments = PrepareArguments(assemblyPaths, null, runSettings, FrameworkArgValue, runnerInfo.InIsolationValue, resultsDirectory: TempDirectory.Path);
+        arguments = string.Concat(arguments, $" /TestAdapterPath:{extensionsPath}");
+
+        var env = new Dictionary<string, string?>
+        {
+            ["TEST_ASSET_SAMPLE_COLLECTOR_PATH"] = TempDirectory.Path,
+        };
+
+        InvokeVsTest(arguments, env);
+
+        // DataDrivenTestProject has 4 test executions: 3 DataRow rows + 1 simple test.
+        ValidateSummaryStatus(4, 0, 0);
+
+        // The SampleDataCollector creates one testcasefilename{i}.txt per TestCaseStart event.
+        // Before the fix, DataRow rows sharing the same TestCase.Id would get deduplicated,
+        // producing fewer files than actual test executions.
+        var resultFiles = Directory.GetFiles(TempDirectory.Path, "testcasefilename*", SearchOption.AllDirectories);
+        Assert.HasCount(4, resultFiles);
     }
 }

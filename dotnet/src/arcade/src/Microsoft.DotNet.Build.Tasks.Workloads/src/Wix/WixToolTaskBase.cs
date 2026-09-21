@@ -2,79 +2,60 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Collections.Generic;
+using System.IO;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
-namespace Microsoft.DotNet.Build.Tasks.Workloads.Wix
+namespace Microsoft.DotNet.Build.Tasks.Workloads.Wix;
+
+/// <summary>
+/// Serves as a base class for implementing a <see cref="ToolTask"/> to invoke a WiX command.
+/// </summary>
+public abstract class WixToolTaskBase : ToolTask
 {
     /// <summary>
-    /// Serves as a base class for implementing a <see cref="ToolTask"/> to invoke a WiX command.
+    /// Provides utility methods for constructing a commandline.
     /// </summary>
-    public abstract class WixToolTaskBase : ToolTask
+    protected CommandLineBuilder CommandLineBuilder
     {
-        private HashSet<string> _extensions = new();
-        private List<string> _preprocessorDefinitions = new();
+        get;
+    } = new CommandLineBuilder();
 
-        /// <summary>
-        /// Provides utility methods for constructing a commandline.
-        /// </summary>
-        protected CommandLineBuilder CommandLineBuilder
+    protected override MessageImportance StandardOutputLoggingImportance => MessageImportance.High;
+
+    protected override string ToolName
+    {
+        get;
+    }
+
+    /// <summary>
+    /// Creates a new instance of a <see cref="WixToolTaskBase"/>.
+    /// </summary>
+    /// <param name="engine">The build engine interface to use.</param>
+    /// <param name="toolPath">The path of the tool executable, resolved against the project directory if relative.</param>
+    /// <exception cref="ArgumentNullException"/>
+    /// <exception cref="FileNotFoundException"/>
+    protected WixToolTaskBase(IBuildEngine engine, string toolPath)
+    {
+        BuildEngine = engine ?? throw new ArgumentNullException(nameof(engine));
+
+        // GetAbsolutePath rejects a null or empty path with an ArgumentException. Keep the
+        // documented FileNotFoundException for an unset tool path, since WixToolsetConfiguration
+        // does not validate CliPath/HeatPath.
+        if (string.IsNullOrEmpty(toolPath))
         {
-            get;
-        } = new CommandLineBuilder();
-
-        /// <summary>
-        /// Gets the collection of extensions to pass to the underlying tool task.
-        /// </summary>
-        public IEnumerable<string> Extensions => _extensions;        
-
-        /// <summary>
-        /// Gets the collection of preprocessor definitions. Each element represents a single definition. 
-        /// For example, "SomeVar=Hello world" defines a preprocessor variable named SomeVar set to "Hello world". The
-        /// value of the variable will automatically be quoted when passed to the underlying tool.
-        /// </summary>
-        public IEnumerable<string> PreprocessorDefinitions => _preprocessorDefinitions;
-        
-        /// <inheritdoc/>        
-        protected override MessageImportance StandardOutputLoggingImportance => MessageImportance.High;
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="engine"></param>
-        /// <param name="wixToolsetPath">The path where the WiX toolset is located.</param>
-        /// <exception cref="ArgumentNullException"></exception>
-        protected WixToolTaskBase(IBuildEngine engine, string wixToolsetPath)
-        {
-            BuildEngine = engine ?? throw new ArgumentNullException(nameof(engine));
-            ToolPath = wixToolsetPath;
+            throw new FileNotFoundException("The specified tool executable was not found.", toolPath);
         }
 
-        /// <summary>
-        /// Adds the specified extension to the tool task.
-        /// </summary>
-        /// <param name="name">The name of the WiX extension. See <see cref="WixExtensions"/> for a list of well known extensions.</param>
-        public void AddExtension(string name) =>
-            _extensions.Add(name);
+        AbsolutePath toolFullPath = TaskEnvironment.GetAbsolutePath(toolPath);
+        if (!File.Exists(toolFullPath))
+        {
+            throw new FileNotFoundException("The specified tool executable was not found.", toolFullPath);
+        }
 
-        /// <summary>
-        /// Removes the specified extension from the tool task.
-        /// </summary>
-        /// <param name="name">The name of the WiX extension. See <see cref="WixExtensions"/> for a list of well known extensions.</param>
-        public void RemoveExtension(string name) =>
-            _extensions.Remove(name);
-        
-
-        /// <summary>
-        /// Adds a new preprocessor definition.
-        /// </summary>
-        /// <param name="name">The name of the preprocessor variable.</param>
-        /// <param name="value">The value of the preprocessor variable.</param>
-        public void AddPreprocessorDefinition(string name, string value) =>
-            _preprocessorDefinitions.Add($@"{name}={value}");
-
-        /// <inheritdoc />
-        protected override string GenerateFullPathToTool() => ToolPath;
+        ToolPath = Path.GetDirectoryName(toolFullPath);
+        ToolName = Path.GetFileName(toolFullPath);
     }
+
+    protected override string GenerateFullPathToTool() => Path.Combine(ToolPath, ToolName);
 }

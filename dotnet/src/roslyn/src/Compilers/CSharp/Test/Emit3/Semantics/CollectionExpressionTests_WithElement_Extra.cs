@@ -20,7 +20,7 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
 
     private const string s_collectionExtensions = CollectionExpressionTests.s_collectionExtensions;
 
-    public static readonly TheoryData<LanguageVersion> LanguageVersions = new([LanguageVersion.CSharp14, LanguageVersion.Preview, LanguageVersionFacts.CSharpNext]);
+    public static readonly TheoryData<LanguageVersion> LanguageVersions = new([LanguageVersion.CSharp14, LanguageVersion.Preview, LanguageVersion.CSharp15]);
 
     [Theory]
     [MemberData(nameof(LanguageVersions))]
@@ -33,9 +33,9 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
         if (languageVersion == LanguageVersion.CSharp14)
         {
             comp.VerifyEmitDiagnostics(
-                // (1,12): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (1,12): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // int[] a = [with()];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(1, 12),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(1, 12),
                 // (1,12): error CS9401: 'with(...)' elements are not supported for type 'int[]'
                 // int[] a = [with()];
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsNotSupportedForType, "with").WithArguments("int[]").WithLocation(1, 12));
@@ -61,15 +61,15 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
         if (languageVersion == LanguageVersion.CSharp14)
         {
             comp.VerifyEmitDiagnostics(
-                // (2,19): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (2,19): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // List<int> l = [1, with(), 3, with(capacity: 4)];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(2, 19),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(2, 19),
                 // (2,19): error CS9400: 'with(...)' element must be the first element
                 // List<int> l = [1, with(), 3, with(capacity: 4)];
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsMustBeFirst, "with").WithLocation(2, 19),
-                // (2,30): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (2,30): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // List<int> l = [1, with(), 3, with(capacity: 4)];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(2, 30),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(2, 30),
                 // (2,30): error CS9400: 'with(...)' element must be the first element
                 // List<int> l = [1, with(), 3, with(capacity: 4)];
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsMustBeFirst, "with").WithLocation(2, 30));
@@ -98,12 +98,12 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
         if (languageVersion == LanguageVersion.CSharp14)
         {
             comp.VerifyEmitDiagnostics(
-                // (2,16): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (2,16): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // List<int> l = [with(x: 1), with(y: 2)];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(2, 16),
-                // (2,28): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(2, 16),
+                // (2,28): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // List<int> l = [with(x: 1), with(y: 2)];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(2, 28),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(2, 28),
                 // (2,28): error CS9400: 'with(...)' element must be the first element
                 // List<int> l = [with(x: 1), with(y: 2)];
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsMustBeFirst, "with").WithLocation(2, 28));
@@ -150,18 +150,18 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
         if (languageVersion == LanguageVersion.CSharp14)
         {
             comp.VerifyEmitDiagnostics(
-                // (2,5): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (2,5): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 //     with(),
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(2, 5),
-                // (3,5): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(2, 5),
+                // (3,5): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 //     with(arg: 0),
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(3, 5),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(3, 5),
                 // (3,5): error CS9400: 'with(...)' element must be the first element
                 //     with(arg: 0),
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsMustBeFirst, "with").WithLocation(3, 5),
-                // (4,5): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (4,5): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 //     with(unknown: 1)];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(4, 5),
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(4, 5),
                 // (4,5): error CS9400: 'with(...)' element must be the first element
                 //     with(unknown: 1)];
                 Diagnostic(ErrorCode.ERR_CollectionArgumentsMustBeFirst, "with").WithLocation(4, 5));
@@ -195,9 +195,9 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
         if (languageVersion == LanguageVersion.CSharp14)
         {
             CreateCompilation([source, s_collectionExtensions], parseOptions: TestOptions.Regular.WithLanguageVersion(languageVersion)).VerifyDiagnostics(
-                // (3,9): error CS8652: The feature 'collection expression arguments' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
+                // (3,9): error CS9327: Feature 'collection expression arguments' is not available in C# 14.0. Please use language version 15.0 or greater.
                 // list = [with(capacity: 1), "one"];
-                Diagnostic(ErrorCode.ERR_FeatureInPreview, "with").WithArguments("collection expression arguments").WithLocation(3, 9));
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion14, "with").WithArguments("collection expression arguments", "15.0").WithLocation(3, 9));
         }
         else
         {
@@ -8169,6 +8169,7 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
     }
 
     [Fact]
+    [WorkItem("https://github.com/dotnet/roslyn/issues/77784")]
     public void ParamsCycle_MultipleConstructors()
     {
         string sourceA = """
@@ -8192,10 +8193,39 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
                 c = [with(1)];
                 """;
         var comp = CreateCompilation([sourceA, sourceB]);
-        comp.VerifyEmitDiagnostics(
-            // (5,6): error CS9223: Creation of params collection 'MyCollection<int>' results in an infinite chain of invocation of constructor 'MyCollection<T>.MyCollection()'.
-            // c = [with(1)];
-            Diagnostic(ErrorCode.ERR_ParamsCollectionInfiniteChainOfConstructorCalls, "with(1)").WithArguments("MyCollection<int>", "MyCollection<T>.MyCollection()").WithLocation(5, 6));
+        comp.VerifyEmitDiagnostics();
+    }
+
+    [Fact]
+    [WorkItem("https://github.com/dotnet/roslyn/issues/77784")]
+    public void ParamsCycle_MultipleConstructors_ClassContext()
+    {
+        string source = """
+                using System;
+                using System.Collections;
+                using System.Collections.Generic;
+
+                class MyCollection<T> : IEnumerable<T>
+                {
+                    private readonly List<T> _list;
+                    IEnumerator<T> IEnumerable<T>.GetEnumerator() => _list.GetEnumerator();
+                    IEnumerator IEnumerable.GetEnumerator() => _list.GetEnumerator();
+                    public MyCollection() { _list = new(); }
+                    public MyCollection(params MyCollection<T> other) { _list = new(other); }
+                    public void Add(T t) { _list.Add(t); }
+                }
+
+                class C
+                {
+                    static void Main()
+                    {
+                        MyCollection<int> c = [with(1)];
+                        foreach (var item in c)
+                            Console.Write(item);
+                    }
+                }
+                """;
+        CompileAndVerify(source, options: TestOptions.ReleaseExe, expectedOutput: "1").VerifyDiagnostics();
     }
 
     [Fact]
@@ -8271,9 +8301,9 @@ public sealed class CollectionExpressionTests_WithElement_Extra : CSharpTestBase
             // (3,6): error CS7036: There is no argument given that corresponds to the required parameter 'x' of 'MyCollection<int>.MyCollection(int, params MyCollection<int>)'
             // c = [with()];
             Diagnostic(ErrorCode.ERR_NoCorrespondingArgument, "with()").WithArguments("x", "MyCollection<int>.MyCollection(int, params MyCollection<int>)").WithLocation(3, 6),
-            // (4,6): error CS9223: Creation of params collection 'MyCollection<int>' results in an infinite chain of invocation of constructor 'MyCollection<T>.MyCollection(T, params MyCollection<T>)'.
+            // (4,6): error CS7036: There is no argument given that corresponds to the required parameter 'y' of 'MyCollection<int>.MyCollection(int, params MyCollection<int>)'
             // c = [with(1)];
-            Diagnostic(ErrorCode.ERR_ParamsCollectionInfiniteChainOfConstructorCalls, "with(1)").WithArguments("MyCollection<int>", "MyCollection<T>.MyCollection(T, params MyCollection<T>)").WithLocation(4, 6),
+            Diagnostic(ErrorCode.ERR_NoCorrespondingArgument, "with(1)").WithArguments("y", "MyCollection<int>.MyCollection(int, params MyCollection<int>)").WithLocation(4, 6),
             // (8,30): error CS9228: Non-array params collection type must have an applicable constructor that can be called with no arguments.
             //     public MyCollection(T x, params MyCollection<T> y)
             Diagnostic(ErrorCode.ERR_ParamsCollectionMissingConstructor, "params MyCollection<T> y").WithLocation(8, 30));

@@ -36,9 +36,9 @@ where `additionalargs.runsettings` is:
 </RunSettings> 
 ```
 
-The syntax in (1) is another way of passing runsettings configuration and you need not author a runsetting file while using `Runsettings arguments`. More details about runsettings can be found [here](https://msdn.microsoft.com/library/jj635153.aspx).
+The syntax in (1) is another way of passing runsettings configuration and you need not author a `.runsettings` file while using `RunSettings arguments`. More details about runsettings can be found [here](https://learn.microsoft.com/visualstudio/test/configure-unit-tests-by-using-a-dot-runsettings-file).
 
-`Runsettings arguments` takes precedence over `runsettings`.
+`RunSettings arguments` takes precedence over `runsettings`.
 
 For example, in below command the final value for `MapInconclusiveToFailed` will be `False` and value for `DeploymentEnabled` will be unchanged, that is `False`.
 
@@ -63,3 +63,48 @@ dotnet test -- TestRunParameters.Parameter\(name=\"myParam\",\ value=\"value\"\)
 ```
 
 In this example, `\"myParam\"` corresponds to the name of you parameter and `\"value\"` - the value of your parameter. Note, that `\` are escaping characters and they should stay as shown above, unless you are in PowerShell 7.3+. For more examples in PowerShell, such as using variables for the data, please [refer here](https://github.com/microsoft/vstest/issues/4637).
+
+### Handling semicolons and special characters in parameter values
+
+Parameter values can contain special characters such as semicolons (`;`), which is
+common when passing connection strings. The test platform preserves these characters
+as-is — no URL encoding or `%3B` escaping is needed.
+
+However, semicolons have special meaning in most shells: PowerShell treats `;` as a
+statement separator, and bash treats it as a command separator. You must use the
+correct quoting for your shell so the semicolon is passed through literally.
+
+```cmd
+# cmd — semicolons are not special, no extra escaping needed
+dotnet test -- TestRunParameters.Parameter(name=\"connectionString\", value=\"Server=localhost;Database=mydb;Trusted_Connection=True\")
+```
+
+```powershell
+# powershell (prior 7.3, or with $PSNativeCommandArgumentPassing = "legacy")
+# The --% stop-parsing token prevents PowerShell from interpreting the semicolons
+dotnet test --% -- TestRunParameters.Parameter(name=\"connectionString\", value=\"Server=localhost;Database=mydb;Trusted_Connection=True\")
+
+# powershell (7.3+)
+dotnet test --% -- TestRunParameters.Parameter(name="connectionString", value="Server=localhost;Database=mydb;Trusted_Connection=True")
+```
+
+```bash
+# bash — escape semicolons (and parentheses/quotes as usual)
+dotnet test -- TestRunParameters.Parameter\(name=\"connectionString\",\ value=\"Server=localhost\;Database=mydb\;Trusted_Connection=True\"\)
+```
+
+If your value contains many special characters, consider using a `.runsettings` file
+instead:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <TestRunParameters>
+    <Parameter name="connectionString" value="Server=localhost;Database=mydb;Trusted_Connection=True" />
+  </TestRunParameters>
+</RunSettings>
+```
+
+```shell
+dotnet test --settings my.runsettings
+```

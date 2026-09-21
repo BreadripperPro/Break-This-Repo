@@ -19,7 +19,7 @@ namespace NuGet.Protocol {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "18.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Strings {
@@ -192,6 +192,51 @@ namespace NuGet.Protocol {
         internal static string Error_Invalid_package_id {
             get {
                 return ResourceManager.GetString("Error_Invalid_package_id", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected package {0} {1}, but got package {2} {3}.
+        /// </summary>
+        internal static string Error_PackageIdentityDoesNotMatch {
+            get {
+                return ResourceManager.GetString("Error_PackageIdentityDoesNotMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unexpected JSON token type &apos;{0}&apos;..
+        /// </summary>
+        internal static string Error_UnexpectedJsonToken {
+            get {
+                return ResourceManager.GetString("Error_UnexpectedJsonToken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Required property &apos;{0}&apos; not found in JSON..
+        /// </summary>
+        internal static string Error_RequiredJsonPropertyMissing {
+            get {
+                return ResourceManager.GetString("Error_RequiredJsonPropertyMissing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expected payload to be a JSON object but was `{0}`..
+        /// </summary>
+        internal static string Error_UnexpectedPayloadTokenType {
+            get {
+                return ResourceManager.GetString("Error_UnexpectedPayloadTokenType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unsupported payload type `{0}`..
+        /// </summary>
+        internal static string Error_UnsupportedPayloadType {
+            get {
+                return ResourceManager.GetString("Error_UnsupportedPayloadType", resourceCulture);
             }
         }
         
@@ -885,6 +930,24 @@ namespace NuGet.Protocol {
         internal static string Protocol_PackageMetadataError {
             get {
                 return ResourceManager.GetString("Protocol_PackageMetadataError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The source does not support filtering search results by package type..
+        /// </summary>
+        internal static string Protocol_PackageTypeFilterNotSupported {
+            get {
+                return ResourceManager.GetString("Protocol_PackageTypeFilterNotSupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The source supports filtering by only one package type at a time..
+        /// </summary>
+        internal static string Protocol_PackageTypeFilterMultipleNotSupported {
+            get {
+                return ResourceManager.GetString("Protocol_PackageTypeFilterMultipleNotSupported", resourceCulture);
             }
         }
         

@@ -8,19 +8,36 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using TestUtilities;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Microsoft.DotNet.SourceBuild.Tests;
 
-internal class DotNetHelper
+internal partial class DotNetHelper
 {
     private static readonly object s_lockObj = new();
 
     public static string DotNetPath { get; } = Path.Combine(Config.DotNetDirectory, "dotnet");
     public static string PackagesDirectory { get; } = Path.Combine(Directory.GetCurrentDirectory(), "packages");
     public static string ProjectsDirectory { get; } = Path.Combine(Directory.GetCurrentDirectory(), $"projects-{DateTime.Now:yyyyMMddHHmmssffff}");
+    public static string NuGetConfigPath { get; } = Path.Combine(ProjectsDirectory, "NuGet.Config");
+    private static string EmbedFileInBinlogTargetsPath { get; } = Path.Combine(BaselineHelper.GetAssetsDirectory(), "EmbedFileInBinlog.targets");
+    private const string PackageSourceCredentialsElementName = "packageSourceCredentials";
+
+    [GeneratedRegex(
+        $@"<{PackageSourceCredentialsElementName}\b[^>]*>.*?(</{PackageSourceCredentialsElementName}>|$)",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex PackageSourceCredentialsRegex { get; }
+
+    // Sanitized copy of NuGetConfigPath with any packageSourceCredentials element removed.
+    // This is what we embed in binlogs so that CI feed credentials are never leaked.
+    private static Lazy<string> SanitizedNuGetConfigPathLazy { get; } = new(() =>
+    {
+        string destPath = NuGetConfigPath + ".sanitized";
+        SanitizeNuGetConfig(NuGetConfigPath, destPath);
+        return destPath;
+    });
 
     private ITestOutputHelper OutputHelper { get; }
     public bool IsMonoRuntime { get; }
@@ -37,6 +54,9 @@ internal class DotNetHelper
             {
                 Directory.CreateDirectory(ProjectsDirectory);
                 InitNugetConfig();
+
+                // Isolate test environment by creating an empty global.json so that the repo root one is never considered.
+                File.WriteAllText(Path.Combine(ProjectsDirectory, "global.json"), "{}");
             }
 
             if (!Directory.Exists(PackagesDirectory))
@@ -50,10 +70,9 @@ internal class DotNetHelper
     {
         bool useCustomPackages = !string.IsNullOrEmpty(Config.CustomPackagesPath);
         string nugetConfigPrefix = useCustomPackages ? "custom" : "default";
-        string nugetConfigPath = Path.Combine(ProjectsDirectory, "NuGet.Config");
         File.Copy(
             Path.Combine(BaselineHelper.GetAssetsDirectory(), $"{nugetConfigPrefix}.NuGet.Config"),
-            nugetConfigPath);
+            NuGetConfigPath);
 
         if (useCustomPackages)
         {
@@ -64,9 +83,9 @@ internal class DotNetHelper
                 throw new ArgumentException($"Specified CustomPackagesPath '{Config.CustomPackagesPath}' does not exist.");
             }
 
-            string nugetConfig = File.ReadAllText(nugetConfigPath)
+            string nugetConfig = File.ReadAllText(NuGetConfigPath)
                 .Replace("CUSTOM_PACKAGE_FEED", Config.CustomPackagesPath);
-            File.WriteAllText(nugetConfigPath, nugetConfig);
+            File.WriteAllText(NuGetConfigPath, nugetConfig);
         }
     }
 
@@ -77,7 +96,7 @@ internal class DotNetHelper
             DotNetPath,
             args,
             OutputHelper,
-            configureCallback: (process) => configureProcess(process, workingDirectory),
+            configureCallback: (process) => configureProcess(process, workingDirectory ?? ProjectsDirectory),
             millisecondTimeout: millisecondTimeout);
 
         if (expectedExitCode != null)
@@ -85,7 +104,7 @@ internal class DotNetHelper
             ExecuteHelper.ValidateExitCode(executeResult, (int)expectedExitCode);
         }
 
-        void configureProcess(Process process, string? workingDirectory)
+        void configureProcess(Process process, string workingDirectory)
         {
             ConfigureProcess(process, workingDirectory);
 
@@ -93,12 +112,9 @@ internal class DotNetHelper
         }
     }
 
-    public static void ConfigureProcess(Process process, string? workingDirectory)
+    public static void ConfigureProcess(Process process, string workingDirectory)
     {
-        if (workingDirectory != null)
-        {
-            process.StartInfo.WorkingDirectory = workingDirectory;
-        }
+        process.StartInfo.WorkingDirectory = workingDirectory;
 
         process.StartInfo.EnvironmentVariables["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         process.StartInfo.EnvironmentVariables["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
@@ -221,7 +237,26 @@ internal class DotNetHelper
             fileName += $"-{differentiator}";
         }
 
-        return $"/bl:{Path.Combine(Config.LogsDirectory, $"{fileName}.binlog")}";
+        // Embed a sanitized copy of the test's NuGet.Config in the binlog
+        return $"/bl:{Path.Combine(Config.LogsDirectory, $"{fileName}.binlog")}"
+            + $" /p:\"CustomAfterMicrosoftCommonTargets={EmbedFileInBinlogTargetsPath}\""
+            + $" /p:\"CustomAfterMicrosoftCommonCrossTargetingTargets={EmbedFileInBinlogTargetsPath}\""
+            + $" /p:\"EmbedFileInBinlogPath={SanitizedNuGetConfigPathLazy.Value}\"";
+    }
+
+    /// <summary>
+    /// Writes a copy of <paramref name="sourcePath"/> to <paramref name="destPath"/> with any
+    /// <c>packageSourceCredentials</c> element removed and replaced by a comment placeholder.
+    /// </summary>
+    private static void SanitizeNuGetConfig(string sourcePath, string destPath)
+    {
+        const string PlaceholderComment = $"{PackageSourceCredentialsElementName} removed for binlog embedding";
+
+        string content = File.ReadAllText(sourcePath);
+        string sanitized = PackageSourceCredentialsRegex.Replace(
+            content,
+            "<!-- " + PlaceholderComment + " -->");
+        File.WriteAllText(destPath, sanitized);
     }
 
     private static bool DetermineIsMonoRuntime(string dotnetRoot)

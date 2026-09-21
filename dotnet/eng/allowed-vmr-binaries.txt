@@ -65,9 +65,6 @@ src/nuget-client/test/TestUtilities/**/compiler/resources/.signature.p7s
 src/nuget-client/test/TestUtilities/**/compiler/resources/*.nupkg
 src/nuget-client/test/TestUtilities/**/compiler/resources/*.zip
 
-# razor
-src/razor/src/Razor/test/Microsoft.VisualStudio.Razor.IntegrationTests/TestFiles/*.zip
-
 # roslyn
 src/roslyn/src/Compilers/Test/Resources/Core/**/*.metadata
 src/roslyn/src/Compilers/Test/Resources/Core/**/*.winmd
@@ -78,6 +75,7 @@ src/roslyn/src/Compilers/Test/Resources/Core/**/*.dll
 src/roslyn/src/Compilers/Test/Resources/Core/**/*.exe
 src/roslyn/src/Compilers/Test/Resources/Core/**/*.Dll
 src/roslyn/src/ExpressionEvaluator/Core/Source/ExpressionCompiler/Resources/WindowsProxy.winmd
+src/roslyn/src/Razor/src/Razor/test/Microsoft.VisualStudio.Razor.IntegrationTests/TestFiles/*.zip
 src/roslyn/src/Workspaces/CoreTest/Resources/*
 src/roslyn/src/Workspaces/MSBuild/Test/Resources/Dlls/*.dll
 src/roslyn/**/CodeAnalysisTest/**/*.res
@@ -108,17 +106,16 @@ src/sdk/test/TestAssets/TestProjects/**/*.dat
 src/sdk/test/TestAssets/TestProjects/**/*.cache
 src/sdk/test/TestAssets/TestProjects/**/*.tlb
 src/sdk/test/TestAssets/TestPackages/dotnet-new/nupkg_templates/*
+src/sdk/test/TestAssets/TestPackages/TemplateEngine/nupkg_templates/*.nupkg
 src/sdk/test/dotnet.Tests/ShellShimTests/WpfBinaryTestAssets/*.dll
 src/sdk/test/Microsoft.NET.Sdk.Publish.Tasks.Tests/Resources/*.zip
+src/sdk/test/TemplateEngine/Microsoft.TemplateEngine.TestTemplates/nupkg_templates/*.nupkg
 
-# source-build-reference-packages
-src/source-build-reference-packages/src/externalPackages/src/application-insights*/WEB/Src/WindowsServer/WindowsServer.Tests/**/*.dll
+# source-build-assets
+src/source-build-assets/src/externalPackages/src/application-insights*/WEB/Src/WindowsServer/WindowsServer.Tests/**/*.dll
 
 # symreader
 src/symreader/src/PdbTestResources/Resources/*
-
-# templating
-src/templating/test/Microsoft.TemplateEngine.TestTemplates/nupkg_templates/*.nupkg
 
 # vstest
 src/vstest/samples/Microsoft.TestPlatform.*/Adapter/Microsoft.VisualStudio.TestPlatform.*.dll

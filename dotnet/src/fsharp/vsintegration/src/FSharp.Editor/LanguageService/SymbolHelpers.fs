@@ -12,6 +12,7 @@ open System.Threading.Tasks
 open Microsoft.CodeAnalysis
 
 open FSharp.Compiler.CodeAnalysis
+open FSharp.Compiler.NameResolution
 open FSharp.Compiler.Symbols
 open FSharp.Compiler.Text
 open Microsoft.VisualStudio.FSharp.Editor.Telemetry
@@ -31,7 +32,7 @@ module internal SymbolHelpers =
                 |> Async.AwaitTask
                 |> liftAsync
 
-            let! defines, langVersion, strictIndentation = document.GetFsharpParsingOptionsAsync(userOpName) |> liftAsync
+            let! defines, langVersion = document.GetFsharpParsingOptionsAsync(userOpName) |> liftAsync
 
             let! cancellationToken = Async.CancellationToken |> liftAsync
             let! sourceText = document.GetTextAsync(cancellationToken)
@@ -50,7 +51,6 @@ module internal SymbolHelpers =
                     false,
                     false,
                     Some langVersion,
-                    strictIndentation,
                     cancellationToken
                 )
 
@@ -112,7 +112,8 @@ module internal SymbolHelpers =
             match symbolUse.GetSymbolScope currentDocument with
 
             | Some SymbolScope.CurrentDocument ->
-                let symbolUses = checkFileResults.GetUsesOfSymbolInFile(symbolUse.Symbol)
+                let symbolUses =
+                    checkFileResults.GetUsesOfSymbolInFile(symbolUse.Symbol, relatedSymbolKinds = RelatedSymbolUseKind.All)
 
                 do!
                     symbolUses
@@ -134,7 +135,7 @@ module internal SymbolHelpers =
                 let symbolUses =
                     (checkFileResults, currentDocument) :: otherFileCheckResults
                     |> Seq.collect (fun (checkFileResults, doc) ->
-                        checkFileResults.GetUsesOfSymbolInFile(symbolUse.Symbol)
+                        checkFileResults.GetUsesOfSymbolInFile(symbolUse.Symbol, relatedSymbolKinds = RelatedSymbolUseKind.All)
                         |> Seq.map (fun symbolUse -> (doc, symbolUse.Range)))
 
                 do! symbolUses |> Seq.map ((<||) onFound) |> CancellableTask.whenAll

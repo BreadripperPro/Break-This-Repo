@@ -1,0 +1,99 @@
+<Project Sdk="Microsoft.Build.NoTargets">
+
+  <!-- Per-component overrides (FileVersionRevision, AssemblyVersionOverride, etc.) and the
+       <FileVersionValidationPackage> item shared with the update-external-metadata tool
+       and ExternalPackageTests live in this sibling file. SourceRevisionId stays in the
+       .proj below — it's per-.proj source provenance, orthogonal to validation overrides. -->
+  <Import Project="$(MSBuildThisFileDirectory)$(MSBuildProjectName).props" />
+
+  <PropertyGroup>
+    <PackagesOutput>$(ProjectDirectory)pack</PackagesOutput>
+    <CustomRepoBuild>true</CustomRepoBuild>
+    <SourceRevisionId>0f4a2340b6ea7e5cad83efe2d6d73574794d6388</SourceRevisionId>
+    <GlobalJsonFile>$(ProjectDirectory)global.json</GlobalJsonFile>
+  </PropertyGroup>
+
+  <!-- This repo depends on packages built by opentelemetry-dotnet -->
+  <ItemGroup>
+    <RepositoryReference Include="opentelemetry-dotnet" />
+  </ItemGroup>
+
+  <Target Name="CustomRepoBuild">
+    <PropertyGroup>
+      <HttpProject>$(ProjectDirectory)src/OpenTelemetry.Instrumentation.Http/OpenTelemetry.Instrumentation.Http.csproj</HttpProject>
+      <RuntimeProject>$(ProjectDirectory)src/OpenTelemetry.Instrumentation.Runtime/OpenTelemetry.Instrumentation.Runtime.csproj</RuntimeProject>
+      <PersistentStorageAbstractionsProject>$(ProjectDirectory)src/OpenTelemetry.PersistentStorage.Abstractions/OpenTelemetry.PersistentStorage.Abstractions.csproj</PersistentStorageAbstractionsProject>
+      <PersistentStorageFileSystemProject>$(ProjectDirectory)src/OpenTelemetry.PersistentStorage.FileSystem/OpenTelemetry.PersistentStorage.FileSystem.csproj</PersistentStorageFileSystemProject>
+
+      <CommonBuildArgs>/p:Configuration=$(Configuration)</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:DelaySign=$(DelaySign)</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:PublicSign=$(PublicSign)</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /v:$(LogVerbosity)</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) $(RedirectRepoOutputToLog)</CommonBuildArgs>
+      <!-- Source-build behavioral overrides (keeps patches minimal) -->
+      <CommonBuildArgs>$(CommonBuildArgs) /p:DotNetBuildSourceOnly=true</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:UseArtifactsOutput=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:IntegrationBuild=true</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:EnablePublicApi=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:SkipAnalysis=true</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:EnforceCodeStyleInBuild=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:NuGetAudit=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:TreatWarningsAsErrors=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:MSBuildTreatWarningsAsErrors=false</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:DisablePackageBaselineValidation=true</CommonBuildArgs>
+      <CommonBuildArgs>$(CommonBuildArgs) /p:IsAotCompatible=false</CommonBuildArgs>
+
+      <PackArgs>$(CommonBuildArgs) --output $(ProjectDirectory)pack</PackArgs>
+
+      <!-- Per-package version args. Each contrib package has its own AssemblyVersion/FileVersion because
+           it was released independently from a package-specific git tag. AssemblyVersion and FileVersion
+           are sourced from separate properties in the .props so each is validated independently against
+           the MSFT-shipped package by ExternalPackageTests / UpdateExternalMetadata. -->
+      <HttpVersionArgs>/p:Version=$(OpenTelemetryDotNetContribHttpReleaseVersion) /p:AssemblyVersion=$(OpenTelemetryDotNetContribHttpAssemblyVersionOverride) /p:FileVersion=$(OpenTelemetryDotNetContribHttpReleaseVersion).$(OpenTelemetryDotNetContribHttpFileVersionRevision)</HttpVersionArgs>
+      <RuntimeVersionArgs>/p:Version=$(OpenTelemetryDotNetContribRuntimeReleaseVersion) /p:AssemblyVersion=$(OpenTelemetryDotNetContribRuntimeAssemblyVersionOverride) /p:FileVersion=$(OpenTelemetryDotNetContribRuntimeReleaseVersion).$(OpenTelemetryDotNetContribRuntimeFileVersionRevision)</RuntimeVersionArgs>
+      <PersistentStorageAbstractionsVersionArgs>/p:Version=$(OpenTelemetryDotNetContribPersistentStorageAbstractionsReleaseVersion) /p:AssemblyVersion=$(OpenTelemetryDotNetContribPersistentStorageAbstractionsAssemblyVersionOverride) /p:FileVersion=$(OpenTelemetryDotNetContribPersistentStorageAbstractionsReleaseVersion).$(OpenTelemetryDotNetContribPersistentStorageAbstractionsFileVersionRevision)</PersistentStorageAbstractionsVersionArgs>
+      <PersistentStorageFileSystemVersionArgs>/p:Version=$(OpenTelemetryDotNetContribPersistentStorageFileSystemReleaseVersion) /p:AssemblyVersion=$(OpenTelemetryDotNetContribPersistentStorageFileSystemAssemblyVersionOverride) /p:FileVersion=$(OpenTelemetryDotNetContribPersistentStorageFileSystemReleaseVersion).$(OpenTelemetryDotNetContribPersistentStorageFileSystemFileVersionRevision)</PersistentStorageFileSystemVersionArgs>
+    </PropertyGroup>
+
+    <!-- OpenTelemetry.Instrumentation.Http -->
+    <Exec Command="&quot;$(DotNetTool)&quot; restore /bl:$(ArtifactsLogRepoDir)restore_Http.binlog $(HttpProject) $(CommonBuildArgs) $(HttpVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+    <Exec Command="&quot;$(DotNetTool)&quot; pack /bl:$(ArtifactsLogRepoDir)pack_Http.binlog $(HttpProject) $(PackArgs) $(HttpVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+
+    <!-- OpenTelemetry.Instrumentation.Runtime -->
+    <Exec Command="&quot;$(DotNetTool)&quot; restore /bl:$(ArtifactsLogRepoDir)restore_Runtime.binlog $(RuntimeProject) $(CommonBuildArgs) $(RuntimeVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+    <Exec Command="&quot;$(DotNetTool)&quot; pack /bl:$(ArtifactsLogRepoDir)pack_Runtime.binlog $(RuntimeProject) $(PackArgs) $(RuntimeVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+
+    <!-- OpenTelemetry.PersistentStorage.Abstractions (packed before FileSystem, which references it) -->
+    <Exec Command="&quot;$(DotNetTool)&quot; restore /bl:$(ArtifactsLogRepoDir)restore_PersistentStorageAbstractions.binlog $(PersistentStorageAbstractionsProject) $(CommonBuildArgs) $(PersistentStorageAbstractionsVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+    <Exec Command="&quot;$(DotNetTool)&quot; pack /bl:$(ArtifactsLogRepoDir)pack_PersistentStorageAbstractions.binlog $(PersistentStorageAbstractionsProject) $(PackArgs) $(PersistentStorageAbstractionsVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+
+    <!-- OpenTelemetry.PersistentStorage.FileSystem (depends on PersistentStorage.Abstractions) -->
+    <Exec Command="&quot;$(DotNetTool)&quot; restore /bl:$(ArtifactsLogRepoDir)restore_PersistentStorageFileSystem.binlog $(PersistentStorageFileSystemProject) $(CommonBuildArgs) $(PersistentStorageFileSystemVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+    <Exec Command="&quot;$(DotNetTool)&quot; pack /bl:$(ArtifactsLogRepoDir)pack_PersistentStorageFileSystem.binlog $(PersistentStorageFileSystemProject) $(PackArgs) $(PersistentStorageFileSystemVersionArgs)"
+          EnvironmentVariables="@(EnvironmentVariables)"
+          WorkingDirectory="$(ProjectDirectory)"
+          IgnoreStandardErrorWarningFormat="true" />
+  </Target>
+
+</Project>

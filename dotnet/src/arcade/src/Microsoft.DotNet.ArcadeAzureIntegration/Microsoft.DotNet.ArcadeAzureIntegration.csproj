@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(BundledNETCoreAppTargetFramework);$(NetFrameworkToolCurrent)</TargetFrameworks>
+    <TargetFramework>$(NetMinimum)</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +12,7 @@
     <Compile Remove="AzureCliCredentialWithAzNoUpdateWrapper.cs" />
     <Compile Remove="DefaultIdentityTokenCredential.cs" />
     <Compile Remove="DefaultIdentityTokenCredentialOptions.cs" />
+    <Compile Remove="TokenCredentialAuthenticationHandler.cs" />
     <Compile Remove="TokenCredentialShortCache.cs" />
   </ItemGroup>
 

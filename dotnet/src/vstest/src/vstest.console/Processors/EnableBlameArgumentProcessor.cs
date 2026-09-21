@@ -25,6 +25,12 @@ using CommandLineResources = Microsoft.VisualStudio.TestPlatform.CommandLine.Res
 
 namespace Microsoft.VisualStudio.TestPlatform.CommandLine.Processors;
 
+static file class BlameParameterNames
+{
+    public static HashSet<string> CrashDumpKeys { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CollectAlways", "DumpType" };
+    public static HashSet<string> HangDumpKeys { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "TestTimeout", "HangDumpType" };
+}
+
 internal class EnableBlameArgumentProcessor : IArgumentProcessor
 {
     /// <summary>
@@ -34,12 +40,14 @@ internal class EnableBlameArgumentProcessor : IArgumentProcessor
 
     private Lazy<IArgumentProcessorCapabilities>? _metadata;
     private Lazy<IArgumentExecutor>? _executor;
+    private readonly IRunSettingsProvider _runSettingsProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EnableBlameArgumentProcessor"/> class.
     /// </summary>
-    public EnableBlameArgumentProcessor()
+    public EnableBlameArgumentProcessor(IRunSettingsProvider runSettingsProvider)
     {
+        _runSettingsProvider = runSettingsProvider;
     }
 
     public Lazy<IArgumentProcessorCapabilities> Metadata
@@ -52,7 +60,7 @@ internal class EnableBlameArgumentProcessor : IArgumentProcessor
     public Lazy<IArgumentExecutor>? Executor
     {
         get => _executor ??= new Lazy<IArgumentExecutor>(() =>
-            new EnableBlameArgumentExecutor(RunSettingsManager.Instance, new PlatformEnvironment(), new FileHelper()));
+            new EnableBlameArgumentExecutor(_runSettingsProvider, new PlatformEnvironment(), new FileHelper()));
 
         set => _executor = value;
     }
@@ -208,7 +216,7 @@ internal class EnableBlameArgumentExecutor : IArgumentExecutor
         if (enableCrashDump)
         {
             var dumpParameters = collectDumpParameters
-                ?.Where(p => new[] { "CollectAlways", "DumpType" }.Contains(p.Key, StringComparer.OrdinalIgnoreCase))
+                ?.Where(p => BlameParameterNames.CrashDumpKeys.Contains(p.Key))
                 .ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase)
                 ?? new Dictionary<string, string>();
 
@@ -224,7 +232,7 @@ internal class EnableBlameArgumentExecutor : IArgumentExecutor
         if (enableHangDump)
         {
             var hangDumpParameters = collectDumpParameters
-                ?.Where(p => new[] { "TestTimeout", "HangDumpType" }.Contains(p.Key, StringComparer.OrdinalIgnoreCase))
+                ?.Where(p => BlameParameterNames.HangDumpKeys.Contains(p.Key))
                 .ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase)
                 ?? new Dictionary<string, string>();
 

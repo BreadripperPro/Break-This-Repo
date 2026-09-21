@@ -109,7 +109,7 @@
                     Style="{StaticResource CheckBoxSelectorAware}"
                     Margin="4,12,4,0"
                     VerticalAlignment="top"
-                    Visibility="{Binding CheckBoxesEnabled, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}, Converter={StaticResource BooleanToHiddenVisibilityConverter}}"
+                    Visibility="{Binding ViewModel.IsUpdateMode, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}, Converter={StaticResource BooleanToHiddenVisibilityConverter}}"
                     Focusable="False"
                     AutomationProperties.Name="{x:Static nuget:Resources.CheckBox_Selected}"
                     IsChecked="{Binding IsSelected}"
@@ -175,7 +175,7 @@
                       Orientation="Horizontal">
           <TextBlock
                         FontWeight="Bold"
-                        FontSize="{Binding ElementName=_self,Path=FontSize,Converter={StaticResource Font122PercentSizeConverter}}"
+                        FontSize="{DynamicResource {x:Static nuget:Brushes.Environment122PercentFontSizeKey}}"
                         TextWrapping="NoWrap"
                         VerticalAlignment="Top"
                         ToolTip="{x:Static nuget:Resources.ToolTip_PackageRecommended}"
@@ -184,7 +184,7 @@
                         Text="&#x2605; " />
           <TextBlock
                         FontWeight="Bold"
-                        FontSize="{Binding ElementName=_self,Path=FontSize,Converter={StaticResource Font122PercentSizeConverter}}"
+                        FontSize="{DynamicResource {x:Static nuget:Brushes.Environment122PercentFontSizeKey}}"
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="NoWrap"
                         AutomationProperties.AutomationId="id"
@@ -355,7 +355,7 @@
                     <Setter Property="Visibility" Value="Hidden" />
                   </DataTrigger.Setters>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}"
+                <DataTrigger Binding="{Binding ViewModel.IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}"
                       Value="true">
                   <DataTrigger.Setters>
                     <Setter Property="Visibility" Value="Hidden" />
@@ -403,7 +403,7 @@
                     <Setter Property="Visibility" Value="Hidden" />
                   </DataTrigger.Setters>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}" Value="true">
+                <DataTrigger Binding="{Binding ViewModel.IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}" Value="true">
                   <DataTrigger.Setters>
                     <Setter Property="Visibility" Value="Hidden" />
                   </DataTrigger.Setters>
@@ -475,7 +475,7 @@
                     <Setter Property="Visibility" Value="Hidden" />
                   </DataTrigger.Setters>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}" Value="true">
+                <DataTrigger Binding="{Binding ViewModel.IsSolution, RelativeSource={RelativeSource AncestorType={x:Type nuget:InfiniteScrollList}}}" Value="true">
                   <DataTrigger.Setters>
                     <Setter Property="Visibility" Value="Hidden" />
                   </DataTrigger.Setters>

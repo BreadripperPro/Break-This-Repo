@@ -211,7 +211,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
         public void VerifyGetTaskParameters()
         {
             TaskPropertyInfo[] propertyInfos = _taskFactory.GetTaskParameters();
-            LoadedType comparisonType = new LoadedType(typeof(TaskToTestFactories), _loadInfo, typeof(TaskToTestFactories).GetTypeInfo().Assembly, typeof(ITaskItem));
+            LoadedType comparisonType = new LoadedType(typeof(TaskToTestFactories), _loadInfo, typeof(TaskToTestFactories).Assembly, typeof(ITaskItem));
             PropertyInfo[] comparisonInfo = comparisonType.Type.GetProperties(BindingFlags.Instance | BindingFlags.Public);
             Assert.Equal(comparisonInfo.Length, propertyInfos.Length);
 
@@ -250,9 +250,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -290,9 +288,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -330,9 +326,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -372,9 +366,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -414,9 +406,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -458,9 +448,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -500,9 +488,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -540,9 +526,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -584,9 +568,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -624,9 +606,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -666,9 +646,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -708,9 +686,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -720,6 +696,53 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     CreateStubTaskEnvironment());
                 Assert.NotNull(createdTask);
                 Assert.IsType<TaskHostTask>(createdTask);
+            }
+            finally
+            {
+                if (createdTask != null)
+                {
+                    _taskFactory.CleanupTask(createdTask);
+                }
+            }
+        }
+
+        [Fact]
+        public void ExplicitAssemblyNameTaskHostDoesNotForwardConsoleInMultiThreadedMode()
+        {
+            ITask createdTask = null;
+            try
+            {
+                TaskHostParameters factoryParameters = TaskHostParameters.Empty.WithTaskHostFactoryExplicitlyRequested(true);
+                _taskFactory = new AssemblyTaskFactory();
+                _loadInfo = AssemblyLoadInfo.Create(typeof(TaskToTestFactories).GetTypeInfo().Assembly.FullName, assemblyFile: null);
+                _loadedType = _taskFactory.InitializeFactory(
+                    _loadInfo,
+                    nameof(TaskToTestFactories),
+                    new Dictionary<string, TaskPropertyInfo>(),
+                    string.Empty,
+                    factoryParameters,
+                    taskHostExplicitlyRequested: true,
+                    new TestLoggingContext(null!, new BuildEventContext(1, 2, 3, 4)),
+                    ElementLocation.Create("NONE"),
+                    string.Empty);
+
+                createdTask = _taskFactory.CreateTaskInstance(
+                    ElementLocation.Create("MSBUILD"),
+                    null,
+                    new MockHost(new BuildParameters { MultiThreaded = true }),
+                    TaskHostParameters.Empty,
+                    projectFile: "proj.proj",
+                    hostServices: null,
+#if FEATURE_APPDOMAIN
+                    new AppDomainSetup(),
+#endif
+                    false,
+                    scheduledNodeId: NodeManager.FirstMultiThreadedNodeId,
+                    (string propName) => ProjectPropertyInstance.Create("test", "test"),
+                    CreateStubTaskEnvironment());
+
+                TaskHostTask taskHostTask = createdTask.ShouldBeOfType<TaskHostTask>();
+                taskHostTask.ForwardConsoleOutput.ShouldBeFalse();
             }
             finally
             {
@@ -751,9 +774,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     TaskHostParameters.Empty,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -783,9 +804,7 @@ namespace Microsoft.Build.UnitTests.BackEnd
                     new MockHost(),
                     taskParameters,
                     projectFile: "proj.proj",
-#if !NET35
                     hostServices: null,
-#endif
 #if FEATURE_APPDOMAIN
                     new AppDomainSetup(),
 #endif
@@ -812,13 +831,9 @@ namespace Microsoft.Build.UnitTests.BackEnd
         private void SetupTaskFactory(TaskHostParameters factoryParameters, bool explicitlyLaunchTaskHost = false, bool isTaskHostFactory = false)
         {
             _taskFactory = new AssemblyTaskFactory();
-#if FEATURE_ASSEMBLY_LOCATION
-            _loadInfo = AssemblyLoadInfo.Create(null, Assembly.GetAssembly(typeof(TaskToTestFactories)).Location);
-#else
             _loadInfo = explicitlyLaunchTaskHost || isTaskHostFactory
                 ? AssemblyLoadInfo.Create(assemblyName: null, typeof(TaskToTestFactories).GetTypeInfo().Assembly.Location)
                 : AssemblyLoadInfo.Create(typeof(TaskToTestFactories).GetTypeInfo().Assembly.FullName, assemblyFile: null);
-#endif
             if (explicitlyLaunchTaskHost)
             {
                 factoryParameters = factoryParameters.WithTaskHostFactoryExplicitlyRequested(true);

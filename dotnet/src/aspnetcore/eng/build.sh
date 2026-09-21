@@ -29,7 +29,6 @@ build_nodejs=''
 build_java=''
 build_installers=''
 build_projects=''
-target_arch='x64'
 configuration=''
 runtime_source_feed=''
 runtime_source_feed_key=''
@@ -37,15 +36,15 @@ source_build=''
 product_build=''
 from_vmr=''
 warn_as_error=true
+warn_not_as_error=''
+# Empty means "not specified"; tools.sh applies the default.
+msbuild_multi_threaded=''
 from_vmr=''
 
-if [ "$(uname)" = "Darwin" ]; then
-    target_os_name='osx'
-elif [ "$(uname)" = "FreeBSD" ]; then
-    target_os_name='freebsd'
-else
-    target_os_name='linux'
-fi
+source "$DIR/common/native/init-os-and-arch.sh"
+
+target_os_name="$os"
+target_arch="$arch"
 
 msbuild_args=()
 
@@ -86,6 +85,9 @@ Options:
     --excludeCIBinarylog              Don't output binary log by default in CI builds (short: -nobl).
     --verbosity|-v                    MSBuild verbosity: q[uiet], m[inimal], n[ormal], d[etailed], and diag[nostic]
     --warnAsError                     Sets warnaserror msbuild parameter: 'true' or 'false'
+    --warnNotAsError                  Sets a semi-colon delimited list of warning codes that should not be treated as errors
+    --msbuildMultiThreaded|--mt       Sets MSBuild's multi-threaded mode, i.e. the -mt switch: 'true' or 'false'
+    --nodeReuse                       Sets nodereuse msbuild parameter: 'true' or 'false'
 
     --runtime-source-feed             Additional feed that can be used when downloading .NET runtimes and SDKs
     --runtime-source-feed-key         Key for feed that can be used when downloading .NET runtimes and SDKs
@@ -262,6 +264,21 @@ while [[ $# -gt 0 ]]; do
             [ -z "${1:-}" ] && __error "Missing value for parameter --warnaserror" && __usage
             warn_as_error="${1:-}"
             ;;
+        -warnnotaserror)
+            shift
+            [ -z "${1:-}" ] && __error "Missing value for parameter --warnNotAsError" && __usage
+            warn_not_as_error="${1:-}"
+            ;;
+        -msbuildmultithreaded|-mt)
+            shift
+            [ -z "${1:-}" ] && __error "Missing value for parameter --msbuildMultiThreaded" && __usage
+            msbuild_multi_threaded="${1:-}"
+            ;;
+        -nodereuse)
+            shift
+            [ -z "${1:-}" ] && __error "Missing value for parameter --nodeReuse" && __usage
+            node_reuse="${1:-}"
+            ;;
         *)
             msbuild_args[${#msbuild_args[*]}]="$1"
             ;;
@@ -358,10 +375,6 @@ fi
 
 # Initialize global variables need to be set before the import of Arcade is imported
 restore=$run_restore
-
-# Disable node reuse - Workaround perpetual issues in node reuse and custom task assemblies
-nodeReuse=false
-export MSBUILDDISABLENODEREUSE=1
 
 # Ensure passing neither --bl nor --nobl on CI avoids errors in tools.sh. This is needed because we set both variables
 # to false by default i.e. they always exist. (We currently avoid binary logs but that is made visible in the YAML.)

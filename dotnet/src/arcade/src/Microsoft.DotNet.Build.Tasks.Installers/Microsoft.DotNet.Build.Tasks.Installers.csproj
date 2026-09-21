@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(BundledNETCoreAppTargetFramework);$(NetFrameworkToolCurrent)</TargetFrameworks>
+    <TargetFramework>$(NetMinimum)</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>true</IsPackable>
     <IsBuildTaskProject>true</IsBuildTaskProject>
@@ -20,9 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Common\Tasks\ExecWithRetries.cs" Link="ExecWithRetries.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Microsoft.DotNet.SignCheckLibrary" />
     <InternalsVisibleTo Include="Microsoft.DotNet.SignTool" />
     <InternalsVisibleTo Include="Microsoft.DotNet.SignTool.Tests" />
+    <InternalsVisibleTo Include="Microsoft.DotNet.Build.Tasks.Installers.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,14 +44,5 @@
           Pack="true" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">
-    <Compile Include="..\Common\Internal\AssemblyResolver.cs" />
-    <Compile Include="..\Common\Internal\BuildTask.Desktop.cs" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Common\Internal\BuildTask.cs" />
-  </ItemGroup>
 
 </Project>

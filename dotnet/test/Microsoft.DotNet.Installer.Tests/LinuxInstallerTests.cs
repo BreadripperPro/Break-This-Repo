@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.DotNet.Build.Tasks.Installers;
-using Microsoft.VisualStudio.TestPlatform.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Formats.Tar;
@@ -13,11 +12,10 @@ using System.Net.Http;
 using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using TestUtilities;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Microsoft.DotNet.Installer.Tests;
 
@@ -74,7 +72,7 @@ public partial class LinuxInstallerTests : IDisposable
     private static partial Regex RemoveVersionConstraintRegex { get; }
 
     // Remove version numbers from package names: "dotnet-runtime-10.0.0-rc.1.25480.112-x64.rpm" -> "dotnet-runtime-*-x64.rpm"
-    [GeneratedRegex(@"\d+\.\d+\.\d+(?:-(?:alpha|rc|rtm|preview)(?:\.\d+)*)?", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\d+\.\d+\.\d+(?:-(?:alpha|rc|rtm|preview|servicing)(?:\.\d+)*)?", RegexOptions.CultureInvariant)]
     private static partial Regex RemoveVersionFromPackageNameRegex { get; }
 
     private const string RuntimeDepsRepo = "mcr.microsoft.com/dotnet/runtime-deps";
@@ -89,9 +87,24 @@ public partial class LinuxInstallerTests : IDisposable
     private const string DotnetApphostPackPrefix = "dotnet-apphost-pack-";
     private const string DotnetSdkPrefix = "dotnet-sdk-";
     private const string DowngradeFxVersionsScript = "downgrade-fx-versions.sh";
+    private const string ContainerNuGetPluginsDir = "/root/.nuget/plugins";
+    private const string ContainerCredentialProviderCacheDir = "/root/.local/share/MicrosoftCredentialProvider";
+    private static readonly string[] NuGetAuthEnvironmentVariables =
+    [
+        "ARTIFACTS_CREDENTIALPROVIDER_EXTERNAL_FEED_ENDPOINTS",
+        "ARTIFACTS_CREDENTIALPROVIDER_FEED_ENDPOINTS",
+        "ARTIFACTS_CREDENTIALPROVIDER_SESSIONTOKENCACHE_ENABLED",
+        "NUGET_CREDENTIALPROVIDER_SESSIONTOKENCACHE_ENABLED",
+        "VSS_NUGET_ACCESSTOKEN",
+        "VSS_NUGET_EXTERNAL_FEED_ENDPOINTS",
+        "VSS_NUGET_URI_PREFIXES"
+    ];
+    private const string DnxPackageLifecycleScript = "dnx-package-lifecycle.sh";
+    private const int RpmFileGhost = 1 << 6;
+    private const int RpmTransFileTriggerNameTag = 5079;
 
-    public static bool IncludeRpmTests => Config.TestRpmPackages;
-    public static bool IncludeDebTests => Config.TestDebPackages;
+    public static bool ExcludeRpmTests => !Config.TestRpmPackages;
+    public static bool ExcludeDebTests => !Config.TestDebPackages;
 
     private enum PackageType
     {
@@ -125,7 +138,7 @@ public partial class LinuxInstallerTests : IDisposable
         }
     }
 
-    [ConditionalTheory(typeof(LinuxInstallerTests), nameof(IncludeRpmTests))]
+    [Theory(Skip = "RPM package testing is not enabled", SkipWhen = nameof(ExcludeRpmTests))]
     [InlineData(RuntimeDepsRepo, $"{RuntimeDepsVersion}-azurelinux3.0")]
     public async Task RpmScenarioTest(string repo, string tag)
     {
@@ -140,7 +153,7 @@ public partial class LinuxInstallerTests : IDisposable
         DistroTest($"{repo}:{tag}", PackageType.Rpm);
     }
 
-    [ConditionalTheory(typeof(LinuxInstallerTests), nameof(IncludeDebTests))]
+    [Theory(Skip = "Debian package testing is not enabled", SkipWhen = nameof(ExcludeDebTests))]
     [InlineData(RuntimeDepsRepo, $"{RuntimeDepsVersion}-noble")]
     public async Task DebScenarioTest(string repo, string tag)
     {
@@ -149,7 +162,7 @@ public partial class LinuxInstallerTests : IDisposable
         DistroTest($"{repo}:{tag}", PackageType.Deb);
     }
 
-    [ConditionalTheory(typeof(LinuxInstallerTests), nameof(IncludeRpmTests))]
+    [Theory(Skip = "RPM package testing is not enabled", SkipWhen = nameof(ExcludeRpmTests))]
     [InlineData(RuntimeDepsRepo, $"{RuntimeDepsVersion}-azurelinux3.0")]
     public async Task RpmPackageMetadataTest(string repo, string tag)
     {
@@ -158,7 +171,7 @@ public partial class LinuxInstallerTests : IDisposable
         ValidatePackageMetadata($"{repo}:{tag}", PackageType.Rpm);
     }
 
-    [ConditionalTheory(typeof(LinuxInstallerTests), nameof(IncludeDebTests))]
+    [Theory(Skip = "Debian package testing is not enabled", SkipWhen = nameof(ExcludeDebTests))]
     [InlineData(RuntimeDepsRepo, $"{RuntimeDepsVersion}-noble")]
     public async Task DebPackageMetadataTest(string repo, string tag)
     {
@@ -167,13 +180,41 @@ public partial class LinuxInstallerTests : IDisposable
         ValidatePackageMetadata($"{repo}:{tag}", PackageType.Deb);
     }
 
-    [ConditionalFact(typeof(LinuxInstallerTests), nameof(IncludeRpmTests))]
+    /// <summary>
+    /// Verifies that RPM package operations preserve and repair the public dnx entries throughout their lifecycle.
+    /// </summary>
+    /// <param name="image">The container image used to exercise the RPM package lifecycle.</param>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Theory(Skip = "RPM package testing is not enabled", SkipWhen = nameof(ExcludeRpmTests))]
+    [InlineData("mcr.microsoft.com/azurelinux/base/core:3.0")]
+    public async Task RpmDnxPackageLifecycleTest(string image)
+    {
+        await InitializeContextAsync(PackageType.Rpm, initializeSharedContext: false);
+
+        DnxPackageLifecycleTest(image, PackageType.Rpm);
+    }
+
+    /// <summary>
+    /// Verifies that Debian package operations preserve and repair the public dnx entries throughout their lifecycle.
+    /// </summary>
+    /// <param name="image">The container image used to exercise the Debian package lifecycle.</param>
+    /// <returns>A task that represents the asynchronous test operation.</returns>
+    [Theory(Skip = "Debian package testing is not enabled", SkipWhen = nameof(ExcludeDebTests))]
+    [InlineData("debian:bookworm")]
+    public async Task DebDnxPackageLifecycleTest(string image)
+    {
+        await InitializeContextAsync(PackageType.Deb, initializeSharedContext: false);
+
+        DnxPackageLifecycleTest(image, PackageType.Deb);
+    }
+
+    [Fact(Skip = "RPM package testing is not enabled", SkipWhen = nameof(ExcludeRpmTests))]
     public void ValidateRpmPackageList()
     {
         ValidatePackageList(PackageType.Rpm);
     }
 
-    [ConditionalFact(typeof(LinuxInstallerTests), nameof(IncludeDebTests))]
+    [Fact(Skip = "Debian package testing is not enabled", SkipWhen = nameof(ExcludeDebTests))]
     public void ValidateDebPackageList()
     {
         ValidatePackageList(PackageType.Deb);
@@ -238,7 +279,7 @@ public partial class LinuxInstallerTests : IDisposable
             InsertLocalPackagesPathToNuGetConfig(newNuGetConfig, "/packages");
 
             // Copy downgrade-fx-versions.sh script
-            // This script is used to update the latest known 8.0 and 9.0 framework versions in SDK's
+            // This script is used to update the latest known serviced framework versions in SDK's
             // Microsoft.NETCoreSdk.BundledVersions.props file to the versions 2 releases prior.
             // This is needed as the SDK automatically picks up servicing versions not yet released, which
             // is either one or two versions higher than publicly available versions, depending on
@@ -368,7 +409,9 @@ public partial class LinuxInstallerTests : IDisposable
         string containerLogDir = "/logs";
         string containerLogPath = Path.Combine(containerLogDir, $"scenario-tests-{GetSanitizedImageName(baseImage)}.xml");
 
-        string testCommand = $"dotnet {GetScenarioTestsBinaryPath()} --dotnet-root /usr/share/dotnet/ --xml {containerLogPath} --no-traits Category=RequiresNonTargetRidPackages";
+        string testCommand =
+            $"sh -c \"dnx --help && dotnet {GetScenarioTestsBinaryPath()} --dotnet-root /usr/share/dotnet/ " +
+            $"--xml {containerLogPath} --no-traits Category=RequiresNonTargetRidPackages\"";
 
         string tag = $"test-{Path.GetRandomFileName()}";
         string output = "";
@@ -381,8 +424,9 @@ public partial class LinuxInstallerTests : IDisposable
             buildCompleted = true;
 
             // Mount the host log directory to the container
-            string optionalRunArgs = $"-v {hostLogDir}:{containerLogDir}";
-            output = _dockerHelper.Run(tag, tag, testCommand, optionalRunArgs: optionalRunArgs);
+            List<string> optionalRunArgs = [$"-v {QuoteDockerArgument($"{hostLogDir}:{containerLogDir}")}"];
+            optionalRunArgs.AddRange(GetNuGetAuthDockerRunArgs());
+            output = _dockerHelper.Run(tag, tag, testCommand, optionalRunArgs: string.Join(' ', optionalRunArgs));
 
             int testResultsSummaryIndex = output.IndexOf("Tests run: ");
             if (testResultsSummaryIndex >= 0)
@@ -412,6 +456,59 @@ public partial class LinuxInstallerTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Builds a container image that exercises the host and SDK package lifecycle for dnx.
+    /// </summary>
+    /// <remarks>
+    /// The lifecycle script runs during the image build so that any failed package operation or
+    /// assertion fails the Docker build and, consequently, the test.
+    /// </remarks>
+    /// <param name="baseImage">The base container image in which to install the packages.</param>
+    /// <param name="packageType">One of the enumeration values that specifies the package format to test.</param>
+    private void DnxPackageLifecycleTest(string baseImage, PackageType packageType)
+    {
+        string hostPackage = Path.GetFileName(GetContentPackage(DotnetHostPrefix, packageType));
+        string lifecycleScript = Path.Combine(GetAssetsDirectory(), DnxPackageLifecycleScript);
+        File.Copy(lifecycleScript, Path.Combine(_contextDir, DnxPackageLifecycleScript));
+
+        StringBuilder dockerfile = new();
+        dockerfile.AppendLine($"FROM {baseImage}");
+        if (packageType == PackageType.Deb)
+        {
+            // Debian does not provide the affected .NET 10 package, so use Microsoft's production
+            // feed to test against the same package family that the new host package services.
+            dockerfile.AppendLine(
+                "RUN apt-get update && apt-get install -y ca-certificates curl gpg && " +
+                "curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | " +
+                "gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg && " +
+                "architecture=\"$(dpkg --print-architecture)\" && " +
+                "echo \"deb [arch=${architecture} signed-by=/usr/share/keyrings/microsoft-prod.gpg] " +
+                "https://packages.microsoft.com/debian/12/prod bookworm main\" " +
+                "> /etc/apt/sources.list.d/microsoft-prod.list && apt-get update");
+        }
+        dockerfile.AppendLine($"COPY {hostPackage} /packages/{hostPackage}");
+        dockerfile.AppendLine($"COPY {DnxPackageLifecycleScript} /{DnxPackageLifecycleScript}");
+        dockerfile.AppendLine(
+            $"RUN chmod +x /{DnxPackageLifecycleScript} && /{DnxPackageLifecycleScript} " +
+            $"{packageType.ToString().ToLowerInvariant()} /packages/{hostPackage}");
+
+        string dockerfilePath = Path.Combine(_contextDir, $"Dockerfile-{Path.GetRandomFileName()}");
+        File.WriteAllText(dockerfilePath, dockerfile.ToString());
+        string tag = $"dnx-lifecycle-{Path.GetRandomFileName()}";
+
+        try
+        {
+            _dockerHelper.Build(tag, dockerfile: dockerfilePath, contextDir: _contextDir);
+        }
+        finally
+        {
+            if (!Config.KeepDockerImages)
+            {
+                _dockerHelper.DeleteImage(tag);
+            }
+        }
+    }
+
     private string GetScenarioTestsBinaryPath()
     {
         // Find scenario-tests binary in context/scenario-tests
@@ -423,6 +520,47 @@ public partial class LinuxInstallerTests : IDisposable
 
         return scenarioTestsBinary.Replace(_contextDir, "").Replace("\\", "/");
     }
+
+    private static IEnumerable<string> GetNuGetAuthDockerRunArgs()
+    {
+        List<string> args = NuGetAuthEnvironmentVariables
+            .Where(envVar => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(envVar)))
+            .Select(envVar => $"-e {envVar}")
+            .ToList();
+
+        if (args.Count == 0)
+        {
+            return args;
+        }
+
+        string? home = Environment.GetEnvironmentVariable("HOME");
+        if (string.IsNullOrWhiteSpace(home))
+        {
+            home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        if (string.IsNullOrWhiteSpace(home))
+        {
+            return args;
+        }
+
+        string pluginsDir = Path.Combine(home, ".nuget", "plugins");
+        if (Directory.Exists(pluginsDir))
+        {
+            args.Add($"-v {QuoteDockerArgument($"{pluginsDir}:{ContainerNuGetPluginsDir}:ro")}");
+        }
+
+        string credentialProviderCacheDir = Path.Combine(home, ".local", "share", "MicrosoftCredentialProvider");
+        if (Directory.Exists(credentialProviderCacheDir))
+        {
+            args.Add($"-v {QuoteDockerArgument($"{credentialProviderCacheDir}:{ContainerCredentialProviderCacheDir}")}");
+        }
+
+        return args;
+    }
+
+    private static string QuoteDockerArgument(string value) =>
+        $"\"{value.Replace("\"", "\\\"")}\"";
 
     private List<string> GetPackageList(string baseImage, PackageType packageType)
     {
@@ -498,7 +636,7 @@ public partial class LinuxInstallerTests : IDisposable
         sb.AppendLine("");
 
         sb.AppendLine("");
-        sb.AppendLine("# Run the script to downgrade 8.0 and 9.0 framework versions");
+        sb.AppendLine("# Run the script to downgrade serviced framework versions");
         sb.AppendLine("RUN \\");
         sb.AppendLine($"    chmod +x {DowngradeFxVersionsScript} && \\");
         sb.AppendLine($"    ./{DowngradeFxVersionsScript}");
@@ -544,9 +682,22 @@ public partial class LinuxInstallerTests : IDisposable
 
     private string GetMatchingDepsPackage(string baseImage, PackageType packageType)
     {
-        string matchPattern = packageType == PackageType.Deb
-            ? $"{DotnetRuntimeDepsPrefix}*.deb"
-            : $"{DotnetRuntimeDepsPrefix}*azl*.rpm"; // We currently only support Azure Linux deps image
+        string matchPattern;
+        if (packageType == PackageType.Deb)
+        {
+            matchPattern = $"{DotnetRuntimeDepsPrefix}*.deb";
+        }
+        else
+        {
+            // Select the deps RPM that matches the base image's Azure Linux version
+            string azlVersion = baseImage switch
+            {
+                _ when baseImage.Contains("azurelinux3") => "azl.3",
+                _ when baseImage.Contains("azurelinux4") => "azl.4",
+                _ => "azl"
+            };
+            matchPattern = $"{DotnetRuntimeDepsPrefix}*{azlVersion}*.rpm";
+        }
 
         string[] files = Directory.GetFiles(_contextDir, matchPattern, SearchOption.AllDirectories);
         if (files.Length == 0)
@@ -560,22 +711,119 @@ public partial class LinuxInstallerTests : IDisposable
     private static string GetSanitizedImageName(string image) =>
         image.Replace("/", "_").Replace(":", "_").Replace(".", "_");
 
+    private static readonly int[] RetryTimeoutsInSeconds = [120, 240, 360];
+
     private async Task DownloadFileAsync(Uri url, string filePath)
     {
         _outputHelper.WriteLine($"Downloading {url} to {filePath}");
 
         using HttpClient client = new HttpClient();
-        HttpResponseMessage response = await client.GetAsync(url);
+        HttpResponseMessage response = await DownloadWithRetriesAsync(client, url);
+
+        if (!response.IsSuccessStatusCode && !string.IsNullOrEmpty(Config.DotNetRuntimeSourceFeedKey))
+        {
+            string internalUrlStr = url.ToString().Replace("https://ci.dot.net/public", Config.DotNetRuntimeSourceFeed);
+            _outputHelper.WriteLine($"Public URL failed ({(int)response.StatusCode}), falling back to internal URL: {internalUrlStr}");
+            // The feed key is a base64-encoded SAS token that must be decoded and appended to the URL as a query string
+            string decodedSasToken = Encoding.UTF8.GetString(Convert.FromBase64String(Config.DotNetRuntimeSourceFeedKey));
+            Uri internalUrl = new Uri($"{internalUrlStr}?{decodedSasToken}");
+            response = await DownloadWithRetriesAsync(client, internalUrl);
+        }
+
         response.EnsureSuccessStatusCode();
 
         using FileStream fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await response.Content.CopyToAsync(fileStream);
     }
 
+    private async Task<HttpResponseMessage> DownloadWithRetriesAsync(HttpClient client, Uri url)
+    {
+        // Strip query string to avoid logging sensitive tokens
+        string safeUrl = url.GetLeftPart(UriPartial.Path);
+        HttpResponseMessage response = null!;
+
+        for (int attempt = 0; attempt < RetryTimeoutsInSeconds.Length; attempt++)
+        {
+            int timeoutSeconds = RetryTimeoutsInSeconds[attempt];
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
+            try
+            {
+                response = await client.GetAsync(url, cts.Token);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return response;
+                }
+
+                _outputHelper.WriteLine($"Attempt {attempt + 1}/{RetryTimeoutsInSeconds.Length} for {safeUrl} failed with status {(int)response.StatusCode}.");
+            }
+            catch (TaskCanceledException) when (cts.IsCancellationRequested)
+            {
+                _outputHelper.WriteLine($"Attempt {attempt + 1}/{RetryTimeoutsInSeconds.Length} for {safeUrl} timed out after {timeoutSeconds}s.");
+            }
+            catch (HttpRequestException ex)
+            {
+                _outputHelper.WriteLine($"Attempt {attempt + 1}/{RetryTimeoutsInSeconds.Length} for {safeUrl} failed: {ex.Message}");
+            }
+            catch (IOException ex) when (ex is not DirectoryNotFoundException and not PathTooLongException)
+            {
+                _outputHelper.WriteLine($"Attempt {attempt + 1}/{RetryTimeoutsInSeconds.Length} for {safeUrl} failed with IO error: {ex.Message}");
+            }
+        }
+
+        // Return the last response (which may be a failure) so the caller can inspect the status code
+        return response;
+    }
+
     private void ValidatePackageMetadata(string image, PackageType packageType)
     {
         List<string> list = GetPackageList(image, packageType);
         ValidatePackageDependencies(list, packageType);
+        ValidateDnxPackageMetadata(packageType);
+    }
+
+    private void ValidateDnxPackageMetadata(PackageType packageType)
+    {
+        string hostPackagePath = GetContentPackage(DotnetHostPrefix, packageType);
+
+        if (packageType == PackageType.Rpm)
+        {
+            using FileStream rpmStream = File.OpenRead(hostPackagePath);
+            using RpmPackage rpmPackage = RpmPackage.Read(rpmStream);
+
+            string[] baseNames = (string[])rpmPackage.Header.Entries.First(e => e.Tag == RpmHeaderTag.BaseNames).Value;
+            string[] directoryNames = (string[])rpmPackage.Header.Entries.First(e => e.Tag == RpmHeaderTag.DirectoryNames).Value;
+            int[] directoryNameIndices = (int[])rpmPackage.Header.Entries.First(e => e.Tag == RpmHeaderTag.DirectoryNameIndices).Value;
+            int[] fileFlags = (int[])rpmPackage.Header.Entries.First(e => e.Tag == RpmHeaderTag.FileFlags).Value;
+
+            string[] filePaths = baseNames
+                .Select((baseName, index) => directoryNames[directoryNameIndices[index]] + baseName)
+                .ToArray();
+
+            foreach (string ghostPath in new[] { "/usr/share/dotnet/dnx", "/usr/bin/dnx" })
+            {
+                int index = Array.IndexOf(filePaths, ghostPath);
+                Assert.True(index >= 0, $"RPM package does not own expected dnx path '{ghostPath}'.");
+                Assert.True((fileFlags[index] & RpmFileGhost) != 0, $"RPM path '{ghostPath}' is not ghost-owned.");
+            }
+
+            string[] triggerNames = (string[])rpmPackage.Header.Entries
+                .First(e => e.Tag == (RpmHeaderTag)RpmTransFileTriggerNameTag).Value;
+            Assert.Contains("/usr/share/dotnet/sdk", triggerNames);
+        }
+        else
+        {
+            Dictionary<string, string> controlFiles = GetDebianControlFiles(hostPackagePath);
+            Assert.True(controlFiles.TryGetValue("control", out string? control), "DEB package has no control file.");
+            Assert.Contains("Replaces: dotnet-sdk-10.0 (<< 10.1.0)", control);
+
+            Assert.True(controlFiles.TryGetValue("triggers", out string? triggers), "DEB package has no triggers file.");
+            Assert.Contains("interest-noawait /usr/share/dotnet/dnx", triggers);
+            Assert.Contains("interest-noawait /usr/bin/dnx", triggers);
+            Assert.Contains("postinst", controlFiles.Keys);
+            Assert.Contains("postrm", controlFiles.Keys);
+        }
     }
 
     private void ValidatePackageDependencies(List<string> list, PackageType packageType)
@@ -664,6 +912,14 @@ public partial class LinuxInstallerTests : IDisposable
 
     private List<string> GetDebianPackageDependencies(string packagePath)
     {
+        Dictionary<string, string> controlFiles = GetDebianControlFiles(packagePath);
+        return controlFiles.TryGetValue("control", out string? control)
+            ? ParseDebControlDependencies(control)
+            : [];
+    }
+
+    private Dictionary<string, string> GetDebianControlFiles(string packagePath)
+    {
         try
         {
             using FileStream debStream = File.OpenRead(packagePath);
@@ -689,22 +945,19 @@ public partial class LinuxInstallerTests : IDisposable
 
                 using (decompressed)
                 {
-                    // Read tar entries to find "control" file
+                    Dictionary<string, string> controlFiles = [];
                     using TarReader tarReader = new TarReader(decompressed, leaveOpen: false);
                     TarEntry? entry;
                     while ((entry = tarReader.GetNextEntry()) is not null)
                     {
-                        if (entry.Name
-                            .TrimStart('.', '/')
-                            .Equals("control", StringComparison.Ordinal))
+                        if (entry.DataStream is not null)
                         {
-                            using MemoryStream controlFileData = new MemoryStream();
-                            entry.DataStream?.CopyTo(controlFileData);
-                            string controlContent = Encoding.UTF8.GetString(controlFileData.ToArray());
-                            File.WriteAllText(Path.Combine(Path.GetTempPath(), "control.txt"), controlContent);
-                            return ParseDebControlDependencies(controlContent);
+                            using StreamReader reader = new(entry.DataStream, Encoding.UTF8, leaveOpen: true);
+                            controlFiles[entry.Name.TrimStart('.', '/')] = reader.ReadToEnd();
                         }
                     }
+
+                    return controlFiles;
                 }
             }
 
@@ -807,13 +1060,13 @@ public partial class LinuxInstallerTests : IDisposable
             if (packageType == PackageType.Rpm)
             {
                 // Runtime deps distro variants (RPM only)
-                string[] distros = new[] { "azl.3", "opensuse.15", "sles.15" };
+                string[] distros = new[] { "azl.3", "azl.4", "opensuse.15", "sles.15" };
                 foreach (string distro in distros)
                 {
                     patterns.Add($"dotnet-runtime-deps-*-{distro}-{arch}{extension}");
 
                     // `azl` deps packages do not have a -newkey- variant
-                    if (distro != "azl.3")
+                    if (!distro.StartsWith("azl", StringComparison.Ordinal))
                     {
                         patterns.Add($"dotnet-runtime-deps-*-{distro}-newkey-{arch}{extension}");
                     }

@@ -15,19 +15,12 @@
     <SkipSetTargetOS>true</SkipSetTargetOS>
     <BuildArgs>$(BuildArgs) $(FlagParameterPrefix)os $(TargetOS)</BuildArgs>
 
-    <!-- May stabilize. -->
-    <AllowDotNetFinalVersionKindOverride>true</AllowDotNetFinalVersionKindOverride>
-
     <!--
       When building a vertical where we explicitly request using the Mono runtime, only build the Mono runtime.
       This is generally used in source-build scenarios where the target RID is only supported on Mono
       or Mono-LLVMAOT runtime pack builds.
     -->
     <BuildArgs Condition="'$(DotNetBuildUseMonoRuntime)' == 'true'">$(BuildArgs) $(FlagParameterPrefix)usemonoruntime</BuildArgs>
-
-    <!-- Mobile builds and windows host (for Android-on-windows etc.) are never "cross" builds as they don't have a rootfs-based filesystem build. -->
-    <TargetsMobile Condition="'$(TargetOS)' == 'ios' or '$(TargetOS)' == 'iossimulator' or '$(TargetOS)' == 'maccatalyst' or '$(TargetOS)' == 'tvos' or '$(TargetOS)' == 'tvossimulator' or '$(TargetOS)' == 'android' or '$(TargetOS)' == 'browser' or '$(TargetOS)' == 'wasi'">true</TargetsMobile>
-    <BuildArgs Condition="'$(CrossBuild)' == 'true' or ('$(TargetOS)-$(TargetArchitecture)' != '$(BuildOS)-$(BuildArchitecture)' and '$(TargetsMobile)' != 'true' and '$(TargetOS)' != 'windows' and '$(TargetOS)' != 'linux-bionic')">$(BuildArgs) $(FlagParameterPrefix)cross</BuildArgs>
 
     <!--
       Always bootstrap our build so we are building the shipping product from a cohesive commit (no LKG usage).
@@ -40,7 +33,8 @@
     <BuildArgs Condition="'$(BuildBootstrap)' == 'true'">$(BuildArgs) $(FlagParameterPrefix)bootstrap</BuildArgs>
 
     <!-- If this build is not a "special flavor" build, build everything that can be built for this target. -->
-    <BuildArgs Condition="'$(DotNetBuildUseMonoRuntime)' != 'true'">$(BuildArgs) /p:DotNetBuildAllRuntimePacks=true</BuildArgs>
+    <BuildArgs Condition="'$(DotNetBuildUseMonoRuntime)' != 'true' and '$(TargetOS)' != 'browser'">$(BuildArgs) /p:DotNetBuildAllRuntimePacks=true</BuildArgs>
+    <BuildArgs Condition="'$(DotNetBuildUseMonoRuntime)' == 'false' and '$(TargetOS)' == 'browser'">$(BuildArgs) /p:RuntimeFlavor=CoreCLR</BuildArgs>
 
     <!-- When we're actually doing signing and the ESRP tool is available, forward down the path to the repo builds. -->
     <BuildArgs Condition="'$(DotNetBuildSign)' == 'true' and '$(ForceDryRunSigning)' != 'true' and '$(DotNetEsrpToolPath)' != ''">$(BuildArgs) /p:DotNetEsrpToolPath=$(DotNetEsrpToolPath)</BuildArgs>
@@ -51,6 +45,9 @@
     <BuildArgs Condition="'$(MonoAOTEnableLLVM)' != ''">$(BuildArgs) /p:MonoAOTEnableLLVM=$(MonoAOTEnableLLVM)</BuildArgs>
     <BuildArgs Condition="'$(MonoBundleLLVMOptimizer)' != ''">$(BuildArgs) /p:MonoBundleLLVMOptimizer=$(MonoBundleLLVMOptimizer)</BuildArgs>
     <BuildArgs Condition="'$(PgoInstrument)' == 'true'">$(BuildArgs) $(FlagParameterPrefix)pgoinstrument</BuildArgs>
+    <!-- Pass through the C++ standard library to use (e.g., libc++ or (the default) libstdc++). -->
+    <BuildArgs Condition="'$(TargetCxxStandardLibrary)' != ''">$(BuildArgs) /p:TargetCxxStandardLibrary=$(TargetCxxStandardLibrary)</BuildArgs>
+    <BuildArgs Condition="'$(CppCompilerAndLinker)' != ''">$(BuildArgs) /p:CppCompilerAndLinker=$(CppCompilerAndLinker)</BuildArgs>
 
     <!-- Handle system libraries -->
     <BuildArgs Condition="$(UseSystemLibs.Contains('+brotli')) or $(UseSystemLibs.Contains('+all'))">$(BuildArgs) --cmakeargs -DCLR_CMAKE_USE_SYSTEM_BROTLI=true</BuildArgs>
@@ -66,10 +63,13 @@
     <RepositoryReference Include="arcade" />
     <RepositoryReference Include="cecil" />
     <RepositoryReference Include="command-line-api" />
+    <!-- The browser (WebAssembly) runtime build needs the Emscripten toolchain provided by emsdk.
+         emsdk is a host build tool, so its .proj builds it for the host even in this browser vertical. -->
+    <RepositoryReference Include="emsdk" Condition="'$(TargetOS)' == 'browser'" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
-    <RepositoryReference Include="source-build-reference-packages" />
+    <RepositoryReference Include="source-build-assets" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">

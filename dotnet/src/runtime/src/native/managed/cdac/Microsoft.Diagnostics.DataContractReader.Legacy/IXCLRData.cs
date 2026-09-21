@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
@@ -17,6 +17,11 @@ public struct CLRDataModuleExtent
     public uint /* CLRDataModuleExtentType */ type;
 }
 
+public struct DacpGetModuleAddress
+{
+    public ClrDataAddress ModulePtr;
+}
+
 public struct DacpGetModuleData
 {
     public uint IsDynamic;
@@ -29,6 +34,40 @@ public struct DacpGetModuleData
     public ulong InMemoryPdbSize;
 }
 
+public enum CLRDataByNameFlag : uint
+{
+    CLRDATA_BYNAME_CASE_SENSITIVE = 0,
+    CLRDATA_BYNAME_CASE_INSENSITIVE = 1
+}
+
+public enum CLRDataAddressType : uint
+{
+    CLRDATA_ADDRESS_UNRECOGNIZED = 0,
+    CLRDATA_ADDRESS_MANAGED_METHOD = 1,
+    CLRDATA_ADDRESS_RUNTIME_UNMANAGED_STUB = 6,
+}
+
+[Flags]
+public enum CLRDataMethodCodeNotification : uint
+{
+    CLRDATA_METHNOTIFY_NONE      = 0x00000000,
+    CLRDATA_METHNOTIFY_GENERATED = 0x00000001,
+    CLRDATA_METHNOTIFY_DISCARDED = 0x00000002,
+}
+
+public unsafe struct EXCEPTION_RECORD64
+{
+    public const int ExceptionMaximumParameters = 15;
+
+    public uint ExceptionCode;
+    public uint ExceptionFlags;
+    public ulong ExceptionRecord;
+    public ulong ExceptionAddress;
+    public uint NumberParameters;
+    public uint _unusedAlignment;
+    public fixed ulong ExceptionInformation[ExceptionMaximumParameters];
+}
+
 [GeneratedComInterface]
 [Guid("88E32849-0A0A-4cb0-9022-7CD2E9E139E2")]
 public unsafe partial interface IXCLRDataModule
@@ -36,62 +75,62 @@ public unsafe partial interface IXCLRDataModule
     [PreserveSig]
     int StartEnumAssemblies(ulong* handle);
     [PreserveSig]
-    int EnumAssembly(ulong* handle, /*IXCLRDataAssembly*/ void** assembly);
+    int EnumAssembly(ulong* handle, DacComNullableByRef<IXCLRDataAssembly> assembly);
     [PreserveSig]
     int EndEnumAssemblies(ulong handle);
 
     [PreserveSig]
     int StartEnumTypeDefinitions(ulong* handle);
     [PreserveSig]
-    int EnumTypeDefinition(ulong* handle, /*IXCLRDataTypeDefinition*/ void** typeDefinition);
+    int EnumTypeDefinition(ulong* handle, DacComNullableByRef<IXCLRDataTypeDefinition> typeDefinition);
     [PreserveSig]
     int EndEnumTypeDefinitions(ulong handle);
 
     [PreserveSig]
-    int StartEnumTypeInstances(/*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumTypeInstances(IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumTypeInstance(ulong* handle, /*IXCLRDataTypeInstance*/ void** typeInstance);
+    int EnumTypeInstance(ulong* handle, DacComNullableByRef<IXCLRDataTypeInstance> typeInstance);
     [PreserveSig]
     int EndEnumTypeInstances(ulong handle);
 
     [PreserveSig]
     int StartEnumTypeDefinitionsByName(char* name, uint flags, ulong* handle);
     [PreserveSig]
-    int EnumTypeDefinitionByName(ulong* handle, /*IXCLRDataTypeDefinition*/ void** type);
+    int EnumTypeDefinitionByName(ulong* handle, DacComNullableByRef<IXCLRDataTypeDefinition> type);
     [PreserveSig]
     int EndEnumTypeDefinitionsByName(ulong handle);
 
     [PreserveSig]
-    int StartEnumTypeInstancesByName(char* name, uint flags, /*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumTypeInstancesByName(char* name, uint flags, IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumTypeInstanceByName(ulong* handle, /*IXCLRDataTypeInstance*/ void** type);
+    int EnumTypeInstanceByName(ulong* handle, DacComNullableByRef<IXCLRDataTypeInstance> type);
     [PreserveSig]
     int EndEnumTypeInstancesByName(ulong handle);
 
     [PreserveSig]
-    int GetTypeDefinitionByToken(/*mdTypeDef*/ uint token, /*IXCLRDataTypeDefinition*/ void** typeDefinition);
+    int GetTypeDefinitionByToken(/*mdTypeDef*/ uint token, DacComNullableByRef<IXCLRDataTypeDefinition> typeDefinition);
 
     [PreserveSig]
     int StartEnumMethodDefinitionsByName(char* name, uint flags, ulong* handle);
     [PreserveSig]
-    int EnumMethodDefinitionByName(ulong* handle, /*IXCLRDataMethodDefinition*/ void** method);
+    int EnumMethodDefinitionByName(ulong* handle, DacComNullableByRef<IXCLRDataMethodDefinition> method);
     [PreserveSig]
     int EndEnumMethodDefinitionsByName(ulong handle);
 
     [PreserveSig]
-    int StartEnumMethodInstancesByName(char* name, uint flags, /*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumMethodInstancesByName(char* name, uint flags, IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumMethodInstanceByName(ulong* handle, out IXCLRDataMethodInstance? method);
+    int EnumMethodInstanceByName(ulong* handle, DacComNullableByRef<IXCLRDataMethodInstance> method);
     [PreserveSig]
     int EndEnumMethodInstancesByName(ulong handle);
 
     [PreserveSig]
-    int GetMethodDefinitionByToken(/*mdMethodDef*/ uint token, /*IXCLRDataMethodDefinition*/ void** methodDefinition);
+    int GetMethodDefinitionByToken(/*mdMethodDef*/ uint token, DacComNullableByRef<IXCLRDataMethodDefinition> methodDefinition);
 
     [PreserveSig]
-    int StartEnumDataByName(char* name, uint flags, /*IXCLRDataAppDomain*/ void* appDomain, /*IXCLRDataTask*/ void* tlsTask, ulong* handle);
+    int StartEnumDataByName(char* name, uint flags, IXCLRDataAppDomain? appDomain, IXCLRDataTask? tlsTask, ulong* handle);
     [PreserveSig]
-    int EnumDataByName(ulong* handle, /*IXCLRDataValue*/ void** value);
+    int EnumDataByName(ulong* handle, DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int EndEnumDataByName(ulong handle);
 
@@ -145,14 +184,14 @@ public unsafe partial interface IXCLRDataProcess
     [PreserveSig]
     int StartEnumTasks(ulong* handle);
     [PreserveSig]
-    int EnumTask(ulong* handle, /*IXCLRDataTask*/ void** task);
+    int EnumTask(ulong* handle, DacComNullableByRef<IXCLRDataTask> task);
     [PreserveSig]
     int EndEnumTasks(ulong handle);
 
     [PreserveSig]
-    int GetTaskByOSThreadID(uint osThreadID, out IXCLRDataTask? task);
+    int GetTaskByOSThreadID(uint osThreadID, DacComNullableByRef<IXCLRDataTask> task);
     [PreserveSig]
-    int GetTaskByUniqueID(ulong taskID, /*IXCLRDataTask*/ void** task);
+    int GetTaskByUniqueID(ulong taskID, DacComNullableByRef<IXCLRDataTask> task);
 
     [PreserveSig]
     int GetFlags(uint* flags);
@@ -161,7 +200,7 @@ public unsafe partial interface IXCLRDataProcess
     int IsSameObject(IXCLRDataProcess* process);
 
     [PreserveSig]
-    int GetManagedObject(/*IXCLRDataValue*/ void** value);
+    int GetManagedObject(DacComNullableByRef<IXCLRDataValue> value);
 
     [PreserveSig]
     int GetDesiredExecutionState(uint* state);
@@ -169,7 +208,7 @@ public unsafe partial interface IXCLRDataProcess
     int SetDesiredExecutionState(uint state);
 
     [PreserveSig]
-    int GetAddressType(ClrDataAddress address, /*CLRDataAddressType*/ uint* type);
+    int GetAddressType(ClrDataAddress address, CLRDataAddressType* type);
 
     [PreserveSig]
     int GetRuntimeNameByAddress(
@@ -183,32 +222,32 @@ public unsafe partial interface IXCLRDataProcess
     [PreserveSig]
     int StartEnumAppDomains(ulong* handle);
     [PreserveSig]
-    int EnumAppDomain(ulong* handle, /*IXCLRDataAppDomain*/ void** appDomain);
+    int EnumAppDomain(ulong* handle, DacComNullableByRef<IXCLRDataAppDomain> appDomain);
     [PreserveSig]
     int EndEnumAppDomains(ulong handle);
     [PreserveSig]
-    int GetAppDomainByUniqueID(ulong id, /*IXCLRDataAppDomain*/ void** appDomain);
+    int GetAppDomainByUniqueID(ulong id, DacComNullableByRef<IXCLRDataAppDomain> appDomain);
 
     [PreserveSig]
     int StartEnumAssemblies(ulong* handle);
     [PreserveSig]
-    int EnumAssembly(ulong* handle, /*IXCLRDataAssembly*/ void** assembly);
+    int EnumAssembly(ulong* handle, DacComNullableByRef<IXCLRDataAssembly> assembly);
     [PreserveSig]
     int EndEnumAssemblies(ulong handle);
 
     [PreserveSig]
     int StartEnumModules(ulong* handle);
     [PreserveSig]
-    int EnumModule(ulong* handle, /*IXCLRDataModule*/ void** mod);
+    int EnumModule(ulong* handle, DacComNullableByRef<IXCLRDataModule> mod);
     [PreserveSig]
     int EndEnumModules(ulong handle);
     [PreserveSig]
-    int GetModuleByAddress(ClrDataAddress address, /*IXCLRDataModule*/ void** mod);
+    int GetModuleByAddress(ClrDataAddress address, DacComNullableByRef<IXCLRDataModule> mod);
 
     [PreserveSig]
-    int StartEnumMethodInstancesByAddress(ClrDataAddress address, /*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumMethodInstancesByAddress(ClrDataAddress address, IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumMethodInstanceByAddress(ulong* handle, out IXCLRDataMethodInstance? method);
+    int EnumMethodInstanceByAddress(ulong* handle, DacComNullableByRef<IXCLRDataMethodInstance> method);
     [PreserveSig]
     int EndEnumMethodInstancesByAddress(ulong handle);
 
@@ -216,63 +255,63 @@ public unsafe partial interface IXCLRDataProcess
     int GetDataByAddress(
         ClrDataAddress address,
         uint flags,
-        /*IXCLRDataAppDomain*/ void* appDomain,
-        /*IXCLRDataTask*/ void* tlsTask,
+        IXCLRDataAppDomain? appDomain,
+        IXCLRDataTask? tlsTask,
         uint bufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataValue*/ void** value,
+        DacComNullableByRef<IXCLRDataValue> value,
         ClrDataAddress* displacement);
 
     [PreserveSig]
-    int GetExceptionStateByExceptionRecord(/*struct EXCEPTION_RECORD64*/ void* record, /*IXCLRDataExceptionState*/ void** exState);
+    int GetExceptionStateByExceptionRecord(EXCEPTION_RECORD64* record, DacComNullableByRef<IXCLRDataExceptionState> exState);
     [PreserveSig]
-    int TranslateExceptionRecordToNotification(/*struct EXCEPTION_RECORD64*/ void* record, /*IXCLRDataExceptionNotification*/ void* notify);
+    int TranslateExceptionRecordToNotification(EXCEPTION_RECORD64* record, [MarshalUsing(typeof(UniqueComInterfaceMarshaller<IXCLRDataExceptionNotification>))] IXCLRDataExceptionNotification notify);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
 
     [PreserveSig]
     int CreateMemoryValue(
-        /*IXCLRDataAppDomain*/ void* appDomain,
-        /*IXCLRDataTask*/ void* tlsTask,
-        /*IXCLRDataTypeInstance*/ void* type,
+        IXCLRDataAppDomain? appDomain,
+        IXCLRDataTask? tlsTask,
+        IXCLRDataTypeInstance? type,
         ClrDataAddress addr,
-        /*IXCLRDataValue*/ void** value);
+        DacComNullableByRef<IXCLRDataValue> value);
 
     [PreserveSig]
-    int SetAllTypeNotifications(/*IXCLRDataModule*/ void* mod, uint flags);
+    int SetAllTypeNotifications(IXCLRDataModule? mod, uint flags);
     [PreserveSig]
-    int SetAllCodeNotifications(/*IXCLRDataModule*/ void* mod, uint flags);
+    int SetAllCodeNotifications(IXCLRDataModule? mod, uint flags);
     [PreserveSig]
     int GetTypeNotifications(
         uint numTokens,
         /*IXCLRDataModule*/ void** mods,
-        /*IXCLRDataModule*/ void* singleMod,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdTypeDef*/ uint[] tokens,
-        [In, Out, MarshalUsing(CountElementName = nameof(numTokens))] uint[] flags);
+        IXCLRDataModule? singleMod,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdTypeDef*/ uint[]? tokens,
+        [In, Out, MarshalUsing(CountElementName = nameof(numTokens))] uint[]? flags);
     [PreserveSig]
     int SetTypeNotifications(
         uint numTokens,
         /*IXCLRDataModule*/ void** mods,
-        /*IXCLRDataModule*/ void* singleMod,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdTypeDef*/ uint[] tokens,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] uint[] flags,
+        IXCLRDataModule? singleMod,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdTypeDef*/ uint[]? tokens,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] uint[]? flags,
         uint singleFlags);
     [PreserveSig]
     int GetCodeNotifications(
         uint numTokens,
         /*IXCLRDataModule*/ void** mods,
-        /*IXCLRDataModule*/ void* singleMod,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdMethodDef*/ uint[] tokens,
-        [In, Out, MarshalUsing(CountElementName = nameof(numTokens))] uint[] flags);
+        IXCLRDataModule? singleMod,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdMethodDef*/ uint[]? tokens,
+        [In, Out, MarshalUsing(CountElementName = nameof(numTokens))] uint[]? flags);
     [PreserveSig]
     int SetCodeNotifications(
         uint numTokens,
         /*IXCLRDataModule*/ void** mods,
-        /*IXCLRDataModule*/ void* singleMod,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdMethodDef */ uint[] tokens,
-        [In, MarshalUsing(CountElementName = nameof(numTokens))] uint[] flags,
+        IXCLRDataModule? singleMod,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] /*mdMethodDef */ uint[]? tokens,
+        [In, MarshalUsing(CountElementName = nameof(numTokens))] uint[]? flags,
         uint singleFlags);
     [PreserveSig]
     int GetOtherNotificationFlags(uint* flags);
@@ -282,7 +321,7 @@ public unsafe partial interface IXCLRDataProcess
     [PreserveSig]
     int StartEnumMethodDefinitionsByAddress(ClrDataAddress address, ulong* handle);
     [PreserveSig]
-    int EnumMethodDefinitionByAddress(ulong* handle, /*IXCLRDataMethodDefinition*/ void** method);
+    int EnumMethodDefinitionByAddress(ulong* handle, DacComNullableByRef<IXCLRDataMethodDefinition> method);
     [PreserveSig]
     int EndEnumMethodDefinitionsByAddress(ulong handle);
 
@@ -296,7 +335,7 @@ public unsafe partial interface IXCLRDataProcess
         uint* outFlags);
     [PreserveSig]
     int FollowStub2(
-        /*IXCLRDataTask*/ void* task,
+        IXCLRDataTask? task,
         uint inFlags,
         ClrDataAddress inAddr,
         /*struct CLRDATA_FOLLOW_STUB_BUFFER*/ void* inBuffer,
@@ -335,6 +374,19 @@ public unsafe partial interface IXCLRDataProcess2 : IXCLRDataProcess
 }
 
 [GeneratedComInterface]
+[Guid("5c552ab6-fc09-4cb3-8e36-22fa03c798b9")]
+public unsafe partial interface IXCLRDataProcess3 : IXCLRDataProcess2
+{
+    [PreserveSig]
+    int GetFunctionTable(
+        ClrDataAddress tableAddress,
+        uint bufferSize,
+        byte* buffer,
+        uint* bytesNeeded,
+        uint* entries);
+}
+
+[GeneratedComInterface]
 [Guid("E59D8D22-ADA7-49a2-89B5-A415AFCFC95F")]
 public unsafe partial interface IXCLRDataStackWalk
 {
@@ -355,10 +407,10 @@ public unsafe partial interface IXCLRDataStackWalk
     int GetStackSizeSkipped(ulong* stackSizeSkipped);
 
     [PreserveSig]
-    int GetFrameType(/*CLRDataSimpleFrameType*/ uint* simpleType, /*CLRDataDetailedFrameType*/ uint* detailedType);
+    int GetFrameType(CLRDataSimpleFrameType* simpleType, CLRDataDetailedFrameType* detailedType);
 
     [PreserveSig]
-    int GetFrame(out IXCLRDataFrame? frame);
+    int GetFrame(DacComNullableByRef<IXCLRDataFrame> frame);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
@@ -382,7 +434,7 @@ public unsafe partial interface IXCLRDataFrame
         [Out, MarshalUsing(CountElementName = nameof(contextBufSize))] byte[] contextBuf);
 
     [PreserveSig]
-    int GetAppDomain(/*IXCLRDataAppDomain*/ void** appDomain);
+    int GetAppDomain(DacComNullableByRef<IXCLRDataAppDomain> appDomain);
 
     [PreserveSig]
     int GetNumArguments(uint* numArgs);
@@ -390,7 +442,7 @@ public unsafe partial interface IXCLRDataFrame
     [PreserveSig]
     int GetArgumentByIndex(
         uint index,
-        /*IXCLRDataValue*/ void** arg,
+        DacComNullableByRef<IXCLRDataValue> arg,
         uint bufLen,
         uint* nameLen,
         char* name);
@@ -401,7 +453,7 @@ public unsafe partial interface IXCLRDataFrame
     [PreserveSig]
     int GetLocalVariableByIndex(
         uint index,
-        /*IXCLRDataValue*/ void** localVariable,
+        DacComNullableByRef<IXCLRDataValue> localVariable,
         uint bufLen,
         uint* nameLen,
         char* name);
@@ -414,7 +466,7 @@ public unsafe partial interface IXCLRDataFrame
         char* nameBuf);
 
     [PreserveSig]
-    int GetMethodInstance(out IXCLRDataMethodInstance? method);
+    int GetMethodInstance(DacComNullableByRef<IXCLRDataMethodInstance> method);
 
     [PreserveSig]
     int Request(
@@ -428,7 +480,7 @@ public unsafe partial interface IXCLRDataFrame
     int GetNumTypeArguments(uint* numTypeArgs);
 
     [PreserveSig]
-    int GetTypeArgumentByIndex(uint index, /*IXCLRDataTypeInstance*/ void** typeArg);
+    int GetTypeArgumentByIndex(uint index, DacComNullableByRef<IXCLRDataTypeInstance> typeArg);
 }
 
 [GeneratedComInterface]
@@ -436,7 +488,7 @@ public unsafe partial interface IXCLRDataFrame
 public unsafe partial interface IXCLRDataFrame2
 {
     [PreserveSig]
-    int GetExactGenericArgsToken(/*IXCLRDataValue*/ void** genericToken);
+    int GetExactGenericArgsToken(DacComNullableByRef<IXCLRDataValue> genericToken);
 }
 
 [GeneratedComInterface]
@@ -447,7 +499,7 @@ public unsafe partial interface IXCLRDataTask
     int GetProcess(/*IXCLRDataProcess*/ void** process);
 
     [PreserveSig]
-    int GetCurrentAppDomain(/*IXCLRDataAppDomain*/ void** appDomain);
+    int GetCurrentAppDomain(DacComNullableByRef<IXCLRDataAppDomain> appDomain);
 
     [PreserveSig]
     int GetUniqueID(ulong* id);
@@ -459,7 +511,7 @@ public unsafe partial interface IXCLRDataTask
     int IsSameObject(IXCLRDataTask* task);
 
     [PreserveSig]
-    int GetManagedObject(/*IXCLRDataValue*/ void** value);
+    int GetManagedObject(DacComNullableByRef<IXCLRDataValue> value);
 
     [PreserveSig]
     int GetDesiredExecutionState(uint* state);
@@ -468,7 +520,7 @@ public unsafe partial interface IXCLRDataTask
     int SetDesiredExecutionState(uint state);
 
     [PreserveSig]
-    int CreateStackWalk(uint flags, out IXCLRDataStackWalk? stackWalk);
+    int CreateStackWalk(CLRDataStackWalkFlag flags, DacComNullableByRef<IXCLRDataStackWalk> stackWalk);
 
     [PreserveSig]
     int GetOSThreadID(uint* id);
@@ -480,7 +532,7 @@ public unsafe partial interface IXCLRDataTask
     int SetContext(uint contextSize, byte* context);
 
     [PreserveSig]
-    int GetCurrentExceptionState(/*IXCLRDataExceptionState*/ void** exception);
+    int GetCurrentExceptionState(DacComNullableByRef<IXCLRDataExceptionState> exception);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
@@ -489,12 +541,19 @@ public unsafe partial interface IXCLRDataTask
     int GetName(uint bufLen, uint* nameLen, char* nameBuffer);
 
     [PreserveSig]
-    int GetLastExceptionState(/*IXCLRDataExceptionState*/ void** exception);
+    int GetLastExceptionState(DacComNullableByRef<IXCLRDataExceptionState> exception);
 }
 
 public enum ClrDataSourceType : uint
 {
     CLRDATA_SOURCE_TYPE_INVALID = 0,
+}
+
+public enum CLRDataILOffsetMarker : uint
+{
+    CLRDATA_IL_OFFSET_NO_MAPPING = unchecked((uint)-1),
+    CLRDATA_IL_OFFSET_PROLOG = unchecked((uint)-2),
+    CLRDATA_IL_OFFSET_EPILOG = unchecked((uint)-3),
 }
 
 // CLRDATA_IL_ADDRESS_MAP
@@ -506,18 +565,24 @@ public struct ClrDataILAddressMap
     public ClrDataSourceType type;
 }
 
+public struct ClrDataAddressRange
+{
+    public ClrDataAddress startAddress;
+    public ClrDataAddress endAddress;
+}
+
 [GeneratedComInterface]
 [Guid("ECD73800-22CA-4b0d-AB55-E9BA7E6318A5")]
 public unsafe partial interface IXCLRDataMethodInstance
 {
     [PreserveSig]
-    int GetTypeInstance(/*IXCLRDataTypeInstance*/ void** typeInstance);
+    int GetTypeInstance(DacComNullableByRef<IXCLRDataTypeInstance> typeInstance);
 
     [PreserveSig]
-    int GetDefinition(/*IXCLRDataMethodDefinition*/ void** methodDefinition);
+    int GetDefinition(DacComNullableByRef<IXCLRDataMethodDefinition> methodDefinition);
 
     [PreserveSig]
-    int GetTokenAndScope(uint* token, void** /*IXCLRDataModule*/ mod);
+    int GetTokenAndScope(uint* token, DacComNullableByRef<IXCLRDataModule> mod);
 
     [PreserveSig]
     int GetName(
@@ -539,7 +604,7 @@ public unsafe partial interface IXCLRDataMethodInstance
     int GetNumTypeArguments(uint* numTypeArgs);
 
     [PreserveSig]
-    int GetTypeArgumentByIndex(uint index, /*IXCLRDataTypeInstance*/ void** typeArg);
+    int GetTypeArgumentByIndex(uint index, DacComNullableByRef<IXCLRDataTypeInstance> typeArg);
 
     [PreserveSig]
     int GetILOffsetsByAddress(
@@ -553,7 +618,7 @@ public unsafe partial interface IXCLRDataMethodInstance
         uint ilOffset,
         uint rangesLen,
         uint* rangesNeeded,
-        /*CLRDATA_ADDRESS_RANGE* */ void* addressRanges);
+        [In, Out, MarshalUsing(CountElementName = nameof(rangesLen))] ClrDataAddressRange[]? addressRanges);
 
     [PreserveSig]
     int GetILAddressMap(
@@ -565,7 +630,7 @@ public unsafe partial interface IXCLRDataMethodInstance
     int StartEnumExtents(ulong* handle);
 
     [PreserveSig]
-    int EnumExtent(ulong* handle, /*CLRDATA_ADDRESS_RANGE*/ void* extent);
+    int EnumExtent(ulong* handle, ClrDataAddressRange* extent);
 
     [PreserveSig]
     int EndEnumExtents(ulong handle);
@@ -587,7 +652,7 @@ public unsafe partial interface IXCLRDataMethodInstance
 public unsafe partial interface IXCLRDataAppDomain
 {
     [PreserveSig]
-    int GetProcess(/*IXCLRDataProcess*/ void** process);
+    int GetProcess(DacComNullableByRef<IXCLRDataProcess> process);
     [PreserveSig]
     int GetName(uint bufLen, uint* nameLen, char* name);
     [PreserveSig]
@@ -595,9 +660,9 @@ public unsafe partial interface IXCLRDataAppDomain
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int IsSameObject(/*IXCLRDataAppDomain*/ void* appDomain);
+    int IsSameObject(IXCLRDataAppDomain* appDomain);
     [PreserveSig]
-    int GetManagedObject(/*IXCLRDataValue*/ void** value);
+    int GetManagedObject(DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
 }
@@ -609,7 +674,7 @@ public unsafe partial interface IXCLRDataAssembly
     [PreserveSig]
     int StartEnumModules(ulong* handle);
     [PreserveSig]
-    int EnumModule(ulong* handle, /*IXCLRDataModule*/ void** mod);
+    int EnumModule(ulong* handle, DacComNullableByRef<IXCLRDataModule> mod);
     [PreserveSig]
     int EndEnumModules(ulong handle);
 
@@ -620,7 +685,7 @@ public unsafe partial interface IXCLRDataAssembly
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int IsSameObject(/*IXCLRDataAssembly*/ void* assembly);
+    int IsSameObject(IXCLRDataAssembly? assembly);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
@@ -641,42 +706,42 @@ public unsafe partial interface IXCLRDataAssembly
 public unsafe partial interface IXCLRDataTypeDefinition
 {
     [PreserveSig]
-    int GetModule(/*IXCLRDataModule*/ void** mod);
+    int GetModule(DacComNullableByRef<IXCLRDataModule> mod);
 
     [PreserveSig]
     int StartEnumMethodDefinitions(ulong* handle);
     [PreserveSig]
-    int EnumMethodDefinition(ulong* handle, /*IXCLRDataMethodDefinition*/ void** methodDefinition);
+    int EnumMethodDefinition(ulong* handle, DacComNullableByRef<IXCLRDataMethodDefinition> methodDefinition);
     [PreserveSig]
     int EndEnumMethodDefinitions(ulong handle);
 
     [PreserveSig]
     int StartEnumMethodDefinitionsByName(char* name, uint flags, ulong* handle);
     [PreserveSig]
-    int EnumMethodDefinitionByName(ulong* handle, /*IXCLRDataMethodDefinition*/ void** method);
+    int EnumMethodDefinitionByName(ulong* handle, DacComNullableByRef<IXCLRDataMethodDefinition> method);
     [PreserveSig]
     int EndEnumMethodDefinitionsByName(ulong handle);
 
     [PreserveSig]
-    int GetMethodDefinitionByToken(/*mdMethodDef*/ uint token, /*IXCLRDataMethodDefinition*/ void** methodDefinition);
+    int GetMethodDefinitionByToken(/*mdMethodDef*/ uint token, DacComNullableByRef<IXCLRDataMethodDefinition> methodDefinition);
 
     [PreserveSig]
-    int StartEnumInstances(/*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumInstances(IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumInstance(ulong* handle, /*IXCLRDataTypeInstance*/ void** instance);
+    int EnumInstance(ulong* handle, DacComNullableByRef<IXCLRDataTypeInstance> instance);
     [PreserveSig]
     int EndEnumInstances(ulong handle);
 
     [PreserveSig]
     int GetName(uint flags, uint bufLen, uint* nameLen, char* nameBuf);
     [PreserveSig]
-    int GetTokenAndScope(/*mdTypeDef*/ uint* token, /*IXCLRDataModule*/ void** mod);
+    int GetTokenAndScope(/*mdTypeDef*/ uint* token, DacComNullableByRef<IXCLRDataModule> mod);
     [PreserveSig]
     int GetCorElementType(/*CorElementType*/ uint* type);
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int IsSameObject(/*IXCLRDataTypeDefinition*/ void* type);
+    int IsSameObject(IXCLRDataTypeDefinition? type);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
@@ -684,7 +749,7 @@ public unsafe partial interface IXCLRDataTypeDefinition
     [PreserveSig]
     int GetArrayRank(uint* rank);
     [PreserveSig]
-    int GetBase(/*IXCLRDataTypeDefinition*/ void** @base);
+    int GetBase(DacComNullableByRef<IXCLRDataTypeDefinition> @base);
     [PreserveSig]
     int GetNumFields(uint flags, uint* numFields);
 
@@ -696,7 +761,7 @@ public unsafe partial interface IXCLRDataTypeDefinition
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataTypeDefinition*/ void** type,
+        DacComNullableByRef<IXCLRDataTypeDefinition> type,
         uint* flags,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
@@ -705,7 +770,7 @@ public unsafe partial interface IXCLRDataTypeDefinition
     [PreserveSig]
     int StartEnumFieldsByName(char* name, uint nameFlags, uint fieldFlags, ulong* handle);
     [PreserveSig]
-    int EnumFieldByName(ulong* handle, /*IXCLRDataTypeDefinition*/ void** type, uint* flags, /*mdFieldDef*/ uint* token);
+    int EnumFieldByName(ulong* handle, DacComNullableByRef<IXCLRDataTypeDefinition> type, uint* flags, /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int EndEnumFieldsByName(ulong handle);
 
@@ -715,7 +780,7 @@ public unsafe partial interface IXCLRDataTypeDefinition
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataTypeDefinition*/ void** type,
+        DacComNullableByRef<IXCLRDataTypeDefinition> type,
         uint* flags);
 
     [PreserveSig]
@@ -729,25 +794,25 @@ public unsafe partial interface IXCLRDataTypeDefinition
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataTypeDefinition*/ void** type,
+        DacComNullableByRef<IXCLRDataTypeDefinition> type,
         uint* flags,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int EnumFieldByName2(
         ulong* handle,
-        /*IXCLRDataTypeDefinition*/ void** type,
+        DacComNullableByRef<IXCLRDataTypeDefinition> type,
         uint* flags,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int GetFieldByToken2(
-        /*IXCLRDataModule*/ void* tokenScope,
+        IXCLRDataModule? tokenScope,
         /*mdFieldDef*/ uint token,
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataTypeDefinition*/ void** type,
+        DacComNullableByRef<IXCLRDataTypeDefinition> type,
         uint* flags);
 }
 
@@ -758,14 +823,14 @@ public unsafe partial interface IXCLRDataTypeInstance
     [PreserveSig]
     int StartEnumMethodInstances(ulong* handle);
     [PreserveSig]
-    int EnumMethodInstance(ulong* handle, /*IXCLRDataMethodInstance*/ void** methodInstance);
+    int EnumMethodInstance(ulong* handle, DacComNullableByRef<IXCLRDataMethodInstance> methodInstance);
     [PreserveSig]
     int EndEnumMethodInstances(ulong handle);
 
     [PreserveSig]
     int StartEnumMethodInstancesByName(char* name, uint flags, ulong* handle);
     [PreserveSig]
-    int EnumMethodInstanceByName(ulong* handle, /*IXCLRDataMethodInstance*/ void** method);
+    int EnumMethodInstanceByName(ulong* handle, DacComNullableByRef<IXCLRDataMethodInstance> method);
     [PreserveSig]
     int EndEnumMethodInstancesByName(ulong handle);
 
@@ -774,35 +839,35 @@ public unsafe partial interface IXCLRDataTypeInstance
     [PreserveSig]
     int GetStaticFieldByIndex(
         uint index,
-        /*IXCLRDataTask*/ void* tlsTask,
-        /*IXCLRDataValue*/ void** field,
+        IXCLRDataTask? tlsTask,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf,
         /*mdFieldDef*/ uint* token);
 
     [PreserveSig]
-    int StartEnumStaticFieldsByName(char* name, uint flags, /*IXCLRDataTask*/ void* tlsTask, ulong* handle);
+    int StartEnumStaticFieldsByName(char* name, uint flags, IXCLRDataTask? tlsTask, ulong* handle);
     [PreserveSig]
-    int EnumStaticFieldByName(ulong* handle, /*IXCLRDataValue*/ void** value);
+    int EnumStaticFieldByName(ulong* handle, DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int EndEnumStaticFieldsByName(ulong handle);
 
     [PreserveSig]
     int GetNumTypeArguments(uint* numTypeArgs);
     [PreserveSig]
-    int GetTypeArgumentByIndex(uint index, /*IXCLRDataTypeInstance*/ void** typeArg);
+    int GetTypeArgumentByIndex(uint index, DacComNullableByRef<IXCLRDataTypeInstance> typeArg);
 
     [PreserveSig]
     int GetName(uint flags, uint bufLen, uint* nameLen, char* nameBuf);
     [PreserveSig]
-    int GetModule(/*IXCLRDataModule*/ void** mod);
+    int GetModule(DacComNullableByRef<IXCLRDataModule> mod);
     [PreserveSig]
-    int GetDefinition(/*IXCLRDataTypeDefinition*/ void** typeDefinition);
+    int GetDefinition(DacComNullableByRef<IXCLRDataTypeDefinition> typeDefinition);
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int IsSameObject(/*IXCLRDataTypeInstance*/ void* type);
+    int IsSameObject(IXCLRDataTypeInstance? type);
 
     [PreserveSig]
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
@@ -811,55 +876,60 @@ public unsafe partial interface IXCLRDataTypeInstance
     int GetNumStaticFields2(uint flags, uint* numFields);
 
     [PreserveSig]
-    int StartEnumStaticFields(uint flags, /*IXCLRDataTask*/ void* tlsTask, ulong* handle);
+    int StartEnumStaticFields(uint flags, IXCLRDataTask? tlsTask, ulong* handle);
     [PreserveSig]
-    int EnumStaticField(ulong* handle, /*IXCLRDataValue*/ void** value);
+    int EnumStaticField(ulong* handle, DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int EndEnumStaticFields(ulong handle);
 
     [PreserveSig]
-    int StartEnumStaticFieldsByName2(char* name, uint nameFlags, uint fieldFlags, /*IXCLRDataTask*/ void* tlsTask, ulong* handle);
+    int StartEnumStaticFieldsByName2(char* name, uint nameFlags, uint fieldFlags, IXCLRDataTask? tlsTask, ulong* handle);
     [PreserveSig]
-    int EnumStaticFieldByName2(ulong* handle, /*IXCLRDataValue*/ void** value);
+    int EnumStaticFieldByName2(ulong* handle, DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int EndEnumStaticFieldsByName2(ulong handle);
 
     [PreserveSig]
     int GetStaticFieldByToken(
         /*mdFieldDef*/ uint token,
-        /*IXCLRDataTask*/ void* tlsTask,
-        /*IXCLRDataValue*/ void** field,
+        IXCLRDataTask? tlsTask,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf);
 
     [PreserveSig]
-    int GetBase(/*IXCLRDataTypeInstance*/ void** @base);
+    int GetBase(DacComNullableByRef<IXCLRDataTypeInstance> @base);
 
     [PreserveSig]
     int EnumStaticField2(
         ulong* handle,
-        /*IXCLRDataValue*/ void** value,
+        DacComNullableByRef<IXCLRDataValue> value,
         uint bufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int EnumStaticFieldByName3(
         ulong* handle,
-        /*IXCLRDataValue*/ void** value,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataValue> value,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int GetStaticFieldByToken2(
-        /*IXCLRDataModule*/ void* tokenScope,
+        IXCLRDataModule? tokenScope,
         /*mdFieldDef*/ uint token,
-        /*IXCLRDataTask*/ void* tlsTask,
-        /*IXCLRDataValue*/ void** field,
+        IXCLRDataTask? tlsTask,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf);
+}
+
+public enum CLRDataMethodDefinitionExtentType : uint
+{
+    CLRDATA_METHDEF_IL,
 }
 
 public struct ClrDataMethodDefinitionExtent
@@ -867,7 +937,7 @@ public struct ClrDataMethodDefinitionExtent
     public ClrDataAddress startAddress;
     public ClrDataAddress endAddress;
     public uint enCVersion;
-    public uint /* CLRDataMethodDefinitionExtentType */ type;
+    public CLRDataMethodDefinitionExtentType type;
 }
 
 [GeneratedComInterface]
@@ -875,23 +945,23 @@ public struct ClrDataMethodDefinitionExtent
 public unsafe partial interface IXCLRDataMethodDefinition
 {
     [PreserveSig]
-    int GetTypeDefinition(/*IXCLRDataTypeDefinition*/ void** typeDefinition);
+    int GetTypeDefinition(DacComNullableByRef<IXCLRDataTypeDefinition> typeDefinition);
 
     [PreserveSig]
-    int StartEnumInstances(/*IXCLRDataAppDomain*/ void* appDomain, ulong* handle);
+    int StartEnumInstances(IXCLRDataAppDomain? appDomain, ulong* handle);
     [PreserveSig]
-    int EnumInstance(ulong* handle, /*IXCLRDataMethodInstance*/ void** instance);
+    int EnumInstance(ulong* handle, DacComNullableByRef<IXCLRDataMethodInstance> instance);
     [PreserveSig]
     int EndEnumInstances(ulong handle);
 
     [PreserveSig]
     int GetName(uint flags, uint bufLen, uint* nameLen, char* name);
     [PreserveSig]
-    int GetTokenAndScope(/*mdMethodDef*/ uint* token, /*IXCLRDataModule*/ void** mod);
+    int GetTokenAndScope(/*mdMethodDef*/ uint* token, DacComNullableByRef<IXCLRDataModule> mod);
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int IsSameObject(/*IXCLRDataMethodDefinition*/ void* method);
+    int IsSameObject(IXCLRDataMethodDefinition? method);
     [PreserveSig]
     int GetLatestEnCVersion(uint* version);
 
@@ -916,6 +986,57 @@ public unsafe partial interface IXCLRDataMethodDefinition
     int HasClassOrMethodInstantiation(int* bGeneric);
 }
 
+public enum CLRDataGeneralRequest : uint
+{
+    CLRDATA_REQUEST_REVISION = 0xe0000000,
+}
+
+public enum CLRDataStackWalkRequest : uint
+{
+    CLRDATA_STACK_WALK_REQUEST_SET_FIRST_FRAME = 0xe1000000,
+}
+
+[Flags]
+public enum CLRDataStackWalkFlag : uint
+{
+    CLRDATA_SIMPFRAME_RUNTIME_UNMANAGED_CODE = 0x8,
+}
+
+[Flags]
+public enum CLRDataStackSetContextFlag : uint
+{
+    CLRDATA_STACK_SET_UNWIND_CONTEXT = 0x00000000,
+    CLRDATA_STACK_SET_CURRENT_CONTEXT = 0x00000001,
+}
+
+public enum CLRDataSimpleFrameType : uint
+{
+    CLRDATA_SIMPFRAME_UNRECOGNIZED = 0x1,
+    CLRDATA_SIMPFRAME_MANAGED_METHOD = 0x2,
+    CLRDATA_SIMPFRAME_RUNTIME_UNMANAGED_CODE = 0x8,
+}
+
+public enum CLRDataDetailedFrameType : uint
+{
+    CLRDATA_DETFRAME_UNRECOGNIZED = 0,
+    CLRDATA_DETFRAME_EXCEPTION_FILTER = 3,
+}
+
+[Flags]
+public enum CLRDataExceptionStateFlag : uint
+{
+    CLRDATA_EXCEPTION_DEFAULT = 0,
+    CLRDATA_EXCEPTION_NESTED = 0x1,
+    CLRDATA_EXCEPTION_PARTIAL = 0x2,
+}
+
+[Flags]
+public enum CLRDataExceptionSameFlag : uint
+{
+    CLRDATA_EXSAME_SECOND_CHANCE = 0,
+    CLRDATA_EXSAME_FIRST_CHANCE = 0x1,
+}
+
 [GeneratedComInterface]
 [Guid("75DA9E4C-BD33-43C8-8F5C-96E8A5241F57")]
 public unsafe partial interface IXCLRDataExceptionState
@@ -923,9 +1044,9 @@ public unsafe partial interface IXCLRDataExceptionState
     [PreserveSig]
     int GetFlags(uint* flags);
     [PreserveSig]
-    int GetPrevious(/*IXCLRDataExceptionState*/ void** exState);
+    int GetPrevious(DacComNullableByRef<IXCLRDataExceptionState> exState);
     [PreserveSig]
-    int GetManagedObject(/*IXCLRDataValue*/ void** value);
+    int GetManagedObject(DacComNullableByRef<IXCLRDataValue> value);
     [PreserveSig]
     int GetBaseType(/*CLRDataBaseExceptionType*/ uint* type);
     [PreserveSig]
@@ -937,11 +1058,38 @@ public unsafe partial interface IXCLRDataExceptionState
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
 
     [PreserveSig]
-    int IsSameState(/*EXCEPTION_RECORD64*/ void* exRecord, uint contextSize, byte* cxRecord);
+    int IsSameState(EXCEPTION_RECORD64* exRecord, uint contextSize, byte* cxRecord);
     [PreserveSig]
-    int IsSameState2(uint flags, /*EXCEPTION_RECORD64*/ void* exRecord, uint contextSize, byte* cxRecord);
+    int IsSameState2(uint flags, EXCEPTION_RECORD64* exRecord, uint contextSize, byte* cxRecord);
     [PreserveSig]
-    int GetTask(/*IXCLRDataTask*/ void** task);
+    int GetTask(DacComNullableByRef<IXCLRDataTask> task);
+}
+
+[Flags]
+public enum ClrDataValueFlag : uint
+{
+    DEFAULT = 0x00000000,
+    IS_PRIMITIVE = 0x00000001,
+    IS_VALUE_TYPE = 0x00000002,
+    IS_STRING = 0x00000004,
+    IS_ARRAY = 0x00000008,
+    IS_REFERENCE = 0x00000010,
+    IS_POINTER = 0x00000020,
+    IS_ENUM = 0x00000040,
+    ALL_KINDS = 0x0000007f,
+    IS_INHERITED = 0x00000080,
+    IS_LITERAL = 0x00000100,
+    FROM_INSTANCE = 0x00000200,
+    FROM_TASK_LOCAL = 0x00000400,
+    FROM_STATIC = 0x00000800,
+    ALL_LOCATIONS = 0x00000e00,
+    ALL_FIELDS = 0x00000eff,
+}
+
+public static class ClrDataVLocFlag
+{
+    public const uint CLRDATA_VLOC_MEMORY = 0x00;
+    public const uint CLRDATA_VLOC_REGISTER = 0x01;
 }
 
 [GeneratedComInterface]
@@ -961,14 +1109,14 @@ public unsafe partial interface IXCLRDataValue
     int SetBytes(uint bufLen, uint* dataSize, byte* buffer);
 
     [PreserveSig]
-    int GetType(/*IXCLRDataTypeInstance*/ void** typeInstance);
+    int GetType(DacComNullableByRef<IXCLRDataTypeInstance> typeInstance);
 
     [PreserveSig]
     int GetNumFields(uint* numFields);
     [PreserveSig]
     int GetFieldByIndex(
         uint index,
-        /*IXCLRDataValue*/ void** field,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf,
@@ -978,14 +1126,14 @@ public unsafe partial interface IXCLRDataValue
     int Request(uint reqCode, uint inBufferSize, byte* inBuffer, uint outBufferSize, byte* outBuffer);
 
     [PreserveSig]
-    int GetNumFields2(uint flags, /*IXCLRDataTypeInstance*/ void* fromType, uint* numFields);
+    int GetNumFields2(uint flags, IXCLRDataTypeInstance? fromType, uint* numFields);
 
     [PreserveSig]
-    int StartEnumFields(uint flags, /*IXCLRDataTypeInstance*/ void* fromType, ulong* handle);
+    int StartEnumFields(uint flags, IXCLRDataTypeInstance? fromType, ulong* handle);
     [PreserveSig]
     int EnumField(
         ulong* handle,
-        /*IXCLRDataValue*/ void** field,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
@@ -994,53 +1142,53 @@ public unsafe partial interface IXCLRDataValue
     int EndEnumFields(ulong handle);
 
     [PreserveSig]
-    int StartEnumFieldsByName(char* name, uint nameFlags, uint fieldFlags, /*IXCLRDataTypeInstance*/ void* fromType, ulong* handle);
+    int StartEnumFieldsByName(char* name, uint nameFlags, uint fieldFlags, IXCLRDataTypeInstance? fromType, ulong* handle);
     [PreserveSig]
-    int EnumFieldByName(ulong* handle, /*IXCLRDataValue*/ void** field, /*mdFieldDef*/ uint* token);
+    int EnumFieldByName(ulong* handle, DacComNullableByRef<IXCLRDataValue> field, /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int EndEnumFieldsByName(ulong handle);
 
     [PreserveSig]
     int GetFieldByToken(
         /*mdFieldDef*/ uint token,
-        /*IXCLRDataValue*/ void** field,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf);
 
     [PreserveSig]
-    int GetAssociatedValue(/*IXCLRDataValue*/ void** assocValue);
+    int GetAssociatedValue(DacComNullableByRef<IXCLRDataValue> assocValue);
     [PreserveSig]
-    int GetAssociatedType(/*IXCLRDataTypeInstance*/ void** assocType);
+    int GetAssociatedType(DacComNullableByRef<IXCLRDataTypeInstance> assocType);
 
     [PreserveSig]
     int GetString(uint bufLen, uint* strLen, char* str);
 
     [PreserveSig]
-    int GetArrayProperties(uint* rank, uint* totalElements, uint numDim, uint* dims, uint numBases, int* bases);
+    int GetArrayProperties(uint* rank, uint* totalElements, uint numDim, [Out, MarshalUsing(CountElementName = nameof(numDim))] uint[] dims, uint numBases, [Out, MarshalUsing(CountElementName = nameof(numBases))] int[] bases);
     [PreserveSig]
-    int GetArrayElement(uint numInd, int* indices, /*IXCLRDataValue*/ void** value);
+    int GetArrayElement(uint numInd, [In, MarshalUsing(CountElementName = nameof(numInd))] int[] indices, DacComNullableByRef<IXCLRDataValue> value);
 
     [PreserveSig]
     int EnumField2(
         ulong* handle,
-        /*IXCLRDataValue*/ void** field,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint nameBufLen,
         uint* nameLen,
         char* nameBuf,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int EnumFieldByName2(
         ulong* handle,
-        /*IXCLRDataValue*/ void** field,
-        /*IXCLRDataModule*/ void** tokenScope,
+        DacComNullableByRef<IXCLRDataValue> field,
+        DacComNullableByRef<IXCLRDataModule> tokenScope,
         /*mdFieldDef*/ uint* token);
     [PreserveSig]
     int GetFieldByToken2(
-        /*IXCLRDataModule*/ void* tokenScope,
+        IXCLRDataModule? tokenScope,
         /*mdFieldDef*/ uint token,
-        /*IXCLRDataValue*/ void** field,
+        DacComNullableByRef<IXCLRDataValue> field,
         uint bufLen,
         uint* nameLen,
         char* nameBuf);
@@ -1056,17 +1204,17 @@ public unsafe partial interface IXCLRDataValue
 public unsafe partial interface IXCLRDataExceptionNotification
 {
     [PreserveSig]
-    int OnCodeGenerated(IXCLRDataMethodInstance* method);
+    int OnCodeGenerated(IXCLRDataMethodInstance? method);
     [PreserveSig]
-    int OnCodeDiscarded(IXCLRDataMethodInstance* method);
+    int OnCodeDiscarded(IXCLRDataMethodInstance? method);
     [PreserveSig]
     int OnProcessExecution(uint state);
     [PreserveSig]
     int OnTaskExecution(/*IXCLRDataTask*/ void* task, uint state);
     [PreserveSig]
-    int OnModuleLoaded(/*IXCLRDataModule*/ void* mod);
+    int OnModuleLoaded(IXCLRDataModule? mod);
     [PreserveSig]
-    int OnModuleUnloaded(/*IXCLRDataModule*/ void* mod);
+    int OnModuleUnloaded(IXCLRDataModule? mod);
     [PreserveSig]
     int OnTypeLoaded(/*IXCLRDataTypeInstance*/ void* typeInst);
     [PreserveSig]
@@ -1082,7 +1230,7 @@ public unsafe partial interface IXCLRDataExceptionNotification2 : IXCLRDataExcep
     [PreserveSig]
     int OnAppDomainUnloaded(/*IXCLRDataAppDomain*/ void* domain);
     [PreserveSig]
-    int OnException(/*IXCLRDataExceptionState*/ void* exception);
+    int OnException(IXCLRDataExceptionState? exception);
 }
 
 [GeneratedComInterface]
@@ -1098,7 +1246,7 @@ public unsafe partial interface IXCLRDataExceptionNotification3 : IXCLRDataExcep
 public unsafe partial interface IXCLRDataExceptionNotification4 : IXCLRDataExceptionNotification3
 {
     [PreserveSig]
-    int ExceptionCatcherEnter(IXCLRDataMethodInstance* catchingMethod, uint catcherNativeOffset);
+    int ExceptionCatcherEnter(IXCLRDataMethodInstance? catchingMethod, uint catcherNativeOffset);
 }
 
 [GeneratedComInterface]
@@ -1106,7 +1254,7 @@ public unsafe partial interface IXCLRDataExceptionNotification4 : IXCLRDataExcep
 public unsafe partial interface IXCLRDataExceptionNotification5 : IXCLRDataExceptionNotification4
 {
     [PreserveSig]
-    int OnCodeGenerated2(IXCLRDataMethodInstance* method, ClrDataAddress nativeCodeLocation);
+    int OnCodeGenerated2(IXCLRDataMethodInstance? method, ClrDataAddress nativeCodeLocation);
 }
 
 // IXCLRDataTarget3 extends ICLRDataTarget2 which extends ICLRDataTarget (defined in ICLRData.cs).

@@ -3,12 +3,14 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis.ErrorReporting;
+using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.LanguageServer.Handler;
-using Microsoft.CodeAnalysis.LanguageServer.LanguageServer;
 using Microsoft.CodeAnalysis.ProjectSystem;
 using Microsoft.CodeAnalysis.Shared.TestHooks;
+using Microsoft.CommonLanguageServerProtocol.Framework;
 using Roslyn.LanguageServer.Protocol;
 using Roslyn.Utilities;
 using StreamJsonRpc;
@@ -24,21 +26,30 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
     private readonly LspDidChangeWatchedFilesHandler _didChangeWatchedFilesHandler;
     private readonly IClientLanguageServerManager _clientLanguageServerManager;
     private readonly IAsynchronousOperationListener _asynchronousOperationListener;
+    private readonly RoslynTelemetry _telemetry;
 
-    public LspFileChangeWatcher(LanguageServerHost languageServerHost, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
+    private LspFileChangeWatcher(ILspServices lspServices, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider)
     {
-        _didChangeWatchedFilesHandler = languageServerHost.GetRequiredLspService<LspDidChangeWatchedFilesHandler>();
-        _clientLanguageServerManager = languageServerHost.GetRequiredLspService<IClientLanguageServerManager>();
+        _didChangeWatchedFilesHandler = lspServices.GetRequiredService<LspDidChangeWatchedFilesHandler>();
+        _clientLanguageServerManager = lspServices.GetRequiredService<IClientLanguageServerManager>();
         _asynchronousOperationListener = asynchronousOperationListenerProvider.GetListener(FeatureAttribute.Workspace);
-
-        Contract.ThrowIfFalse(SupportsLanguageServerHost(languageServerHost));
+        _telemetry = RoslynTelemetry.Current;
     }
 
-    public static bool SupportsLanguageServerHost(LanguageServerHost languageServerHost)
+    public static bool TryCreate(ILspServices lspServices, IAsynchronousOperationListenerProvider asynchronousOperationListenerProvider, [NotNullWhen(true)] out LspFileChangeWatcher? fileChangeWatcher)
     {
         // We can only use the LSP client for doing file watching if we support dynamic registration for it
-        var clientCapabilitiesProvider = languageServerHost.GetRequiredLspService<IInitializeManager>();
-        return clientCapabilitiesProvider.GetClientCapabilities().Workspace?.DidChangeWatchedFiles?.DynamicRegistration ?? false;
+        var clientCapabilitiesProvider = lspServices.GetRequiredService<IInitializeManager>();
+        var supportsLspFileWatching = clientCapabilitiesProvider.GetClientCapabilities().Workspace?.DidChangeWatchedFiles?.DynamicRegistration ?? false;
+
+        if (supportsLspFileWatching)
+        {
+            fileChangeWatcher = new LspFileChangeWatcher(lspServices, asynchronousOperationListenerProvider);
+            return true;
+        }
+
+        fileChangeWatcher = null;
+        return false;
     }
 
     public IFileChangeContext CreateContext(ImmutableArray<WatchedDirectory> watchedDirectories)
@@ -62,7 +73,7 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
 
         /// <summary>
         /// The list of file paths we're watching manually that were outside the directories being watched. The count in this case counts
-        /// the number of 
+        /// the number of watchers registered for each file.
         /// </summary>
         private readonly Dictionary<string, int> _watchedFiles = new(s_stringComparer);
         private static readonly StringComparer s_stringComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
@@ -105,13 +116,13 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
         {
             foreach (var changedFile in e.Changes)
             {
-                var filePath = changedFile.Uri.GetRequiredParsedUri().LocalPath;
+                var filePath = changedFile.Uri.GetRequiredParsedUri().FsPath;
 
                 // Unfortunately the LSP protocol doesn't give us any hint of which of the file watches we might have sent to the client
                 // was the one that registered for this change, so we have to check paths to see if this one we should respond to.
                 if (WatchedDirectory.FilePathCoveredByWatchedDirectories(_watchedDirectories, filePath, s_stringComparison))
                 {
-                    FileChanged?.Invoke(this, filePath);
+                    FileChanged?.Invoke(this, new(filePath, GetFileChangeKind(changedFile.FileChangeType)));
                 }
                 else
                 {
@@ -122,12 +133,21 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
                     }
 
                     if (isFileWatched)
-                        FileChanged?.Invoke(this, filePath);
+                        FileChanged?.Invoke(this, new(filePath, GetFileChangeKind(changedFile.FileChangeType)));
                 }
             }
         }
 
-        public event EventHandler<string>? FileChanged;
+        private static FileChangeKind GetFileChangeKind(FileChangeType fileChangeType)
+            => fileChangeType switch
+            {
+                FileChangeType.Created => FileChangeKind.Created,
+                FileChangeType.Deleted => FileChangeKind.Deleted,
+                FileChangeType.Changed => FileChangeKind.Changed,
+                _ => throw ExceptionUtilities.UnexpectedValue(fileChangeType),
+            };
+
+        public event EventHandler<FileChangedEventArgs>? FileChanged;
 
         public void Dispose()
         {
@@ -243,6 +263,11 @@ internal sealed class LspFileChangeWatcher : IFileChangeWatcher
 
             _registrationTask.ContinueWith(async _ =>
             {
+                // Dispose runs on whatever context released the last watch (often a project-system callback with
+                // no ambient of its own), and ContinueWith captures that context, so re-establish the owning
+                // server's instance for the unregistration request.
+                using var telemetryScope = RoslynTelemetry.SetCurrent(_changeWatcher._telemetry);
+
                 var unregistrationParams = new UnregistrationParams()
                 {
                     Unregistrations =

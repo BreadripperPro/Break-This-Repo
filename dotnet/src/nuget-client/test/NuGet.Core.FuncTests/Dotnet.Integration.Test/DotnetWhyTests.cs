@@ -5,11 +5,12 @@
 
 using System;
 using System.IO;
-using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Internal.NuGet.Testing.SignedPackages.ChildProcess;
 using NuGet.CommandLine.XPlat;
+using NuGet.Packaging;
 using NuGet.Test.Utility;
 using NuGet.XPlat.FuncTest;
 using Test.Utility;
@@ -18,6 +19,7 @@ using Xunit.Abstractions;
 
 namespace Dotnet.Integration.Test
 {
+    [UseCulture("en-US")] // We are asserting exception messages in English
     [Collection(DotnetIntegrationCollection.Name)]
     public class DotnetWhyTests
     {
@@ -62,6 +64,37 @@ namespace Dotnet.Integration.Test
             // Assert
             Assert.Equal(ExitCodes.Success, result.ExitCode);
             Assert.Contains($"Project '{ProjectName}' has the following dependency graph(s) for '{packageY.Id}'", result.AllOutput.Replace("\n", "").Replace("\r", ""));
+        }
+
+        [Fact]
+        public async Task WhyCommand_FileBasedApp()
+        {
+            using var pathContext = _testFixture.CreateSimpleTestPathContext();
+
+            // Create packages.
+            var packageA = XPlatTestUtils.CreatePackage("packageA", "1.0.0");
+            var packageB = XPlatTestUtils.CreatePackage("packageB", "1.0.1");
+            packageA.Dependencies.Add(packageB);
+            await SimpleTestPackageUtility.CreateFolderFeedV3Async(pathContext.PackageSource, PackageSaveMode.Defaultv3, packageA);
+
+            // Create the file-based app.
+            var fbaDir = Path.Join(pathContext.SolutionRoot, "fba");
+            Directory.CreateDirectory(fbaDir);
+
+            var appFile = Path.Join(fbaDir, "app.cs");
+            File.WriteAllText(appFile, """
+                #:property PublishAot=false
+                #:package PackageA@1.0.0
+                Console.WriteLine();
+                """);
+
+            // Restore.
+            _testFixture.RunDotnetExpectSuccess(fbaDir, "restore app.cs", testOutputHelper: _testOutputHelper);
+
+            // Run "why" command.
+            var result = _testFixture.RunDotnetExpectSuccess(fbaDir, "nuget why app.cs PackageB", testOutputHelper: _testOutputHelper);
+            result.AllOutput.Should().Contain("packageA@1.0.0 (>= 1.0.0)");
+            result.AllOutput.Should().Contain("packageB@1.0.1 (>= 1.0.1)");
         }
 
         [Fact]
@@ -171,7 +204,7 @@ namespace Dotnet.Integration.Test
 
             // Assert
             Assert.Equal(ExitCodes.InvalidArguments, result.ExitCode);
-            Assert.Contains($"Required argument missing for command: 'why'.", result.Errors);
+            Assert.Contains("Required argument 'PACKAGE' missing for command: 'why'", result.Errors);
         }
 
         [Fact]
@@ -188,7 +221,7 @@ namespace Dotnet.Integration.Test
 
             // Assert
             Assert.Equal(ExitCodes.InvalidArguments, result.ExitCode);
-            Assert.Contains($"Required argument missing for command: 'why'.", result.Errors);
+            Assert.Contains($"Required argument 'PACKAGE' missing for command: 'why'.", result.Errors);
         }
 
         [Fact]

@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Tracing;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -212,18 +211,18 @@ namespace NuGet.Commands
                     context,
                     token);
 
-                if (NuGetEventSource.IsEnabled)
+                if (CommandsEventSource.Instance.IsEnabled())
                 {
-                    TraceEvents.CreateRestoreTargetGraphStart(_request.Project.FilePath, frameworkRuntimeDefinition);
+                    CommandsEventSource.Instance.DependencyGraphResolver_CreateRestoreTargetGraphStart(_request.Project.FilePath, frameworkRuntimeDefinition.ToString());
                 }
 
                 // Now that the graph has been resolved, we need to create walk all of the defined dependencies again to detect any cycles and downgrades.  The RestoreTargetGraph stores all of the
                 // information about the graph including the nodes with their parent/child relationships, cycles, downgrades, and conflicts.
                 (bool wasRestoreTargetGraphCreationSuccessful, RestoreTargetGraph restoreTargetGraph) = await CreateRestoreTargetGraphAsync(frameworkRuntimeDefinition, runtimeGraph, isCentralPackageTransitivePinningEnabled, unresolvedPackages, resolvedPackages, resolvedDependencyGraphItems, context);
 
-                if (NuGetEventSource.IsEnabled)
+                if (CommandsEventSource.Instance.IsEnabled())
                 {
-                    TraceEvents.CreateRestoreTargetGraphStop(_request.Project.FilePath, frameworkRuntimeDefinition, wasRestoreTargetGraphCreationSuccessful, resolvedPackages.Count, unresolvedPackages.Count);
+                    CommandsEventSource.Instance.DependencyGraphResolver_CreateRestoreTargetGraphStop(_request.Project.FilePath, frameworkRuntimeDefinition.ToString(), wasRestoreTargetGraphCreationSuccessful ? 1 : 0, resolvedPackages.Count, unresolvedPackages.Count);
                 }
 
                 success &= wasRestoreTargetGraphCreationSuccessful;
@@ -426,7 +425,9 @@ namespace NuGet.Commands
                         }
 
                         // Verify downgrades only if the resolved dependency has a lower version than what was defined
-                        if (!RemoteDependencyWalker.IsGreaterThanOrEqualTo(childResolvedLibraryDependency.LibraryRange.VersionRange, childLibraryDependency.LibraryRange.VersionRange))
+                        if (!RemoteDependencyWalker.IsGreaterThanOrEqualTo(
+                            childResolvedLibraryDependency.LibraryRange.VersionRange!,
+                            childLibraryDependency.LibraryRange.VersionRange!))
                         {
                             // It is not a downgrade if: the dependency is transitive and is suppressed its parent or any of those parents' parent because the suppressions is an aggregate of everything suppressed above.
                             // For example, A -> B (PrivateAssets=All) -> C
@@ -541,6 +542,7 @@ namespace NuGet.Commands
                         Item = childResolvedDependencyGraphItem.Item
                     };
 
+                    GraphNode<RemoteResolveResult> parentGraphNode;
                     if (childResolvedDependencyGraphItem.IsCentrallyPinnedTransitivePackage && !childResolvedDependencyGraphItem.IsRootPackageReference)
                     {
                         // If this child is transitively pinned, the GraphNode needs to have certain properties set
@@ -548,22 +550,25 @@ namespace NuGet.Commands
                         newGraphNode.Item.IsCentralTransitive = true;
 
                         // Treat the transitively pinned dependency as a child of the root node
-                        newGraphNode.OuterNode = rootGraphNode;
-                        rootGraphNode.InnerNodes.Add(newGraphNode);
+                        parentGraphNode = rootGraphNode;
                     }
                     else
                     {
                         // Set properties for the node to represent a parent/child relationship
-                        newGraphNode.OuterNode = currentGraphNode;
-                        currentGraphNode.InnerNodes.Add(newGraphNode);
+                        parentGraphNode = currentGraphNode;
                     }
+
+                    newGraphNode.OuterNode = parentGraphNode;
+                    parentGraphNode.InnerNodes.Add(newGraphNode);
 
                     if (!childResolvedDependencyGraphItem.IsRootPackageReference
                         && isCentralPackageTransitivePinningEnabled
                         && childLibraryDependency.SuppressParent != LibraryIncludeFlags.All
                         && !downgrades.ContainsKey(childResolvedLibraryRangeIndex)
                         && childLibraryDependency.LibraryRange.VersionRange != VersionRange.All
-                        && !RemoteDependencyWalker.IsGreaterThanOrEqualTo(childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.VersionRange, childLibraryDependency.LibraryRange.VersionRange))
+                        && !RemoteDependencyWalker.IsGreaterThanOrEqualTo(
+                            childResolvedDependencyGraphItem.LibraryDependency.LibraryRange.VersionRange!,
+                            childLibraryDependency.LibraryRange.VersionRange!))
                     {
                         // This is a downgrade if:
                         // 1. This is not a direct dependency
@@ -639,7 +644,7 @@ namespace NuGet.Commands
                     {
                         // Keep track of the resolved packages
                         resolvedPackages.Add(new ResolvedDependencyKey(
-                            parent: newGraphNode.OuterNode.Item.Key,
+                            parent: parentGraphNode.Item!.Key,
                             range: newGraphNode.Key.VersionRange,
                             child: newGraphNode.Item.Key));
                     }
@@ -759,7 +764,11 @@ namespace NuGet.Commands
         {
             LibraryRange libraryRange = libraryDependency.LibraryRange;
 
-            if (runtimeGraph == null || string.IsNullOrEmpty(runtimeIdentifier) || !RemoteDependencyWalker.EvaluateRuntimeDependencies(ref libraryRange, runtimeIdentifier, runtimeGraph, ref runtimeDependencies))
+            if (runtimeGraph == null || runtimeIdentifier is not string runtimeName || runtimeName.Length == 0)
+            {
+                return false;
+            }
+            if (!RemoteDependencyWalker.EvaluateRuntimeDependencies(ref libraryRange, runtimeName, runtimeGraph, ref runtimeDependencies))
             {
                 return false;
             }
@@ -916,9 +925,9 @@ namespace NuGet.Commands
             RemoteWalkContext context,
             CancellationToken token)
         {
-            if (NuGetEventSource.IsEnabled)
+            if (CommandsEventSource.Instance.IsEnabled())
             {
-                TraceEvents.ResolveDependencyGraphItemsStart(_request.Project.FilePath, pair);
+                CommandsEventSource.Instance.DependencyGraphResolver_ResolveDependencyGraphItemsStart(_request.Project.FilePath, pair.ToString());
             }
 
             // Stores the resolved dependency graph items
@@ -942,26 +951,26 @@ namespace NuGet.Commands
             // Used when logging package id specific messages, we need to know the target graph name
             string targetGraphName = pair.Name;
 
-        // Used to start over when a dependency has multiple descendants of an item to be evicted.
-        //
-        // Project
-        // ├── A 1.0.0
-        // │   └── B 1.0.0
-        // │       └── C 1.0.0
-        // │           └── D 1.0.0
-        // └── X 2.0.0
-        //     └── Y 2.0.0
-        //         └── G 2.0.0
-        //             └── B 2.0.0
-        // The items are processed in the following order:
-        // Chose A 1.0.0 and X 1.0.0
-        // Chose B 1.0.0 and Y 2.0.0
-        // Chose C 1.0.0 and G 2.0.0
-        // Chose D 1.0.0 and B 2.0.0, but B 2.0.0 should evict C 1.0.0 and D 1.0.0
-        //
-        // In this case, the entire walk is started over and B 1.0.0 is left out of the graph, leading to C 1.0.0 and D 1.0.0 also being left out.
-        //
         StartOver:
+            // Used to start over when a dependency has multiple descendants of an item to be evicted.
+            //
+            // Project
+            // ├── A 1.0.0
+            // │   └── B 1.0.0
+            // │       └── C 1.0.0
+            // │           └── D 1.0.0
+            // └── X 2.0.0
+            //     └── Y 2.0.0
+            //         └── G 2.0.0
+            //             └── B 2.0.0
+            // The items are processed in the following order:
+            // Chose A 1.0.0 and X 1.0.0
+            // Chose B 1.0.0 and Y 2.0.0
+            // Chose C 1.0.0 and G 2.0.0
+            // Chose D 1.0.0 and B 2.0.0, but B 2.0.0 should evict C 1.0.0 and D 1.0.0
+            //
+            // In this case, the entire walk is started over and B 1.0.0 is left out of the graph, leading to C 1.0.0 and D 1.0.0 also being left out.
+            //
             restartCount++;
 
             dependencyGraphItemQueue.Clear();
@@ -1000,10 +1009,7 @@ namespace NuGet.Commands
                     {
                         IsCentrallyPinnedTransitivePackage = currentDependencyGraphItem.IsCentrallyPinnedTransitivePackage,
                         IsRootPackageReference = currentDependencyGraphItem.IsRootPackageReference,
-                        Suppressions = new List<HashSet<LibraryDependencyIndex>>
-                        {
-                            currentDependencyGraphItem.Suppressions!
-                        }
+                        Suppressions = [currentDependencyGraphItem.Suppressions!],
                     };
 
                     resolvedDependencyGraphItems.Add(currentDependencyGraphItem.LibraryDependencyIndex, chosenResolvedItem);
@@ -1147,10 +1153,7 @@ namespace NuGet.Commands
                         {
                             IsCentrallyPinnedTransitivePackage = currentDependencyGraphItem.IsCentrallyPinnedTransitivePackage,
                             IsRootPackageReference = currentDependencyGraphItem.IsRootPackageReference,
-                            Suppressions = new List<HashSet<LibraryDependencyIndex>>
-                            {
-                                currentDependencyGraphItem.Suppressions!
-                            },
+                            Suppressions = [currentDependencyGraphItem.Suppressions!],
                         };
 
                         resolvedDependencyGraphItems.Add(currentDependencyGraphItem.LibraryDependencyIndex, chosenResolvedItem);
@@ -1207,10 +1210,7 @@ namespace NuGet.Commands
                             {
                                 IsCentrallyPinnedTransitivePackage = chosenResolvedItem.IsCentrallyPinnedTransitivePackage,
                                 IsRootPackageReference = chosenResolvedItem.IsRootPackageReference,
-                                Suppressions = new List<HashSet<LibraryDependencyIndex>>
-                                {
-                                    currentDependencyGraphItem.Suppressions,
-                                },
+                                Suppressions = [currentDependencyGraphItem.Suppressions],
                             };
 
                             resolvedDependencyGraphItems.Add(currentDependencyGraphItem.LibraryDependencyIndex, chosenResolvedItem);
@@ -1302,7 +1302,10 @@ namespace NuGet.Commands
                 // The list of suppressions should be an aggregate of all parent item's suppressions so add the parent suppressions to the list, otherwise just use the current item's suppressions
                 if (suppressions != null)
                 {
-                    suppressions.AddRange(currentDependencyGraphItem.Suppressions);
+                    if (currentDependencyGraphItem.Suppressions != null)
+                    {
+                        suppressions.AddRange(currentDependencyGraphItem.Suppressions);
+                    }
                 }
                 else
                 {
@@ -1405,9 +1408,9 @@ namespace NuGet.Commands
                 }
             }
 
-            if (NuGetEventSource.IsEnabled)
+            if (CommandsEventSource.Instance.IsEnabled())
             {
-                TraceEvents.ResolveDependencyGraphItemsStop(_request.Project.FilePath, pair, resolvedDependencyGraphItems.Count, restartCount, totalQueuedItemCount);
+                CommandsEventSource.Instance.DependencyGraphResolver_ResolveDependencyGraphItemsStop(_request.Project.FilePath, pair.ToString(), resolvedDependencyGraphItems.Count, restartCount, totalQueuedItemCount);
             }
 
             return resolvedDependencyGraphItems;
@@ -1451,74 +1454,6 @@ namespace NuGet.Commands
             runtimeGraph = ProjectRestoreCommand.GetRuntimeGraph(restoreTargetGraphForTargetFramework, localRepositories, projectRuntimeGraph: projectProviderRuntimeGraph, _logger);
 
             return true;
-        }
-
-        private static class TraceEvents
-        {
-            private const string EventNameCreateRestoreTargetGraph = "DependencyGraphResolver/CreateRestoreTargetGraph";
-            private const string EventNameResolveDependencyGraphItems = "DependencyGraphResolver/ResolveDependencyGraphItems";
-
-            public static void CreateRestoreTargetGraphStart(string projectFullPath, FrameworkRuntimeDefinition frameworkRutimeDefinition)
-            {
-                EventSourceOptions eventOptions = new()
-                {
-                    ActivityOptions = EventActivityOptions.Detachable,
-                    Tags = (EventTags)1,
-                    Keywords = NuGetEventSource.Keywords.Performance | NuGetEventSource.Keywords.Restore,
-                    Opcode = EventOpcode.Start
-                };
-
-                NuGetEventSource.Instance.Write(EventNameCreateRestoreTargetGraph, eventOptions, new CreateRestoreTargetGraphStartEventData(projectFullPath, frameworkRutimeDefinition.ToString()));
-            }
-
-            public static void CreateRestoreTargetGraphStop(string projectFullPath, FrameworkRuntimeDefinition frameworkRuntimeDefinition, bool wasRestoreTargetGraphCreationSuccessful, int resolvedPackageCount, int unresolvedPackageCount)
-            {
-                EventSourceOptions eventOptions = new()
-                {
-                    ActivityOptions = EventActivityOptions.Detachable,
-                    Keywords = NuGetEventSource.Keywords.Performance | NuGetEventSource.Keywords.Restore,
-                    Opcode = EventOpcode.Stop
-                };
-
-                NuGetEventSource.Instance.Write(EventNameCreateRestoreTargetGraph, eventOptions, new CreateRestoreTargetGraphStopEventData(projectFullPath, frameworkRuntimeDefinition.ToString(), wasRestoreTargetGraphCreationSuccessful, resolvedPackageCount, unresolvedPackageCount));
-            }
-
-            public static void ResolveDependencyGraphItemsStart(string projectFullPath, FrameworkRuntimeDefinition frameworkRuntimeDefinition)
-            {
-                EventSourceOptions eventOptions = new()
-                {
-                    ActivityOptions = EventActivityOptions.Detachable,
-                    Tags = (EventTags)1,
-                    Keywords = NuGetEventSource.Keywords.Performance | NuGetEventSource.Keywords.Restore,
-                    Opcode = EventOpcode.Start
-                };
-
-                NuGetEventSource.Instance.Write(EventNameResolveDependencyGraphItems, eventOptions, new ResolveDependencyGraphItemsStartEventData(projectFullPath, frameworkRuntimeDefinition.ToString()));
-            }
-
-            public static void ResolveDependencyGraphItemsStop(string projectFullPath, FrameworkRuntimeDefinition frameworkRuntimeDefinition, int resolvedPackagesCount, int restartCount, int totalQueuedItemCount)
-            {
-                EventSourceOptions eventOptions = new()
-                {
-                    ActivityOptions = EventActivityOptions.Detachable,
-                    Keywords = NuGetEventSource.Keywords.Performance | NuGetEventSource.Keywords.Restore,
-                    Opcode = EventOpcode.Stop
-                };
-
-                NuGetEventSource.Instance.Write(EventNameResolveDependencyGraphItems, eventOptions, new ResolveDependencyGraphItemsStopEventData(projectFullPath, frameworkRuntimeDefinition.ToString(), resolvedPackagesCount, restartCount, totalQueuedItemCount));
-            }
-
-            [EventData]
-            private record struct CreateRestoreTargetGraphStartEventData(string FilePath, string FrameworkRuntimeDefinition);
-
-            [EventData]
-            private record struct CreateRestoreTargetGraphStopEventData(string FilePath, string FrameworkRuntimeDefinition, bool Success, int ResolvedPackageCount, int UnresolvedPackageCount);
-
-            [EventData]
-            private record struct ResolveDependencyGraphItemsStartEventData(string FilePath, string FrameworkRuntimeDefinition);
-
-            [EventData]
-            private record struct ResolveDependencyGraphItemsStopEventData(string FilePath, string FrameworkRuntimeDefinition, int ResolvedPackagesCount, int RestartCount, int TotalQueuedItemCount);
         }
     }
 }

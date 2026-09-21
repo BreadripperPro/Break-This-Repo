@@ -1,8 +1,6 @@
 <Project>
   <!-- Extracted WiX build targets for Windows Desktop Runtime bundle -->
 
-  <UsingTask TaskName="DownloadFile" AssemblyFile="$(ArcadeSdkBuildTasksAssembly)" />
-
   <Target Name="CollectRuntimePrereqDependencies">
     <PropertyGroup>
       <RuntimePrereqDownloadDirectory>$(BaseIntermediateOutputPath)runtime-prereqs\$(TargetArchitecture)\</RuntimePrereqDownloadDirectory>
@@ -35,6 +33,7 @@
     <MakeDir Directories="$(RuntimePrereqDownloadDirectory)" />
   </Target>
 
+  <UsingTask TaskName="Microsoft.DotNet.Arcade.Sdk.DownloadFile" AssemblyFile="$(ArcadeSdkBuildTasksAssembly)" Runtime="NET" />
   <Target Name="FetchRuntimePrereqDependencies"
           DependsOnTargets="CollectRuntimePrereqDependencies"
           Outputs="%(RemoteAsset.DownloadDestination)">
@@ -48,7 +47,7 @@
       <UrisToDownload Include="@(RemoteAssetBaseURL->'%(Identity)Runtime/$(MicrosoftNETCorePlatformsVersion)/$(_CurrentRemoteAsset)')" />
     </ItemGroup>
 
-    <DownloadFile Uris="@(UrisToDownload)" DestinationPath="$(_CurrentDestination)" />
+    <Microsoft.DotNet.Arcade.Sdk.DownloadFile Uris="@(UrisToDownload)" DestinationPath="$(_CurrentDestination)" />
   </Target>
 
   <Target Name="SetInstallerInfo" BeforeTargets="BeforeBuild" DependsOnTargets="FetchRuntimePrereqDependencies">
@@ -93,11 +92,6 @@
       <DefineConstants>$(DefineConstants);NativeMachine_x64=x64</DefineConstants>
       <DefineConstants>$(DefineConstants);NativeMachine_arm64=arm64</DefineConstants>
 
-      <!-- Allow downgrade only for preview/RC builds to handle version stamp issues. Disable for GA to prevent servicing downgrades. -->
-      <SuppressDowngradeFailure Condition="'$(_IsPreReleaseBuild)' == 'true'">yes</SuppressDowngradeFailure>
-      <SuppressDowngradeFailure Condition="'$(_IsPreReleaseBuild)' != 'true'">no</SuppressDowngradeFailure>
-      <DefineConstants>$(DefineConstants);SuppressDowngradeFailure=$(SuppressDowngradeFailure)</DefineConstants>
-
       <DefineConstants>$(DefineConstants);MajorVersion=$(MajorVersion)</DefineConstants>
       <DefineConstants>$(DefineConstants);MinorVersion=$(MinorVersion)</DefineConstants>
       <DefineConstants>$(DefineConstants);DotNetRuntimeVersion=$(MicrosoftNETCoreAppRefVersion)</DefineConstants>
@@ -126,25 +120,15 @@
   </Target>
 
   <Target Name="GenerateUpgradeCode" AfterTargets="SetInstallerInfo">
-    <!-- Generate architecture-specific ProviderKey (different per architecture for SxS installations) -->
-    <PropertyGroup>
-      <ProviderKeySeed>$(UpgradeCodeSeed) $(TargetArchitecture) $(MajorVersion).$(MinorVersion)</ProviderKeySeed>
-    </PropertyGroup>
-    <GenerateGuidFromName Name="$(ProviderKeySeed)">
-      <Output TaskParameter="GeneratedGuid" PropertyName="GeneratedProviderKey" />
-    </GenerateGuidFromName>
-
     <!-- Generate architecture-specific UpgradeCode (different per architecture for SxS) -->
     <GenerateGuidFromName Name="$(UpgradeCodeSeedWithArch)">
       <Output TaskParameter="GeneratedGuid" PropertyName="GeneratedUpgradeCode" />
     </GenerateGuidFromName>
 
     <PropertyGroup>
-      <DefineConstants>$(DefineConstants);ProviderKey={$(GeneratedProviderKey)}</DefineConstants>
       <DefineConstants>$(DefineConstants);UpgradeCode={$(GeneratedUpgradeCode)}</DefineConstants>
     </PropertyGroup>
 
-    <Message Text="Generated ProviderKey for $(TargetArchitecture): {$(GeneratedProviderKey)} from seed '$(ProviderKeySeed)'" Importance="high" />
     <Message Text="Generated UpgradeCode for $(TargetArchitecture) v$(MajorVersion).$(MinorVersion): {$(GeneratedUpgradeCode)} from seed '$(UpgradeCodeSeedWithArch)'" Importance="high" />
   </Target>
 

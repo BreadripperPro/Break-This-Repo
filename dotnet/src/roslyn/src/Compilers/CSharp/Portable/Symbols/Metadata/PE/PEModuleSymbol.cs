@@ -116,6 +116,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols.Metadata.PE
 
         private RefSafetyRulesAttributeVersion _lazyRefSafetyRulesAttributeVersion;
 
+        private SingleInitNullable<MemorySafetyRulesVersion> _lazyMemorySafetyRulesVersion;
+
 #nullable enable
         private DiagnosticInfo? _lazyCachedCompilerFeatureRequiredDiagnosticInfo = CSDiagnosticInfo.EmptyErrorInfo;
 
@@ -744,6 +746,30 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols.Metadata.PE
                         ? RefSafetyRulesAttributeVersion.UnrecognizedAttribute
                         : RefSafetyRulesAttributeVersion.NoAttribute;
                 }
+            }
+        }
+
+        internal override MemorySafetyRulesVersion MemorySafetyRulesVersion
+        {
+            get
+            {
+                return _lazyMemorySafetyRulesVersion.Initialize(static @this =>
+                {
+                    // Returns
+                    // * recognized: 1 if the attribute is not present,
+                    // * recognized: 2 if the attribute is present and has the value 2,
+                    // * unrecognized: -1 if the attribute is present and has the value 1 or some non-integer value,
+                    // * unrecognized: the attribute's value (which is other than 1 or 2).
+                    if (@this._module.HasMemorySafetyRulesAttribute(Token, out int version, out bool foundAttributeType) &&
+                        version != (int)MemorySafetyRulesVersion.Version1)
+                    {
+                        return (MemorySafetyRulesVersion)version;
+                    }
+
+                    return foundAttributeType
+                        ? (MemorySafetyRulesVersion)(-1)
+                        : MemorySafetyRulesVersion.Version1;
+                }, this);
             }
         }
 

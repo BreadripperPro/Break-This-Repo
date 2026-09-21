@@ -1,5 +1,7 @@
 ﻿const Microsoft.NET.Build.Containers.KnownLocalRegistryTypes.Docker = "Docker" -> string!
 const Microsoft.NET.Build.Containers.KnownLocalRegistryTypes.Podman = "Podman" -> string!
+const Microsoft.NET.Build.Containers.KnownLocalRegistryTypes.Wslc = "Wslc" -> string!
+const Microsoft.NET.Build.Containers.KnownLocalRegistryTypes.MacOSContainer = "MacOSContainer" -> string!
 Microsoft.NET.Build.Containers.BaseImageNotFoundException
 Microsoft.NET.Build.Containers.Constants
 Microsoft.NET.Build.Containers.Tasks.ComputeDotnetBaseImageAndTag.ComputedContainerBaseImage.get -> string?
@@ -197,12 +199,12 @@ Microsoft.NET.Build.Containers.Tasks.CreateNewImage.BaseRegistry.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.Cancel() -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerEnvironmentVariables.get -> Microsoft.Build.Framework.ITaskItem![]!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerEnvironmentVariables.set -> void
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerizeDirectory.get -> string!
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerizeDirectory.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerRuntimeIdentifier.get -> string!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerRuntimeIdentifier.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerUser.get -> string!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ContainerUser.set -> void
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.SourceDateEpoch.get -> string!
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.SourceDateEpoch.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.CreateNewImage() -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.Dispose() -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.Entrypoint.get -> Microsoft.Build.Framework.ITaskItem![]!
@@ -245,18 +247,18 @@ Microsoft.NET.Build.Containers.Tasks.CreateNewImage.PublishDirectory.get -> stri
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.PublishDirectory.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.RuntimeIdentifierGraphPath.get -> string!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.RuntimeIdentifierGraphPath.set -> void
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ToolExe.get -> string!
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ToolExe.set -> void
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ToolPath.get -> string!
-Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ToolPath.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.WorkingDirectory.get -> string!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.WorkingDirectory.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateLabels.get -> bool
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateLabels.set -> void
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateCreatedLabels.get -> bool
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateCreatedLabels.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateDigestLabel.get -> bool
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GenerateDigestLabel.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.SkipPublishing.get -> bool
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.SkipPublishing.set -> void
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.NoCache.get -> bool
+Microsoft.NET.Build.Containers.Tasks.CreateNewImage.NoCache.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GeneratedContainerNames.get -> Microsoft.Build.Framework.ITaskItem![]!
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.GeneratedContainerNames.set -> void
 Microsoft.NET.Build.Containers.Tasks.CreateNewImage.ImageFormat.get -> string?

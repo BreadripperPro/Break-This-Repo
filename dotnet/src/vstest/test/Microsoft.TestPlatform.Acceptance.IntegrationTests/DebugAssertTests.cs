@@ -11,7 +11,7 @@ public class DebugAssertTests : AcceptanceTestBase
 {
     [TestMethod]
     // this is core only, there is nothing we can do about TPDebug.Assert crashing the process on framework
-    [NetCoreTargetFrameworkDataSource(useDesktopRunner: false)]
+    [TestMatrix(console: Net, testHost: Net)]
     public void RunningTestWithAFailingDebugAssertDoesNotCrashTheHostingProcess(RunnerInfo runnerInfo)
     {
         // when debugging this test in case it starts failing, be aware that the default behavior of TPDebug.Assert
@@ -25,6 +25,6 @@ public class DebugAssertTests : AcceptanceTestBase
         // this will have failed tests when our trace listener works and crash the testhost process when it does not
         // because crashing processes is what a failed TPDebug.Assert does by default, unless you have a debugger attached
         ValidateSummaryStatus(passed: 4, failed: 4, 0);
-        StringAssert.Contains(StdOut, "threw exception: Microsoft.VisualStudio.TestPlatform.TestHost.DebugAssertException:");
+        Assert.Contains("threw exception: Microsoft.VisualStudio.TestPlatform.TestHost.DebugAssertException:", StdOut);
     }
 }

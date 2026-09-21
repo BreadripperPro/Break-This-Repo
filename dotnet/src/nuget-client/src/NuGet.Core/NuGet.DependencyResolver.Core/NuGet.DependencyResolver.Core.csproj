@@ -8,7 +8,6 @@
     <RootNamespace>NuGet.DependencyResolver</RootNamespace>
     <IncludeInVSIX>true</IncludeInVSIX>
     <XPLATProject>true</XPLATProject>
-    <IsAotCompatible>true</IsAotCompatible>
     <Description>NuGet's PackageReference dependency resolver implementation.</Description>
   </PropertyGroup>
 
@@ -33,8 +32,10 @@
 
   <ItemGroup Label="NuGet Shared">
     <Compile Include="$(SharedDirectory)\HashCodeCombiner.cs" />
+    <Compile Include="$(SharedDirectory)\IsExternalInit.cs" />
     <Compile Include="$(SharedDirectory)\NoAllocEnumerateExtensions.cs" />
     <Compile Include="$(SharedDirectory)\NullableAttributes.cs" />
+    <Compile Include="$(SharedDirectory)\RequiredModifierAttributes.cs" />
     <Compile Include="$(SharedDirectory)\SharedExtensions.cs" />
     <Compile Include="$(SharedDirectory)\TaskResult.cs" />
     <Compile Include="$(SharedDirectory)\TaskResultCache.cs" />

@@ -7,7 +7,7 @@ namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
 ///     Represents the results from a call to
-///     <see cref="SqlServerQueryableExtensions.VectorSearch{T, TVector}(DbSet{T}, Expression{Func{T, TVector}}, TVector, string, int)" />.
+///     <see cref="SqlServerQueryableExtensions.VectorSearch{T, TVector}(DbSet{T}, Expression{Func{T, TVector}}, TVector, string)" />.
 /// </summary>
 [Experimental(EFDiagnostics.SqlServerVectorSearch)]
 public readonly struct VectorSearchResult<T>(T value, double distance)
@@ -18,7 +18,7 @@ public readonly struct VectorSearchResult<T>(T value, double distance)
     public T Value { get; } = value;
 
     /// <summary>
-    ///    The distance between the query vector and the similar vector.
+    ///     The distance between the query vector and the similar vector.
     /// </summary>
     public double Distance { get; } = distance;
 

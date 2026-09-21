@@ -101,7 +101,7 @@ public class FilePatternParserTests
 
         // Assert
         _mockFileHelper.Verify(x => x.Exists(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll")));
-        Assert.IsTrue(matchingFiles.Contains(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll")));
+        Assert.Contains(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll"), matchingFiles);
     }
 
     [TestMethod]
@@ -111,7 +111,7 @@ public class FilePatternParserTests
         _mockFileHelper.Setup(x => x.Exists(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll"))).Returns(false);
         _mockMatcherHelper.Setup(x => x.Execute(It.IsAny<DirectoryInfoWrapper>())).Returns(patternMatchingResult);
 
-        Assert.ThrowsException<TestSourceException>(() => _filePatternParser.GetMatchingFiles(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll")));
+        Assert.ThrowsExactly<TestSourceException>(() => _filePatternParser.GetMatchingFiles(TranslatePath(@"E:\path\to\project\tests\Blame.Tests\\abc.Tests.dll")));
     }
 
     [TestMethod]
@@ -172,7 +172,7 @@ public class FilePatternParserTests
     private static string TranslatePath(string path)
     {
         // RuntimeInformation has conflict when used
-        return Environment.OSVersion.Platform.ToString().StartsWith("Win")
+        return Environment.OSVersion.Platform.ToString().StartsWith("Win", StringComparison.Ordinal)
             ? path
             : Regex.Replace(path.Replace("\\", "/"), @"(\w)\:/", @"/mnt/$1/");
     }

@@ -290,6 +290,36 @@ RETURNING 1;
 """);
     }
 
+    public override async Task Grow_nested_sub_collection_in_complex_property_mapped_to_json()
+    {
+        await base.Grow_nested_sub_collection_in_complex_property_mapped_to_json();
+
+        AssertSql(
+            """
+@p0='{"Mid":{"Items":[{"Title":"Item1","Inner":[{"Value":"inner-0"},{"Value":"inner-1"}],"Others":[]}]}}' (Nullable = false) (Size = 99)
+@p1='1'
+
+UPDATE "Widgets" SET "Deep" = @p0
+WHERE "Id" = @p1
+RETURNING 1;
+""");
+    }
+
+    public override async Task Set_nullable_complex_property_with_nested_collection_to_null()
+    {
+        await base.Set_nullable_complex_property_with_nested_collection_to_null();
+
+        AssertSql(
+            """
+@p0='[{"Name":"Item1","Meta":null}]' (Nullable = false) (Size = 30)
+@p1='1'
+
+UPDATE "EntitiesWithNullableMeta" SET "Items" = @p0
+WHERE "Id" = @p1
+RETURNING 1;
+""");
+    }
+
     public class ComplexCollectionJsonUpdateSqliteFixture : ComplexCollectionJsonUpdateFixtureBase
     {
         protected override ITestStoreFactory TestStoreFactory

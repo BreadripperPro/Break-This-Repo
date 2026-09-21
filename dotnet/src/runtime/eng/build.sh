@@ -86,7 +86,7 @@ usage()
   echo "  --gcc                      Optional argument to build using gcc in PATH (default)."
   echo "  --gccx.y                   Optional argument to build using gcc version x.y."
   echo "  --portablebuild            Optional argument: set to false to force a non-portable build."
-  echo "  --keepnativesymbols        Optional argument: set to true to keep native symbols/debuginfo in generated binaries."
+  echo "  --keepnativesymbols        Optional argument: set to keep native symbols/debuginfo in generated binaries."
   echo "  --ninja                    Optional argument: use Ninja instead of Make (default: true, use --ninja false to disable)."
   echo "  --pgoinstrument            Optional argument: build PGO-instrumented runtime"
   echo "  --fsanitize                Optional argument: Specify native sanitizers to instrument the native build with. Supported values are: 'address'."
@@ -166,7 +166,7 @@ bootstrap=0
 bootstrapConfig='Debug'
 dynamiccodecompiled=""
 
-source $scriptroot/common/native/init-os-and-arch.sh
+source "$scriptroot"/common/native/init-os-and-arch.sh
 
 hostArch=$arch
 
@@ -175,7 +175,7 @@ useNinja=true
 
 # Check if an action is passed in
 declare -a actions=("b" "build" "r" "restore" "rebuild" "testnobuild" "sign" "publish" "clean")
-actInt=($(comm -12 <(printf '%s\n' "${actions[@]/#/-}" | sort) <(printf '%s\n' "${@/#--/-}" | sort)))
+actInt=($(LC_ALL=C comm -12 <(printf '%s\n' "${actions[@]/#/-}" | LC_ALL=C sort) <(printf '%s\n' "${@/#--/-}" | LC_ALL=C sort)))
 firstArgumentChecked=0
 
 while [[ $# -gt 0 ]]; do
@@ -464,7 +464,7 @@ while [[ $# -gt 0 ]]; do
 
      -clang*)
       compiler="${opt/#-/}" # -clang-9 => clang-9 or clang-9 => (unchanged)
-      arguments+=("/p:Compiler=$compiler" "/p:CppCompilerAndLinker=$compiler")
+      arguments+=("/p:CppCompilerAndLinker=$compiler")
       shift 1
       ;;
 
@@ -479,7 +479,7 @@ while [[ $# -gt 0 ]]; do
 
      -gcc*)
       compiler="${opt/#-/}" # -gcc-9 => gcc-9 or gcc-9 => (unchanged)
-      arguments+=("/p:Compiler=$compiler" "/p:CppCompilerAndLinker=$compiler")
+      arguments+=("/p:CppCompilerAndLinker=$compiler")
       shift 1
       ;;
 
@@ -506,15 +506,8 @@ while [[ $# -gt 0 ]]; do
       ;;
 
      -keepnativesymbols)
-      if [ -z ${2+x} ]; then
-        echo "No value for keepNativeSymbols is supplied. See help (--help) for supported values." 1>&2
-        exit 1
-      fi
-      passedKeepNativeSymbols="$(echo "$2" | tr "[:upper:]" "[:lower:]")"
-      if [ "$passedKeepNativeSymbols" = true ]; then
-        arguments+=("/p:KeepNativeSymbols=true")
-      fi
-      shift 2
+      arguments+=("/p:KeepNativeSymbols=true")
+      shift 1
       ;;
 
 
@@ -651,7 +644,7 @@ if [[ "$bootstrap" == "1" ]]; then
   done
 
   # Set a different path for prebuilt usage tracking for the bootstrap build.
-  "$scriptroot/common/build.sh" ${bootstrapArguments[@]+"${bootstrapArguments[@]}"} /p:Subset=bootstrap /p:TrackPrebuiltUsageReportFile=$scriptroot/../artifacts/log/bootstrap-prebuilt-usage.xml -bl:$scriptroot/../artifacts/log/$bootstrapConfig/bootstrap.binlog
+  "$scriptroot/common/build.sh" ${bootstrapArguments[@]+"${bootstrapArguments[@]}"} /p:Subset=bootstrap /p:TrackPrebuiltUsageReportFile="$scriptroot/../artifacts/log/bootstrap-prebuilt-usage.xml" -bl:"$scriptroot/../artifacts/log/$bootstrapConfig/bootstrap.binlog"
 
   # Remove artifacts from the bootstrap build so the product build is a "clean" build.
   echo "Cleaning up artifacts from bootstrap build..."

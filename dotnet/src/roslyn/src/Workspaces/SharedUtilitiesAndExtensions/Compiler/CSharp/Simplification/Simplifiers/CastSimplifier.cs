@@ -350,19 +350,34 @@ internal static class CastSimplifier
         if (rewrittenSemanticModel is null || rewrittenExpression is null)
             return false;
 
-        var (rewrittenConvertedType, rewrittenConversion) = GetRewrittenInfo(
-            castNode, rewrittenExpression,
-            originalSemanticModel, rewrittenSemanticModel,
-            originalConversion, originalConvertedType, cancellationToken);
-        if (rewrittenConvertedType is null || rewrittenConvertedType.TypeKind == TypeKind.Error || !rewrittenConversion.Exists)
+        ITypeSymbol? rewrittenConvertedType;
+        Conversion rewrittenConversion = default;
+
+        if (castNode.WalkUpParentheses().Parent is InterpolationSyntax)
+        {
+            // Workaround https://github.com/dotnet/roslyn/issues/56934
+            // Compiler does not give a conversion inside an interpolation. However, all values in the interpolation
+            // holes are converted to object.
+            //
+            // Note: this may need to be revisited with improved interpolated strings (as they could take
+            // strongly typed args and could avoid the object boxing).
+            rewrittenConvertedType = originalConversion.IsIdentity ? originalConvertedType : originalSemanticModel.Compilation.ObjectType;
+        }
+        else
+        {
+            rewrittenConvertedType = rewrittenSemanticModel.GetTypeInfo(rewrittenExpression, cancellationToken).ConvertedType;
+            rewrittenConversion = rewrittenSemanticModel.GetConversion(rewrittenExpression, cancellationToken);
+
+            if (rewrittenConvertedType is null || !rewrittenConversion.Exists)
+                return false;
+        }
+
+        if (rewrittenConvertedType.TypeKind == TypeKind.Error)
             return false;
 
         // If removing the conversion caused us to now become an explicit conversion (a conversion that can cause
         // lossyness), then we must block as that's disallowed by the language.
-        //
-        // Note: compiler API is slightly odd here as they return such an 'IsExplicit+Exists' conversion when casting
-        // the expression inside a string interpolation.  So we ignore that case here
-        if (rewrittenConversion.IsExplicit && castNode.WalkUpParentheses().Parent is not InterpolationSyntax)
+        if (rewrittenConversion.IsExplicit)
             return false;
 
         if (CastRemovalWouldCauseUnintendedReferenceComparisonWarning(rewrittenExpression, rewrittenSemanticModel, cancellationToken))
@@ -529,9 +544,25 @@ internal static class CastSimplifier
 
         if (originalConvertedType.Equals(rewrittenConvertedType))
         {
-            // If the types of the expressions are exactly the same, then we can remove safely.
-            if (originalConvertedType.Equals(rewrittenConvertedType, SymbolEqualityComparer.IncludeNullability))
+            // Check if removing the cast changes the nullable type arguments of the expression type.
+            // For example:
+            //
+            //      var lines = new List<object?>();
+            //      return new List<object>(lines as List<object>);
+            //
+            // Here the converted types both match `IEnumerable<object>`, but removing the `as List<object>`
+            // cast changes the expression type from `List<object>?` to `List<object?>`.
+            var originalExpressionType = originalSemanticModel.GetTypeInfo(castNode, cancellationToken).Type;
+            var rewrittenExpressionType = rewrittenSemanticModel.GetTypeInfo(rewrittenExpression, cancellationToken).Type;
+            var typeArgumentNullabilityUnchanged = HaveSameTypeArgumentNullability(originalExpressionType, rewrittenExpressionType);
+
+            // If the types of the expressions are exactly the same, then we can remove safely, as long as
+            // removing the cast doesn't change the nullable type arguments of the expression type.
+            if (originalConvertedType.Equals(rewrittenConvertedType, SymbolEqualityComparer.IncludeNullability) &&
+                typeArgumentNullabilityUnchanged)
+            {
                 return true;
+            }
 
             // The types differ on nullability.  But we may still want to remove this.
             //
@@ -543,7 +574,8 @@ internal static class CastSimplifier
             // type.  Removing this nullable cast is safe and desirable.
             var targetType = castNode.GetTargetType(originalSemanticModel, cancellationToken);
             if (targetType is not null and not IErrorTypeSymbol &&
-                rewrittenConvertedType.Equals(targetType, SymbolEqualityComparer.IncludeNullability))
+                rewrittenConvertedType.Equals(targetType, SymbolEqualityComparer.IncludeNullability) &&
+                typeArgumentNullabilityUnchanged)
             {
                 return true;
             }
@@ -1107,6 +1139,26 @@ internal static class CastSimplifier
         return false;
     }
 
+    private static bool HaveSameTypeArgumentNullability(ITypeSymbol? type1, ITypeSymbol? type2)
+    {
+        if (type1 is null || type2 is null)
+            return true;
+
+        // If the types match including nullability, there's no difference at all.
+        if (type1.Equals(type2, SymbolEqualityComparer.IncludeNullability))
+            return true;
+
+        // If the types don't match ignoring nullability, they're fundamentally different types.
+        if (!type1.Equals(type2))
+            return true;
+
+        // The types are the same but differ in nullability. Check if the difference is in type arguments
+        // (not just top-level nullability) by normalizing top-level nullability and comparing.
+        var normalized1 = type1.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        var normalized2 = type2.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        return normalized1.Equals(normalized2, SymbolEqualityComparer.IncludeNullability);
+    }
+
     private static bool IsConstantNull(IOperation operation)
         => operation.ConstantValue is { HasValue: true, Value: null };
 
@@ -1617,30 +1669,6 @@ internal static class CastSimplifier
         }
 
         return true;
-    }
-
-    private static (ITypeSymbol? rewrittenConvertedType, Conversion rewrittenConversion) GetRewrittenInfo(
-        ExpressionSyntax castNode, ExpressionSyntax rewrittenExpression,
-        SemanticModel originalSemanticModel, SemanticModel rewrittenSemanticModel,
-        Conversion originalConversion, ITypeSymbol originalConvertedType,
-        CancellationToken cancellationToken)
-    {
-        if (castNode.WalkUpParentheses().Parent is InterpolationSyntax)
-        {
-            // Workaround https://github.com/dotnet/roslyn/issues/56934
-            // Compiler does not give a conversion inside an interpolation. However, all values in the interpolation
-            // holes are converted to object.
-            //
-            // Note: this may need to be revisited with improved interpolated strings (as they could take
-            // strongly typed args and could avoid the object boxing).
-            var convertedType = originalConversion.IsIdentity ? originalConvertedType : originalSemanticModel.Compilation.ObjectType;
-            return (convertedType, default);
-        }
-
-        var rewrittenConvertedType = rewrittenSemanticModel.GetTypeInfo(rewrittenExpression, cancellationToken).ConvertedType;
-        var rewrittenConversion = rewrittenSemanticModel.GetConversion(rewrittenExpression, cancellationToken);
-
-        return (rewrittenConvertedType, rewrittenConversion);
     }
 
     private static (SemanticModel? rewrittenSemanticModel, ExpressionSyntax? rewrittenExpression) GetSemanticModelWithCastRemoved(

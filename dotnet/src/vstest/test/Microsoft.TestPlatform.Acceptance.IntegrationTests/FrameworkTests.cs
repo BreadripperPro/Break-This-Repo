@@ -13,8 +13,7 @@ public class FrameworkTests : AcceptanceTestBase
 {
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void FrameworkArgumentShouldWork(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -27,8 +26,7 @@ public class FrameworkTests : AcceptanceTestBase
     }
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: Net)]
     public void FrameworkShortNameArgumentShouldWork(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
@@ -43,14 +41,14 @@ public class FrameworkTests : AcceptanceTestBase
     [TestMethod]
     // framework runner not available on Linux
     [TestCategory("Windows-Review")]
-    [NetFullTargetFrameworkDataSource(useCoreRunner: false)]
-    //[NetCoreTargetFrameworkDataSource]
+    [TestMatrix(console: NetFx, testHost: NetFx)]
+    //[TestMatrix(testHost: Net)]
     public void OnWrongFrameworkPassedTestRunShouldNotRun(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);
 
         var arguments = PrepareArguments(GetSampleTestAssembly(), string.Empty, string.Empty, string.Empty, resultsDirectory: TempDirectory.Path);
-        if (runnerInfo.TargetFramework.Contains("netcore"))
+        if (runnerInfo.IsNetTarget)
         {
             arguments = string.Concat(arguments, " ", "/Framework:Framework45");
         }
@@ -60,15 +58,16 @@ public class FrameworkTests : AcceptanceTestBase
         }
         InvokeVsTest(arguments);
 
-        if (runnerInfo.TargetFramework.Contains("netcore"))
+        if (runnerInfo.IsNetTarget)
         {
             StdOutputContains("No test is available");
         }
     }
 
     [TestMethod]
-    [NetFullTargetFrameworkDataSource]
-    [NetCoreTargetFrameworkDataSource]
+    [TestMatrix(testHost: NetFx)]
+    [TestMatrix(testHost: Net)]
+    // The .NET (Core) runner produces a different framework-incompatible warning on non-Windows, so keep this Windows-only.
     [TestCategory("Windows-Review")]
     public void RunSpecificTestsShouldWorkWithFrameworkInCompatibleWarning(RunnerInfo runnerInfo)
     {
@@ -80,17 +79,21 @@ public class FrameworkTests : AcceptanceTestBase
 
         InvokeVsTest(arguments);
 
-        // When this test runs it provides an incorrect desired framework for the run. E.g. the dll is actually net8.0
-        // but we request to run as .NET Framework 4.0. On windows this has predictable results, for net8.0 dll we fail
+        // When this test runs it provides an incorrect desired framework for the run. E.g. the dll is actually net11.0
+        // but we request to run as .NET Framework 4.0. On windows this has predictable results, for net11.0 dll we fail
         // to load it into .NET Framework testhost.exe, and fail with "No test is available". For .NET Framework dll, we
-        // just log a warning saying that we provided .NET Framework 472 dlls (or whatever the current tfm for test dlls is),
+        // just log a warning saying that we provided .NET Framework 481 dlls (or whatever the current tfm for test dlls is),
         // but the settings requested .NET Framework 4.0. The test will still run because .NET Framework is compatible, and in reality
-        // the system has .NET Framework 472 or newer installed, which runs even if we ask for .NET Framework 4.0 testhost.
+        // the system has .NET Framework 481 or newer installed, which runs even if we ask for .NET Framework 4.0 testhost.
         //
-        // On Linux and Mac we execute only net8.0 tests, and even though we force .NET Framework, we end up running on mono
-        // which is suprisingly able to run the .NET CoreApp 3.1 dll, so we still just see a warning and 1 completed test.
-        var isWindows = Environment.OSVersion.Platform.ToString().StartsWith("Win");
-        if (runnerInfo.TargetFramework.Contains("net8") && isWindows)
+        // This test is Windows-Review only, so it does not run on Linux or Mac in CI. If it is run there manually,
+        // forcing .NET Framework now fails fast, because the .NET Framework test host is no longer launched through Mono.
+        var isWindows = Environment.OSVersion.Platform.ToString().StartsWith("Win", StringComparison.Ordinal);
+        if (!isWindows)
+        {
+            StdErrorContains("Running .NET Framework tests is supported on Windows only");
+        }
+        else if (runnerInfo.TargetFramework.Contains("net11"))
         {
             StdOutputContains("No test is available");
         }
@@ -98,6 +101,34 @@ public class FrameworkTests : AcceptanceTestBase
         {
             StdOutputContains("Following DLL(s) do not match current settings, which are .NETFramework,Version=v4.0 framework and X64 platform.");
             ValidateSummaryStatus(1, 0, 0);
+        }
+    }
+
+    [TestMethod]
+    [NetCoreTargetFrameworkDataSource]
+    public void RunningNetFrameworkTestsOnNonWindowsShouldFailWithClearError(RunnerInfo runnerInfo)
+    {
+        SetTestEnvironment(_testEnvironment, runnerInfo);
+
+        // Force the run to use the .NET Framework test host (testhost.exe). That host exists only on
+        // Windows. On other operating systems we used to fall back to Mono, which is no longer supported,
+        // so the run should fail fast with a clear, actionable message instead of an opaque Mono error.
+        var arguments = PrepareArguments(GetSampleTestAssembly(), string.Empty, string.Empty, string.Empty, resultsDirectory: TempDirectory.Path);
+        arguments = string.Concat(arguments, " ", "/Framework:Framework40");
+
+        InvokeVsTest(arguments);
+
+        var isWindows = Environment.OSVersion.Platform.ToString().StartsWith("Win", StringComparison.Ordinal);
+        if (isWindows)
+        {
+            // On Windows the .NET Framework test host is available, so the "Windows only" error must not appear.
+            StdErrorDoesNotContains("Running .NET Framework tests is supported on Windows only");
+        }
+        else
+        {
+            // The run must fail fast with a clear message, not merely log a warning.
+            StdErrorContains("Running .NET Framework tests is supported on Windows only");
+            ExitCodeEquals(1);
         }
     }
 }

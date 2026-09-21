@@ -14,7 +14,7 @@ using Xunit;
 
 public class Async2Reflection
 {
-    [Fact]
+    [ConditionalFact(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
     public static void MethodInfo_Invoke_TaskReturning()
     {
         var mi = typeof(Async2Reflection).GetMethod("Foo", BindingFlags.Static | BindingFlags.NonPublic)!;
@@ -234,9 +234,12 @@ public class Async2Reflection
         public extern static Task<T> accessor<T>(PrivateAsync2 o, int i);
     }
 
-    [Fact]
+    [ConditionalFact(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
     public static void UnsafeAccessors()
     {
+        PrivateAsync1<int>.s = 0;
+        PrivateAsync2.s = 0;
+
         Accessors2.accessor<int>(null, 7).GetAwaiter().GetResult();
         Assert.Equal(4, PrivateAsync1<int>.s);
         Assert.Equal(4, PrivateAsync2.s);
@@ -246,7 +249,27 @@ public class Async2Reflection
         Assert.Equal(8, PrivateAsync2.s);
     }
 
-    [Fact]
+    [ConditionalFact(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
+    public static void UnsafeAccessorsAsync()
+    {
+        UnsafeAccessorsAsyncInner().GetAwaiter().GetResult();
+    }
+
+    private static async Task UnsafeAccessorsAsyncInner()
+    {
+        PrivateAsync1<int>.s = 0;
+        PrivateAsync2.s = 0;
+
+        await Accessors2.accessor<int>(null, 7);
+        Assert.Equal(4, PrivateAsync1<int>.s);
+        Assert.Equal(4, PrivateAsync2.s);
+
+        await Accessors1<int>.accessor(null, 7);
+        Assert.Equal(8, PrivateAsync1<int>.s);
+        Assert.Equal(8, PrivateAsync2.s);
+    }
+
+    [ConditionalFact(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
     public static void CurrentMethod()
     {
         // Note: async1 leaks implementation details here and returns "Void MoveNext()"
@@ -284,7 +307,7 @@ public class Async2Reflection
         return await GetCurrentMethodTask();
     }
 
-    [Theory]
+    [ConditionalTheory(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
     [InlineData(0)]
     [InlineData(1)]
     [ActiveIssue("https://github.com/dotnet/runtime/issues/122547", typeof(TestLibrary.Utilities), nameof(TestLibrary.Utilities.IsCoreClrInterpreter))]
@@ -351,7 +374,7 @@ public class Async2Reflection
 
     [ActiveIssue("https://github.com/dotnet/runtime/issues/122547", typeof(TestLibrary.Utilities), nameof(TestLibrary.Utilities.IsNativeAot))]
     [ActiveIssue("https://github.com/dotnet/runtime/issues/122547", typeof(TestLibrary.Utilities), nameof(TestLibrary.Utilities.IsCoreClrInterpreter))]
-    [Theory]
+    [ConditionalTheory(typeof(TestLibrary.PlatformDetection), nameof(TestLibrary.PlatformDetection.IsMultithreadingSupported))]
     [InlineData(0)]
     [InlineData(1)]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -416,14 +439,14 @@ public class Async2Reflection
         string[] expected =
             {"Boolean Equals(System.Object)",
                  "Void Finalize()",
-                 "System.Threading.Tasks.Task`1[System.Int32] get_P1()",
                  "System.String[] GetAll()",
                  "Int32 GetHashCode()",
                  "System.Type GetType()",
                  "System.Threading.Tasks.Task`1[System.Int32] M1()",
                  "System.Threading.Tasks.Task`1[System.Int32] M2()",
                  "System.Object MemberwiseClone()",
-                 "System.String ToString()" };
+                 "System.String ToString()",
+                 "System.Threading.Tasks.Task`1[System.Int32] get_P1()" };
 
         Assert.Equal(expected.Length, actual.Length);
         for (int i = 0; i < actual.Length; i++)
@@ -444,7 +467,7 @@ public class Async2Reflection
         {
             Type t = typeof(EnumAll);
             List<string> names = new();
-            foreach (MethodInfo mi in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).OrderBy(it => it.Name))
+            foreach (MethodInfo mi in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).OrderBy(it => it.Name, StringComparer.Ordinal))
             {
                 names.Add(mi.ToString()!);
             }

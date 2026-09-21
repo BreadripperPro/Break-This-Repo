@@ -27,8 +27,8 @@ internal abstract class AbstractRefreshQueue :
     private readonly IClientLanguageServerManager _notificationManager;
 
     private readonly IAsynchronousOperationListener _asyncListener;
-    private readonly CancellationTokenSource _disposalTokenSource;
     private readonly LspWorkspaceRegistrationService _lspWorkspaceRegistrationService;
+    private readonly FeatureProviderRefresher _providerRefresher;
 
     protected abstract string GetFeatureAttribute();
     protected abstract bool? GetRefreshSupport(ClientCapabilities clientCapabilities);
@@ -43,10 +43,10 @@ internal abstract class AbstractRefreshQueue :
     {
         _asyncListener = asynchronousOperationListenerProvider.GetListener(GetFeatureAttribute());
         _lspWorkspaceRegistrationService = lspWorkspaceRegistrationService;
-        _disposalTokenSource = new();
         _lspWorkspaceManager = lspWorkspaceManager;
         _notificationManager = notificationManager;
-        providerRefresher.ProviderRefreshRequested += EnqueueRefreshNotification;
+        _providerRefresher = providerRefresher;
+        _providerRefresher.ProviderRefreshRequested += EnqueueRefreshNotification;
     }
 
     public async Task OnInitializedAsync(ClientCapabilities clientCapabilities, RequestContext context, CancellationToken cancellationToken)
@@ -67,8 +67,7 @@ internal abstract class AbstractRefreshQueue :
                 processBatchAsync: (documentUris, cancellationToken)
                     => FilterLspTrackedDocumentsAsync(_lspWorkspaceManager, _notificationManager, documentUris, cancellationToken),
                 equalityComparer: EqualityComparer<DocumentUri?>.Default,
-                asyncListener: _asyncListener,
-                _disposalTokenSource.Token);
+                asyncListener: _asyncListener);
             _lspWorkspaceRegistrationService.LspSolutionChanged += OnLspSolutionChanged;
         }
     }
@@ -132,8 +131,8 @@ internal abstract class AbstractRefreshQueue :
 
     public virtual void Dispose()
     {
+        _providerRefresher.ProviderRefreshRequested -= EnqueueRefreshNotification;
         _lspWorkspaceRegistrationService.LspSolutionChanged -= OnLspSolutionChanged;
-        _disposalTokenSource.Cancel();
-        _disposalTokenSource.Dispose();
+        _refreshQueue?.Dispose();
     }
 }

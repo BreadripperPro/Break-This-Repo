@@ -18,6 +18,7 @@ using NuGet.XPlat.FuncTest;
 using Test.Utility;
 using Xunit;
 using Xunit.Abstractions;
+using Strings = NuGet.Packaging.Strings;
 
 namespace Dotnet.Integration.Test
 {
@@ -74,6 +75,40 @@ namespace Dotnet.Integration.Test
                 // Should resolve to specified package.
                 ridlessTarget.Libraries.Should().Contain(e => e.Version.Equals(packageX_V2.Version));
             }
+        }
+
+        [Fact]
+        public async Task AddPkg_FileBasedApp()
+        {
+            using var pathContext = _fixture.CreateSimpleTestPathContext();
+
+            // Create the file-based app.
+            var fbaDir = Path.Join(pathContext.SolutionRoot, "fba");
+            Directory.CreateDirectory(fbaDir);
+
+            var appFile = Path.Join(fbaDir, "app.cs");
+            File.WriteAllText(appFile, """
+                #:property PublishAot=false
+                Console.WriteLine();
+                """);
+
+            // Create a package.
+            var packageX = XPlatTestUtils.CreatePackage();
+            await SimpleTestPackageUtility.CreateFolderFeedV3Async(pathContext.PackageSource, PackageSaveMode.Defaultv3, packageX);
+
+            // Add the package.
+            _fixture.RunDotnetExpectSuccess(fbaDir, "package add packageX --file app.cs --version 1.0.0", testOutputHelper: _testOutputHelper);
+
+            // Verify the full content of the modified .cs file.
+            var modifiedContent = File.ReadAllText(appFile);
+            _testOutputHelper.WriteLine("after:\n" + modifiedContent);
+            Assert.Equal(
+                """
+                #:package packageX@1.0.0
+                #:property PublishAot=false
+                Console.WriteLine();
+                """,
+                modifiedContent);
         }
 
         [Fact]

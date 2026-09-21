@@ -9,12 +9,6 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class ResponseFileArgumentProcessorTests
 {
-    [TestCleanup]
-    public void TestCleanup()
-    {
-        CommandLineOptions.Reset();
-    }
-
     [TestMethod]
     public void GetMetadataShouldReturnResponseFileArgumentProcessorCapabilities()
     {
@@ -36,7 +30,7 @@ public class ResponseFileArgumentProcessorTests
     {
         var capabilities = new ResponseFileArgumentProcessorCapabilities();
         Assert.AreEqual("@", capabilities.CommandName);
-        StringAssert.Contains(capabilities.HelpContentResourceName, "Read response file for more options");
+        Assert.Contains("Read response file for more options", capabilities.HelpContentResourceName);
 
         Assert.AreEqual(HelpContentPriority.ResponseFileArgumentProcessorHelpPriority, capabilities.HelpPriority);
         Assert.IsFalse(capabilities.IsAction);

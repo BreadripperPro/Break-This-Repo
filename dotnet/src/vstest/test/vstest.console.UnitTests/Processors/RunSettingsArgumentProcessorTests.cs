@@ -1,7 +1,8 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Xml;
@@ -11,6 +12,7 @@ using Microsoft.VisualStudio.TestPlatform.Common.Interfaces;
 using Microsoft.VisualStudio.TestPlatform.Common.Utilities;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Utilities;
+using Microsoft.VisualStudio.TestPlatform.Utilities.Helpers;
 using Microsoft.VisualStudio.TestPlatform.Utilities.Helpers.Interfaces;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -23,6 +25,7 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class RunSettingsArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private readonly TestableRunSettingsProvider _settingsProvider;
 
     public RunSettingsArgumentProcessorTests()
@@ -33,20 +36,19 @@ public class RunSettingsArgumentProcessorTests
     [TestCleanup]
     public void TestCleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnRunSettingsArgumentProcessorCapabilities()
     {
-        var processor = new RunSettingsArgumentProcessor();
+        var processor = new RunSettingsArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider(), new RunSettingsHelper());
         Assert.IsTrue(processor.Metadata.Value is RunSettingsArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnRunSettingsArgumentExecutor()
     {
-        var processor = new RunSettingsArgumentProcessor();
+        var processor = new RunSettingsArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider(), new RunSettingsHelper());
         Assert.IsTrue(processor.Executor!.Value is RunSettingsArgumentExecutor);
     }
 
@@ -76,21 +78,15 @@ public class RunSettingsArgumentProcessorTests
     [TestMethod]
     public void InitializeShouldThrowExceptionIfArgumentIsNull()
     {
-        Action action = () => new RunSettingsArgumentExecutor(CommandLineOptions.Instance, null!).Initialize(null);
-
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            action,
-            "The /Settings parameter requires a settings file to be provided.");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => new RunSettingsArgumentExecutor(_commandLineOptions, null!, new RunSettingsHelper()).Initialize(null));
+        Assert.Contains("The /Settings parameter requires a settings file to be provided.", ex.Message);
     }
 
     [TestMethod]
     public void InitializeShouldThrowExceptionIfArgumentIsWhiteSpace()
     {
-        Action action = () => new RunSettingsArgumentExecutor(CommandLineOptions.Instance, null!).Initialize("  ");
-
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            action,
-            "The /Settings parameter requires a settings file to be provided.");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => new RunSettingsArgumentExecutor(_commandLineOptions, null!, new RunSettingsHelper()).Initialize("  "));
+        Assert.Contains("The /Settings parameter requires a settings file to be provided.", ex.Message);
     }
 
     [TestMethod]
@@ -98,16 +94,14 @@ public class RunSettingsArgumentProcessorTests
     {
         var fileName = "C:\\Imaginary\\nonExistentFile.txt";
 
-        var executor = new RunSettingsArgumentExecutor(CommandLineOptions.Instance, null!);
+        var executor = new RunSettingsArgumentExecutor(_commandLineOptions, null!, new RunSettingsHelper());
         var mockFileHelper = new Mock<IFileHelper>();
         mockFileHelper.Setup(fh => fh.Exists(It.IsAny<string>())).Returns(false);
 
         executor.FileHelper = mockFileHelper.Object;
 
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            () => executor.Initialize(fileName),
-            "The Settings file '{0}' could not be found.",
-            fileName);
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => executor.Initialize(fileName));
+        Assert.Contains(string.Format(CultureInfo.CurrentCulture, "The Settings file '{0}' could not be found.", fileName), ex.Message);
     }
 
     [TestMethod]
@@ -118,7 +112,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<BadRunSettings></BadRunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -129,9 +123,8 @@ public class RunSettingsArgumentProcessorTests
         executor.FileHelper = mockFileHelper.Object;
 
         // Act and Assert.
-        ExceptionUtilities.ThrowsException<SettingsException>(
-            () => executor.Initialize(fileName),
-            "Settings file provided does not conform to required format.");
+        var ex = Assert.ThrowsExactly<SettingsException>(() => executor.Initialize(fileName));
+        Assert.Contains("Settings file provided does not conform to required format.", ex.Message);
     }
 
     [TestMethod]
@@ -142,7 +135,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<RunSettings></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -156,7 +149,7 @@ public class RunSettingsArgumentProcessorTests
 
         // Assert.
         Assert.IsNotNull(_settingsProvider.ActiveRunSettings);
-        Assert.AreEqual(fileName, CommandLineOptions.Instance.SettingsFile);
+        Assert.AreEqual(fileName, _commandLineOptions.SettingsFile);
     }
 
     [TestMethod]
@@ -167,7 +160,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<RunSettings></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -180,7 +173,7 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.AreEqual(fileName, CommandLineOptions.Instance.SettingsFile);
+        Assert.AreEqual(fileName, _commandLineOptions.SettingsFile);
     }
 
     [TestMethod]
@@ -191,7 +184,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<RunSettings></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -221,7 +214,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<TestSettings></TestSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -253,7 +246,7 @@ public class RunSettingsArgumentProcessorTests
             $"    <DataCollectors />",
             $"  </DataCollectionRunSettings>",
             $"</RunSettings>");
-        StringAssert.Contains(_settingsProvider.ActiveRunSettings.SettingsXml, expected);
+        Assert.Contains(expected, _settingsProvider.ActiveRunSettings.SettingsXml!);
     }
 
 
@@ -265,7 +258,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = $"<RunSettings><RunConfiguration><TargetPlatform>{nameof(Architecture.X64)}</TargetPlatform><TargetFrameworkVersion>{Constants.DotNetFramework46}</TargetFrameworkVersion></RunConfiguration></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -278,10 +271,10 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.IsTrue(CommandLineOptions.Instance.ArchitectureSpecified);
-        Assert.IsTrue(CommandLineOptions.Instance.FrameworkVersionSpecified);
-        Assert.AreEqual(Architecture.X64, CommandLineOptions.Instance.TargetArchitecture);
-        Assert.AreEqual(Constants.DotNetFramework46, CommandLineOptions.Instance.TargetFrameworkVersion.Name);
+        Assert.IsTrue(_commandLineOptions.ArchitectureSpecified);
+        Assert.IsTrue(_commandLineOptions.FrameworkVersionSpecified);
+        Assert.AreEqual(Architecture.X64, _commandLineOptions.TargetArchitecture);
+        Assert.AreEqual(Constants.DotNetFramework46, _commandLineOptions.TargetFrameworkVersion.Name);
     }
 
     [TestMethod]
@@ -292,7 +285,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = "<RunSettings><RunConfiguration></RunConfiguration></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -305,8 +298,8 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.IsFalse(CommandLineOptions.Instance.ArchitectureSpecified);
-        Assert.IsFalse(CommandLineOptions.Instance.FrameworkVersionSpecified);
+        Assert.IsFalse(_commandLineOptions.ArchitectureSpecified);
+        Assert.IsFalse(_commandLineOptions.FrameworkVersionSpecified);
     }
 
     [TestMethod]
@@ -318,12 +311,12 @@ public class RunSettingsArgumentProcessorTests
         File.WriteAllText(runsettingsFile, settingsXml, Encoding.UTF8);
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             null);
 
         executor.Initialize(runsettingsFile);
-        Assert.IsTrue(_settingsProvider.ActiveRunSettings!.SettingsXml!.Contains(@"C:\新しいフォルダー"));
+        Assert.Contains(@"C:\新しいフォルダー", _settingsProvider.ActiveRunSettings!.SettingsXml!);
         File.Delete(runsettingsFile);
     }
 
@@ -336,7 +329,7 @@ public class RunSettingsArgumentProcessorTests
         var fileName = "C:\\temp\\r.runsettings";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -349,7 +342,7 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.IsTrue(CommandLineOptions.Instance.InIsolation);
+        Assert.IsTrue(_commandLineOptions.InIsolation);
         Assert.AreEqual("true", _settingsProvider.QueryRunSettingsNode(InIsolationArgumentExecutor.RunSettingsPath));
     }
 
@@ -362,7 +355,7 @@ public class RunSettingsArgumentProcessorTests
         var fileName = "C:\\temp\\r.runsettings";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -375,7 +368,7 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.IsFalse(CommandLineOptions.Instance.InIsolation);
+        Assert.IsFalse(_commandLineOptions.InIsolation);
         Assert.IsNull(_settingsProvider.QueryRunSettingsNode(InIsolationArgumentExecutor.RunSettingsPath));
     }
 
@@ -388,7 +381,7 @@ public class RunSettingsArgumentProcessorTests
         var settingsXml = $"<RunSettings><RunConfiguration><TestCaseFilter>{filter}</TestCaseFilter></RunConfiguration></RunSettings>";
 
         var executor = new TestableRunSettingsArgumentExecutor(
-            CommandLineOptions.Instance,
+            _commandLineOptions,
             _settingsProvider,
             settingsXml);
 
@@ -401,7 +394,7 @@ public class RunSettingsArgumentProcessorTests
         executor.Initialize(fileName);
 
         // Assert.
-        Assert.AreEqual(filter, CommandLineOptions.Instance.TestCaseFilterValue);
+        Assert.AreEqual(filter, _commandLineOptions.TestCaseFilterValue);
     }
     #endregion
 
@@ -415,7 +408,7 @@ public class RunSettingsArgumentProcessorTests
             CommandLineOptions commandLineOptions,
             IRunSettingsProvider runSettingsManager,
             string? runSettings)
-            : base(commandLineOptions, runSettingsManager)
+            : base(commandLineOptions, runSettingsManager, new RunSettingsHelper())
 
         {
             _runSettingsString = runSettings;

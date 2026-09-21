@@ -5,32 +5,30 @@ using Microsoft.EntityFrameworkCore.TestModels.InheritanceModel;
 
 namespace Microsoft.EntityFrameworkCore.Query.Inheritance;
 
-#nullable disable
-
 public class TPHInheritanceQuerySqlServerTest(TPHInheritanceQuerySqlServerFixture fixture, ITestOutputHelper testOutputHelper)
     : TPHInheritanceQueryTestBase<TPHInheritanceQuerySqlServerFixture>(fixture, testOutputHelper)
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Check_all_tests_overridden()
         => TestHelpers.AssertAllMethodsOverridden(GetType());
 
-    [ConditionalFact]
+    [Fact]
     public virtual void Common_property_shares_column()
     {
         using var context = CreateContext();
-        var liltType = context.Model.FindEntityType(typeof(Lilt));
-        var cokeType = context.Model.FindEntityType(typeof(Coke));
-        var teaType = context.Model.FindEntityType(typeof(Tea));
+        var liltType = context.Model.FindEntityType(typeof(Lilt))!;
+        var cokeType = context.Model.FindEntityType(typeof(Coke))!;
+        var teaType = context.Model.FindEntityType(typeof(Tea))!;
 
-        Assert.Equal("SugarGrams", cokeType.FindProperty("SugarGrams").GetColumnName());
-        Assert.Equal("CaffeineGrams", cokeType.FindProperty("CaffeineGrams").GetColumnName());
-        Assert.Equal("CokeCO2", cokeType.FindProperty("Carbonation").GetColumnName());
+        Assert.Equal("SugarGrams", cokeType.FindProperty("SugarGrams")!.GetColumnName());
+        Assert.Equal("CaffeineGrams", cokeType.FindProperty("CaffeineGrams")!.GetColumnName());
+        Assert.Equal("CokeCO2", cokeType.FindProperty("Carbonation")!.GetColumnName());
 
-        Assert.Equal("SugarGrams", liltType.FindProperty("SugarGrams").GetColumnName());
-        Assert.Equal("LiltCO2", liltType.FindProperty("Carbonation").GetColumnName());
+        Assert.Equal("SugarGrams", liltType.FindProperty("SugarGrams")!.GetColumnName());
+        Assert.Equal("LiltCO2", liltType.FindProperty("Carbonation")!.GetColumnName());
 
-        Assert.Equal("CaffeineGrams", teaType.FindProperty("CaffeineGrams").GetColumnName());
-        Assert.Equal("HasMilk", teaType.FindProperty("HasMilk").GetColumnName());
+        Assert.Equal("CaffeineGrams", teaType.FindProperty("CaffeineGrams")!.GetColumnName());
+        Assert.Equal("HasMilk", teaType.FindProperty("HasMilk")!.GetColumnName());
     }
 
     public override async Task Can_query_when_shared_column(bool async)

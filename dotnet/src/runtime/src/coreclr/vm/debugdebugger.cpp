@@ -38,7 +38,7 @@
 //    Else if a native debugger is attached, this should send a native break event (kernel32!DebugBreak)
 //    Else, this should invoke Watson.
 //
-extern "C" void QCALLTYPE DebugDebugger_Break()
+extern "C" void QCALLTYPE DebugDebugger_Break(QCallExceptionStatus* qcallError)
 {
     QCALL_CONTRACT;
 
@@ -80,6 +80,8 @@ extern "C" void QCALLTYPE DebugDebugger_Break()
     }
 
     END_QCALL;
+#else
+    *qcallError = 0;
 #endif // DEBUGGING_SUPPORTED
 }
 
@@ -192,8 +194,13 @@ static StackWalkAction GetStackFramesCallback(CrawlFrame* pCf, VOID* data)
     //        NOT AT ALL!!!, but we can assume it's a function
     //                       because we asked the stackwalker for it!
     MethodDesc* pFunc = pCf->GetFunction();
-
     DebugStackTrace::GetStackFramesData* pData = (DebugStackTrace::GetStackFramesData*)data;
+
+    if (pFunc != nullptr && pFunc == g_pEnvironmentCallEntryPointMethodDesc)
+    {
+        return SWA_CONTINUE;
+    }
+
     if (pData->cElements >= pData->cElementsAllocated)
     {
         DebugStackTrace::Element* pTemp = new (nothrow) DebugStackTrace::Element[2*pData->cElementsAllocated];
@@ -286,7 +293,8 @@ static void GetStackFrames(DebugStackTrace::GetStackFramesData *pData)
 
 extern "C" void QCALLTYPE AsyncHelpers_AddContinuationToExInternal(
     void* diagnosticIP,
-    QCall::ObjectHandleOnStack exception)
+    QCall::ObjectHandleOnStack exception,
+    QCallExceptionStatus* qcallError)
 {
     QCALL_CONTRACT;
 
@@ -314,7 +322,8 @@ extern "C" void QCALLTYPE AsyncHelpers_AddContinuationToExInternal(
 extern "C" void QCALLTYPE StackTrace_GetStackFramesInternal(
     QCall::ObjectHandleOnStack stackFrameHelper,
     BOOL fNeedFileInfo,
-    QCall::ObjectHandleOnStack exception)
+    QCall::ObjectHandleOnStack exception,
+    QCallExceptionStatus* qcallError)
 {
     QCALL_CONTRACT;
 
@@ -556,15 +565,15 @@ extern "C" void QCALLTYPE StackTrace_GetStackFramesInternal(
                 // limitations (doesn't support in-memory or embedded PDBs).
                 if (pModule->GetPEAssembly()->HasLoadedPEImage())
                 {
-                    PEDecoder* pe = pModule->GetPEAssembly()->GetLoadedLayout();
-                    IMAGE_DATA_DIRECTORY* debugDirectoryEntry = pe->GetDirectoryEntry(IMAGE_DIRECTORY_ENTRY_DEBUG);
-                    if (debugDirectoryEntry != nullptr)
+                    PEImageLayout* pe = pModule->GetPEAssembly()->GetLoadedLayout();
+                    if (pe->HasDirectoryEntry(IMAGE_DIRECTORY_ENTRY_DEBUG))
                     {
-                        IMAGE_DEBUG_DIRECTORY* debugDirectory = (IMAGE_DEBUG_DIRECTORY*)pe->GetDirectoryData(debugDirectoryEntry);
+                        COUNT_T debugDirSize = 0;
+                        IMAGE_DEBUG_DIRECTORY* debugDirectory = (IMAGE_DEBUG_DIRECTORY*)(TADDR)pe->GetDirectoryEntryData(IMAGE_DIRECTORY_ENTRY_DEBUG, &debugDirSize);
                         if (debugDirectory != nullptr)
                         {
                             size_t nbytes = 0;
-                            while (nbytes < debugDirectoryEntry->Size)
+                            while (nbytes < debugDirSize)
                             {
                                 if ((debugDirectory->Type == IMAGE_DEBUG_TYPE_CODEVIEW && debugDirectory->MinorVersion == PORTABLE_PDB_MINOR_VERSION) ||
                                     (debugDirectory->Type == IMAGE_DEBUG_TYPE_EMBEDDED_PORTABLE_PDB))
@@ -817,7 +826,7 @@ extern "C" void QCALLTYPE StackTrace_GetStackFramesInternal(
     END_QCALL;
 }
 
-extern "C" MethodDesc* QCALLTYPE StackFrame_GetMethodDescFromNativeIP(LPVOID ip)
+extern "C" MethodDesc* QCALLTYPE StackFrame_GetMethodDescFromNativeIP(LPVOID ip, QCallExceptionStatus* qcallError)
 {
     QCALL_CONTRACT;
 
@@ -839,20 +848,34 @@ extern "C" MethodDesc* QCALLTYPE StackFrame_GetMethodDescFromNativeIP(LPVOID ip)
     return pResult;
 }
 
-FORCEINLINE void HolderDestroyStrongHandle(OBJECTHANDLE h) { if (h != NULL) DestroyStrongHandle(h); }
-typedef Wrapper<OBJECTHANDLE, DoNothing<OBJECTHANDLE>, HolderDestroyStrongHandle, 0> StrongHandleHolder;
+struct StrongHandleHolderTraits final
+{
+    using Type = OBJECTHANDLE;
+    static constexpr Type Default() { return NULL; }
+    static void Free(Type handle)
+    {
+        WRAPPER_NO_CONTRACT;
+        if (handle != NULL)
+            DestroyStrongHandle(handle);
+    }
+};
+
+using StrongHandleHolder = LifetimeHolder<StrongHandleHolderTraits>;
 
 // receives a custom notification object from the target and sends it to the RS via
 // code:Debugger::SendCustomDebuggerNotification
 // Argument: dataUNSAFE - a pointer the custom notification object being sent
-extern "C" void QCALLTYPE DebugDebugger_CustomNotification(QCall::ObjectHandleOnStack data)
+extern "C" void QCALLTYPE DebugDebugger_CustomNotification(QCall::ObjectHandleOnStack data, QCallExceptionStatus* qcallError)
 {
     QCALL_CONTRACT;
 
 #ifdef DEBUGGING_SUPPORTED
     // Send notification only if the debugger is attached
     if (!CORDebuggerAttached())
+    {
+        *qcallError = 0;
         return;
+    }
 
     BEGIN_QCALL;
 
@@ -861,14 +884,14 @@ extern "C" void QCALLTYPE DebugDebugger_CustomNotification(QCall::ObjectHandleOn
     Thread * pThread = GetThread();
     AppDomain * pAppDomain = AppDomain::GetCurrentDomain();
 
-    StrongHandleHolder objHandle = pAppDomain->CreateStrongHandle(data.Get());
+    StrongHandleHolder objHandle(pAppDomain->CreateStrongHandle(data.Get()));
     MethodTable* pMT = data.Get()->GetGCSafeMethodTable();
     Module* pModule = pMT->GetModule();
-    DomainAssembly* pDomainAssembly = pModule->GetDomainAssembly();
+    Assembly* pAssembly = pModule->GetAssembly();
     mdTypeDef classToken = pMT->GetCl();
 
     pThread->SetThreadCurrNotification(objHandle);
-    g_pDebugInterface->SendCustomDebuggerNotification(pThread, pDomainAssembly, classToken);
+    g_pDebugInterface->SendCustomDebuggerNotification(pThread, pAssembly, classToken);
     pThread->ClearThreadCurrNotification();
 
     if (pThread->IsAbortRequested())
@@ -877,6 +900,8 @@ extern "C" void QCALLTYPE DebugDebugger_CustomNotification(QCall::ObjectHandleOn
     }
 
     END_QCALL;
+#else
+    *qcallError = 0;
 #endif // DEBUGGING_SUPPORTED
 }
 

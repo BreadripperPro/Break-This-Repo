@@ -3,6 +3,7 @@
 //
 
 #include "common.h"
+#include <minipal/time.h>
 
 #include "mscoree.h"
 #include "corhost.h"
@@ -165,9 +166,9 @@ BOOL ClrVirtualProtect(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWO
                 //
                 // because the section following UEF will also be included in the region size
                 // if it has the same protection as the UEF section.
-                DWORD dwUEFSectionPageCount = ((pUEFSection->Misc.VirtualSize + GetOsPageSize() - 1) / GetOsPageSize());
+                DWORD dwUEFSectionPageCount = (DWORD)((pUEFSection->Misc.VirtualSize + minipal_getpagesize() - 1) / minipal_getpagesize());
 
-                BYTE* pAddressOfFollowingSection = pStartOfUEFSection + (GetOsPageSize() * dwUEFSectionPageCount);
+                BYTE* pAddressOfFollowingSection = pStartOfUEFSection + (minipal_getpagesize() * dwUEFSectionPageCount);
 
                 // Ensure that the section following us is having different memory protection
                 MEMORY_BASIC_INFORMATION nextSectionInfo;
@@ -210,12 +211,6 @@ BOOL ClrVirtualProtect(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWO
     return ::VirtualProtect(lpAddress, dwSize, flNewProtect, lpflOldProtect);
 }
 
-DWORD ClrSleepEx(DWORD dwMilliseconds, BOOL bAlertable)
-{
-    WRAPPER_NO_CONTRACT;
-    return ::SleepEx(dwMilliseconds, bAlertable);
-}
-
 // non-zero return value if this function causes the OS to switch to another thread
 // See file:spinlock.h#SwitchToThreadSpinning for an explanation of dwSwitchCount
 BOOL __SwitchToThread (DWORD dwSleepMSec, DWORD dwSwitchCount)
@@ -232,7 +227,7 @@ BOOL __SwitchToThread (DWORD dwSleepMSec, DWORD dwSwitchCount)
 
     if (dwSleepMSec > 0)
     {
-        ClrSleepEx(dwSleepMSec,FALSE);
+        minipal_sleep(dwSleepMSec);
         return TRUE;
     }
 
@@ -259,7 +254,7 @@ BOOL __SwitchToThread (DWORD dwSleepMSec, DWORD dwSwitchCount)
     _ASSERTE(CALLER_LIMITS_SPINNING < SLEEP_START_THRESHOLD);
     if (dwSwitchCount >= SLEEP_START_THRESHOLD)
     {
-        ClrSleepEx(1, FALSE);
+        minipal_sleep(1);
     }
 
     return SwitchToThread();

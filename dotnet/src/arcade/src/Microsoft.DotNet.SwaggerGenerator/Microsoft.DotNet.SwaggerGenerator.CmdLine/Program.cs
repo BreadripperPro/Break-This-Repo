@@ -3,126 +3,133 @@
 
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.DotNet.SwaggerGenerator.Modeler;
 using Microsoft.Extensions.Logging;
-using Microsoft.OpenApi.Models;
-using Microsoft.OpenApi.Readers;
-using Mono.Options;
+using Microsoft.OpenApi;
+using Microsoft.OpenApi.Reader;
 
-namespace Microsoft.DotNet.SwaggerGenerator.CmdLine
+namespace Microsoft.DotNet.SwaggerGenerator.CmdLine;
+
+internal static class Program
 {
-    internal static class Program
+    private static async Task<int> Main(string[] args)
     {
-        private static void Error(string message)
+        Option<string> inputOption = new("--input", "-i")
         {
-            Console.Error.WriteLine("fatal: " + message);
-            Environment.Exit(-1);
-        }
-
-        private static void MissingArgument(string name)
+            Description = "The input swagger spec uri",
+        };
+        Option<string> outputOption = new("--output", "-o")
         {
-            Error($"Missing required argument {name}");
-        }
-
-        private static async Task<int> Main(string[] args)
+            Description = "The output directory for generated code",
+        };
+        Option<string> namespaceOption = new("--namespace", "-n", "--ns")
         {
-            string input = null;
-            string output = null;
-            var version = false;
-            var showHelp = false;
-            var generatorOptions = new GeneratorOptions
-            {
-                LanguageName = "csharp",
-                Namespace = "Generated",
-                ClientName = "ApiClient",
-            };
+            Description = "The namespace for generated code",
+            DefaultValueFactory = _ => "Generated",
+        };
+        Option<string> languageOption = new("--language", "-l")
+        {
+            Description = "The language to generate code for",
+            DefaultValueFactory = _ => "csharp",
+        };
+        Option<string> clientNameOption = new("--client-name", "-c")
+        {
+            Description = "The name of the generated client",
+            DefaultValueFactory = _ => "ApiClient",
+        };
 
-            var options = new OptionSet
-            {
-                {"i|input=", "The input swagger spec uri", s => input = s},
-                {"o|output=", "The output directory for generated code", o => output = o},
-                {"n|ns|namespace=", "The namespace for generated code", n => generatorOptions.Namespace = n},
-                {"l|language=", "The language to generate code for", l => generatorOptions.LanguageName = l},
-                {"c|client-name=", "The name of the generated client", c => generatorOptions.ClientName = c},
-                {"version", "Display the version of this program.", v => version = v != null},
-                {"h|?|help", "Display this help message.", h => showHelp = h != null},
-            };
+        RootCommand rootCommand = new("dotnet-swaggergen")
+        {
+            inputOption,
+            outputOption,
+            namespaceOption,
+            languageOption,
+            clientNameOption,
+        };
 
-            List<string> arguments = options.Parse(args);
-
-            if (version)
-            {
-                string versionString = Assembly.GetEntryAssembly()
-                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                    .InformationalVersion;
-                Console.WriteLine(versionString);
-                return 0;
-            }
-
-            if (showHelp)
-            {
-                options.WriteOptionDescriptions(Console.Out);
-                return 0;
-            }
+        rootCommand.SetAction((result, cancellationToken) =>
+        {
+            string input = result.GetValue(inputOption);
+            string output = result.GetValue(outputOption);
 
             if (string.IsNullOrEmpty(input))
             {
-                MissingArgument(nameof(input));
+                return Task.FromResult(MissingArgument(nameof(input)));
             }
 
             if (string.IsNullOrEmpty(output))
             {
-                MissingArgument(nameof(output));
+                return Task.FromResult(MissingArgument(nameof(output)));
             }
 
-            ILogger logger = LoggerFactory.Create(builder => builder.AddSimpleConsole()).CreateLogger("dotnet-swaggergen");
-
-            var (diagnostic, document) = await GetSwaggerDocument(input);
-            if (diagnostic.Errors.Any())
+            var generatorOptions = new GeneratorOptions
             {
-                foreach (var error in diagnostic.Errors)
-                {
-                    Console.Error.WriteLine($"error: In {error.Pointer} '{error.Message}'");
-                }
+                LanguageName = result.GetValue(languageOption),
+                Namespace = result.GetValue(namespaceOption),
+                ClientName = result.GetValue(clientNameOption),
+            };
 
-                Console.Error.WriteLine("OpenApi Document parsing resulted in errors. Output may be compromised.");
-            }
+            return RunAsync(input, output, generatorOptions);
+        });
 
-            var generator = new ServiceClientModelFactory(generatorOptions);
-            ServiceClientModel model = generator.Create(document);
+        return await rootCommand.Parse(args).InvokeAsync();
+    }
 
-            var codeFactory = new ServiceClientCodeFactory();
-            List<CodeFile> code = codeFactory.GenerateCode(model, generatorOptions);
+    private static int MissingArgument(string name)
+    {
+        Console.Error.WriteLine($"fatal: Missing required argument {name}");
+        return -1;
+    }
 
-            var outputDirectory = new DirectoryInfo(output);
-            outputDirectory.Create();
+    private static async Task<int> RunAsync(string input, string output, GeneratorOptions generatorOptions)
+    {
+        ILogger logger = LoggerFactory.Create(builder => builder.AddSimpleConsole()).CreateLogger("dotnet-swaggergen");
 
-            foreach ((string path, string contents) in code)
+        var (diagnostic, document) = await GetSwaggerDocument(input);
+        if (diagnostic.Errors.Any())
+        {
+            foreach (var error in diagnostic.Errors)
             {
-                string fullPath = Path.Combine(outputDirectory.FullName, path);
-                var file = new FileInfo(fullPath);
-                file.Directory.Create();
-                File.WriteAllText(file.FullName, contents);
+                Console.Error.WriteLine($"error: In {error.Pointer} '{error.Message}'");
             }
 
-            return 0;
+            Console.Error.WriteLine("OpenApi Document parsing resulted in errors. Output may be compromised.");
         }
 
-        private static async Task<(OpenApiDiagnostic, OpenApiDocument)> GetSwaggerDocument(string input)
-        {
-            using (var client = new HttpClient(new HttpClientHandler { CheckCertificateRevocationList = true }))
-            {
-                using (Stream docStream = await client.GetStreamAsync(input))
-                {
-                    var doc = ServiceClientModelFactory.ReadDocument(docStream, out OpenApiDiagnostic diagnostic);
+        var generator = new ServiceClientModelFactory(generatorOptions);
+        ServiceClientModel model = generator.Create(document);
 
-                    return (diagnostic, doc);
-                }
+        var codeFactory = new ServiceClientCodeFactory();
+        List<CodeFile> code = codeFactory.GenerateCode(model, generatorOptions);
+
+        var outputDirectory = new DirectoryInfo(output);
+        outputDirectory.Create();
+
+        foreach ((string path, string contents) in code)
+        {
+            string fullPath = Path.Combine(outputDirectory.FullName, path);
+            var file = new FileInfo(fullPath);
+            file.Directory.Create();
+            File.WriteAllText(file.FullName, contents);
+        }
+
+        return 0;
+    }
+
+    private static async Task<(OpenApiDiagnostic, OpenApiDocument)> GetSwaggerDocument(string input)
+    {
+        using (var client = new HttpClient(new HttpClientHandler { CheckCertificateRevocationList = true }))
+        {
+            using (Stream docStream = await client.GetStreamAsync(input))
+            {
+                ReadResult result = await ServiceClientModelFactory.ReadDocumentAsync(docStream);
+
+                return (result.Diagnostic, result.Document);
             }
         }
     }

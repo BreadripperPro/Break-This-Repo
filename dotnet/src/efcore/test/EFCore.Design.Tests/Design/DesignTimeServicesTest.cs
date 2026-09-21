@@ -14,7 +14,7 @@ namespace Microsoft.EntityFrameworkCore.Design;
 
 public class DesignTimeServicesTest
 {
-    [ConditionalTheory, InlineData(true), InlineData(false)]
+    [Theory, InlineData(true), InlineData(false)]
     public void Services_are_registered_using_correct_priority(bool useContext)
     {
         using var context = new MyContext(
@@ -247,7 +247,7 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
         public MethodCallCodeFragment GenerateProviderOptions()
             => throw new NotImplementedException();
 
-        public MethodCallCodeFragment GenerateUseProvider(string connectionString, MethodCallCodeFragment providerOptions)
+        public MethodCallCodeFragment GenerateUseProvider(string connectionString, MethodCallCodeFragment? providerOptions)
             => throw new NotImplementedException();
     }
 
@@ -314,7 +314,7 @@ public class UserMigrationsIdGenerator : IMigrationsIdGenerator
             => throw new NotImplementedException();
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Abstract_design_time_services_are_ignored()
     {
         var serviceProvider = CreateDesignServiceProvider(
@@ -348,7 +348,7 @@ public class ActualDesignTimeServices : DesignTimeServicesBase
         Assert.NotNull(serviceProvider);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Interface_design_time_services_are_ignored()
     {
         var serviceProvider = CreateDesignServiceProvider(
@@ -376,7 +376,7 @@ public class ConcreteDesignTimeServices : IDesignTimeServicesInterface
         Assert.NotNull(serviceProvider);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Prefers_concrete_class_over_abstract()
     {
         // This test verifies that when both abstract and concrete classes are present,
@@ -413,8 +413,8 @@ public class ConcreteDesignTimeServices : IDesignTimeServices
 
     private ServiceProvider CreateDesignServiceProvider(
         string assemblyCode,
-        string startupAssemblyCode = null,
-        DbContext context = null)
+        string? startupAssemblyCode = null,
+        DbContext? context = null)
     {
         var assembly = Compile(assemblyCode);
         var startupAssembly = startupAssemblyCode == null

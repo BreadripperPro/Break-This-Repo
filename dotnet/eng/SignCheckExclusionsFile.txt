@@ -6,7 +6,8 @@
 *singlefilehost.exe;;Template, DO-NOT-SIGN, https://github.com/dotnet/core-setup/pull/7549
 *comhost.dll;;Template, DO-NOT-SIGN, https://github.com/dotnet/core-setup/pull/7549
 *apphosttemplateapphostexe.exe;;Template, DO-NOT-SIGN, https://github.com/dotnet/core-setup/pull/7549
-*.js;; DO-NOT-SIGN, Arcade's SignTool no longer signs .js files by default https://github.com/dotnet/arcade/pull/15760
+*.js|!Microsoft.DotNet.HotReload.WebAssembly.Browser.lib.module.js;; DO-NOT-SIGN, Arcade's SignTool no longer signs .js files by default https://github.com/dotnet/arcade/pull/15760
+*.js;dotnet-sdk-*-centos.*-x64.tar.gz|Private.SourceBuilt.Artifacts.*.tar.gz;DO-NOT-SIGN, all .js inside of source-build artifacts are intentionally unsigned
 
 ;; ## PGO ##
 ;dotnet-sdk-pgo-*.tar.gz; PGO builds are unsigned
@@ -27,6 +28,14 @@ Mono.Cecil.*dll;; IGNORE-STRONG-NAME
 Newtonsoft.Json.dll;; IGNORE-STRONG-NAME
 Spectre.Console.dll;; IGNORE-STRONG-NAME
 *.mibc;; IGNORE-STRONG-NAME, .mibc files are not strong-named
+
+;; Source-build only public-signs its outputs, so binaries inside the source-built
+;; intermediate/SDK tarballs carry a valid public key but a placeholder strong-name signature.
+Private.SourceBuilt.Artifacts.*.tar.gz*;; IGNORE-STRONG-NAME, source-build intermediate artifacts are public-signed only
+dotnet-sdk-*-centos.*-x64.tar.gz*;; IGNORE-STRONG-NAME, source-built SDK is public-signed only
+
+;; ## Not Unpacked ##
+dotnet-source-*.tar.gz;; DO-NOT-UNPACK
 
 ;; ## MACH-O ##
 *.dwarf;; Debugging symbols, https://github.com/dotnet/source-build/issues/4994#issuecomment-2768803544

@@ -3,6 +3,7 @@
 
 using Microsoft.NetCore.Analyzers.Runtime;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -17,6 +18,11 @@ namespace Microsoft.NetCore.CSharp.Analyzers.Runtime
         protected override bool IsAttributeSyntax(SyntaxNode node)
         {
             return node is AttributeSyntax;
+        }
+
+        protected override bool IsCollectionExpressionSyntax(SyntaxNode node)
+        {
+            return node.IsKind(SyntaxKind.CollectionExpression);
         }
     }
 }

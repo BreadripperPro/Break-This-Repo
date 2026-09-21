@@ -1779,6 +1779,8 @@ module Seq =
 
     /// <summary>Returns the greatest of all elements of the sequence, compared via Operators.max on the function result.</summary>
     ///
+    /// <remarks>Returns the first maximal element of the sequence if there are multiple equal maximum elements.
+    /// This is an O(n) operation, where n is the length of the sequence.</remarks>
     /// <param name="projection">A function to transform items from the input sequence into comparable keys.</param>
     /// <param name="source">The input sequence.</param>
     ///
@@ -1804,8 +1806,6 @@ module Seq =
     /// </code>
     /// Throws <c>System.ArgumentException</c>.
     /// </example>
-    ///
-    /// <remarks>This is an O(n) operation, where n is the length of the sequence.</remarks>
     [<CompiledName("MaxBy")>]
     val inline maxBy: projection: ('T -> 'U) -> source: seq<'T> -> 'T when 'U: comparison
 
@@ -1842,6 +1842,9 @@ module Seq =
 
     /// <summary>Returns the lowest of all elements of the sequence, compared via Operators.min on the function result.</summary>
     ///
+    /// <remarks>Returns the first minimal element of the sequence if there are multiple equal minimal elements.
+    /// This is an O(n) operation, where n is the length of the sequence.</remarks>
+    ///
     /// <param name="projection">A function to transform items from the input sequence into comparable keys.</param>
     /// <param name="source">The input sequence.</param>
     ///
@@ -1867,8 +1870,6 @@ module Seq =
     /// </code>
     /// Throws <c>System.ArgumentException</c>.
     /// </example>
-    ///
-    /// <remarks>This is an O(n) operation, where n is the length of the sequence.</remarks>
     [<CompiledName("MinBy")>]
     val inline minBy: projection: ('T -> 'U) -> source: seq<'T> -> 'T when 'U: comparison
 
@@ -2286,12 +2287,7 @@ module Seq =
 
     /// <summary>Yields a sequence ordered by keys.</summary>
     ///
-    /// <remarks>This function returns a sequence that digests the whole initial sequence as soon as
-    /// that sequence is iterated. As a result this function should not be used with
-    /// large or infinite sequences.
-    ///
-    /// The function makes no assumption on the ordering of the original
-    /// sequence and uses a stable sort, that is the original order of equal elements is preserved. This is an O(n log n) operation, where n is the length of the sequence.</remarks>
+    /// <include file="xmldoc/sort.xml" path="/sort/seqStable/*"/>
     ///
     /// <param name="source">The input sequence.</param>
     ///
@@ -2312,12 +2308,7 @@ module Seq =
 
     /// <summary>Yields a sequence ordered using the given comparison function.</summary>
     ///
-    /// <remarks>This function returns a sequence that digests the whole initial sequence as soon as
-    /// that sequence is iterated. As a result this function should not be used with
-    /// large or infinite sequences.
-    ///
-    /// The function makes no assumption on the ordering of the original
-    /// sequence and uses a stable sort, that is the original order of equal elements is preserved. This is an O(n log n) operation, where n is the length of the sequence.</remarks>
+    /// <include file="xmldoc/sort.xml" path="/sort/seqStable/*"/>
     ///
     /// <param name="comparer">The function to compare the collection elements.</param>
     /// <param name="source">The input sequence.</param>
@@ -2343,12 +2334,7 @@ module Seq =
     /// <summary>Applies a key-generating function to each element of a sequence and yield a sequence ordered
     /// by keys.  The keys are compared using generic comparison as implemented by <see cref="M:Microsoft.FSharp.Core.Operators.compare"/>.</summary>
     ///
-    /// <remarks>This function returns a sequence that digests the whole initial sequence as soon as
-    /// that sequence is iterated. As a result this function should not be used with
-    /// large or infinite sequences.
-    ///
-    /// The function makes no assumption on the ordering of the original
-    /// sequence and uses a stable sort, that is the original order of equal elements is preserved. This is an O(n log n) operation, where n is the length of the sequence.</remarks>
+    /// <include file="xmldoc/sort.xml" path="/sort/seqStable/*"/>
     ///
     /// <param name="projection">A function to transform items of the input sequence into comparable keys.</param>
     /// <param name="source">The input sequence.</param>
@@ -2370,12 +2356,7 @@ module Seq =
 
     /// <summary>Yields a sequence ordered descending by keys.</summary>
     ///
-    /// <remarks>This function returns a sequence that digests the whole initial sequence as soon as
-    /// that sequence is iterated. As a result this function should not be used with
-    /// large or infinite sequences. The function makes no assumption on the ordering of the original
-    /// sequence.
-    ///
-    /// This is a stable sort, that is the original order of equal elements is preserved. This is an O(n log n) operation, where n is the length of the sequence.</remarks>
+    /// <include file="xmldoc/sort.xml" path="/sort/seqStableDescending/*"/>
     ///
     /// <param name="source">The input sequence.</param>
     ///
@@ -2397,12 +2378,7 @@ module Seq =
     /// <summary>Applies a key-generating function to each element of a sequence and yield a sequence ordered
     /// descending by keys.  The keys are compared using generic comparison as implemented by <see cref="M:Microsoft.FSharp.Core.Operators.compare"/>.</summary>
     ///
-    /// <remarks>This function returns a sequence that digests the whole initial sequence as soon as
-    /// that sequence is iterated. As a result this function should not be used with
-    /// large or infinite sequences. The function makes no assumption on the ordering of the original
-    /// sequence.
-    ///
-    /// This is a stable sort, that is the original order of equal elements is preserved. This is an O(n log n) operation, where n is the length of the sequence.</remarks>
+    /// <include file="xmldoc/sort.xml" path="/sort/seqStableDescending/*"/>
     ///
     /// <param name="projection">A function to transform items of the input sequence into comparable keys.</param>
     /// <param name="source">The input sequence.</param>

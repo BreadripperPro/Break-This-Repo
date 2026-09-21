@@ -56,7 +56,6 @@ stages:
           logs: true
           manifests: true
       enableMicrobuild: true
-      enableSourceIndex: true
       enableSourceBuild: true
       workspace:
         clean: all
@@ -64,7 +63,8 @@ stages:
       - job: Windows_NT
         timeoutInMinutes: 90
         pool:
-          vmImage: windows-latest  
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals windows.vs2026.amd64.open
         strategy:
           matrix:
             Build_Release:
@@ -109,7 +109,8 @@ stages:
       - job: Linux
         container: LinuxContainer
         pool:
-          vmImage: ubuntu-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals build.azurelinux.3.amd64.open
         strategy:
           matrix:
             Build_Debug:
@@ -133,36 +134,40 @@ stages:
         publish:
           logs:
             name: Logs_Test_$(Agent.OS)_$(_BuildConfig)_$(_Testing)
-        download: true
       workspace:
         clean: all
       jobs:
       - job: Windows_NT
-        timeoutInMinutes: 90
         pool:
-          vmimage: windows-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals windows.vs2026.amd64.open
         strategy:
           matrix:
             Build_Release:
               _BuildConfig: Release
+        # Upload the non-Helix (inline) unit test results, including the Arcade SDK validation
+        # RepoTests, from artifacts/TestResults. Helix test results are published separately by
+        # the Helix Job Monitor.
+        enablePublishTestResults: true
         variables:
         - _Testing: Helix
         preSteps:
         - checkout: self
           clean: true
         steps:
-        - task: PowerShell@2
-          displayName: sdk-task verification
-          inputs:
-            filePath: eng\common\sdk-task.ps1
-            arguments: -task PublishToSymbolServers /p:DryRun="true" -restore -msbuildEngine dotnet
-              /p:DotNetSymbolServerTokenMsdl=DryRunPTA
-              /p:DotNetSymbolServerTokenSymWeb=DryRunPTA
-              /p:PDBArtifactsDirectory='$(Build.ArtifactStagingDirectory)/PDBArtifacts/'
-              /p:BlobBasePath='$(Build.ArtifactStagingDirectory)/BlobArtifacts/'
-              /p:SymbolPublishingExclusionsFile='$(System.DefaultWorkingDirectory)/eng/SymbolPublishingExclusionsFile.txt'
-              /p:Configuration=Release
-              /p:PublishToMSDL=false
+        # The Test stage build runs the non-Helix unit tests inline, which includes the ported
+        # Arcade SDK validation RepoTests (excluded from the Helix submission below). Passing
+        # RunNonHelixTestsOnly skips the inline execution of the Helix-routed unit tests so only the
+        # non-Helix tests run here. The validation tests are credential-free: the project defaults
+        # its Arcade SDK version + local feed to the freshly built $(PackageVersion) /
+        # $(ArtifactsNonShippingPackagesDir).
+        - script: eng\common\cibuild.cmd
+            -configuration $(_BuildConfig)
+            -prepareMachine
+            $(_InternalBuildArgs)
+            /p:RunNonHelixTestsOnly=true
+          displayName: Windows Build / Publish + non-Helix tests
+
         - powershell: eng\common\build.ps1
             -configuration $(_BuildConfig)
             -prepareMachine
@@ -173,26 +178,38 @@ stages:
             -projects $(System.DefaultWorkingDirectory)\tests\UnitTests.proj
             /bl:$(System.DefaultWorkingDirectory)\artifacts\log\$(_BuildConfig)\Helix.binlog
             /p:RestoreUsingNuGetTargets=false
-          displayName: Run Helix Tests
+          displayName: Submit Helix Tests
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
             HelixAccessToken: ''
 
       - job: Linux
-        timeoutInMinutes: 90
         container: LinuxContainer
         pool:
-          vmimage: ubuntu-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals build.azurelinux.3.amd64.open
         strategy:
           matrix:
             Build_Debug:
               _BuildConfig: Debug
+        # Upload the non-Helix (inline) unit test results, including the Arcade SDK validation
+        # RepoTests, from artifacts/TestResults. Helix test results are published separately by
+        # the Helix Job Monitor.
+        enablePublishTestResults: true
         variables:
         - _Testing: Helix
         preSteps:
         - checkout: self
           clean: true
         steps:
+        # See the Windows job: run the non-Helix unit tests (incl. the Arcade SDK validation
+        # RepoTests) inline; RunNonHelixTestsOnly skips inline execution of the Helix-routed tests.
+        - script: eng/common/cibuild.sh
+            --configuration $(_BuildConfig)
+            --prepareMachine
+            /p:RunNonHelixTestsOnly=true
+          displayName: Unix Build / Publish + non-Helix tests
+
         - script: eng/common/build.sh
             --configuration $(_BuildConfig)
             --prepareMachine
@@ -203,10 +220,22 @@ stages:
             --projects $(System.DefaultWorkingDirectory)/tests/UnitTests.proj
             /bl:$(System.DefaultWorkingDirectory)/artifacts/log/$(_BuildConfig)/Helix.binlog
             /p:RestoreUsingNuGetTargets=false
-          displayName: Run Helix Tests
+          displayName: Submit Helix Tests
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
             HelixAccessToken: ''
+
+  # Helix Job Monitor runs as a job within the Test stage so it can monitor
+  # Helix work items submitted by the other jobs in this stage.
+  - template: /eng/common/core-templates/job/helix-job-monitor.yml
+    parameters:
+      timeoutInMinutes: 90
+      # Arcade's own tests intentionally exercise failure paths, so test failures should
+      # not be promoted to work-item failures or trigger resubmissions here.
+      failWorkItemsWithFailedTests: false
+      # Install from the nupkg produced by the Build stage's Windows_NT Release job.
+      toolNupkgArtifactName: Artifacts_Windows_NT_Release
+      toolNupkgArtifactSubPath: packages/Release/NonShipping
 
 - stage: Test_XHarness
   displayName: Test XHarness SDK
@@ -224,10 +253,11 @@ stages:
         clean: all
       jobs:
       - job: Apple_Simulators
-        timeoutInMinutes: 90
+        timeoutInMinutes: 30
         container: LinuxContainer
         pool:
-          vmimage: ubuntu-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals build.azurelinux.3.amd64.open
         strategy:
           matrix:
             Build_Debug:
@@ -254,10 +284,11 @@ stages:
             HelixAccessToken: ''
 
       - job: Apple_Devices
-        timeoutInMinutes: 90
+        timeoutInMinutes: 30
         container: LinuxContainer
         pool:
-          vmimage: ubuntu-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals build.azurelinux.3.amd64.open
         strategy:
           matrix:
             Build_Debug:
@@ -284,10 +315,11 @@ stages:
             HelixAccessToken: ''
 
       - job: Android_Simulators
-        timeoutInMinutes: 90
+        timeoutInMinutes: 30
         container: LinuxContainer
         pool:
-          vmimage: ubuntu-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals build.azurelinux.3.amd64.open
         strategy:
           matrix:
             Build_Debug:
@@ -314,9 +346,10 @@ stages:
             HelixAccessToken: ''
 
       - job: Android_Devices
-        timeoutInMinutes: 90
+        timeoutInMinutes: 30
         pool:
-          vmimage: windows-latest
+          name: $(DncEngPublicBuildPool)
+          demands: ImageOverride -equals windows.vs2026.amd64.open
         strategy:
           matrix:
             Build_Release:
@@ -341,3 +374,14 @@ stages:
           env:
             SYSTEM_ACCESSTOKEN: $(System.AccessToken)
             HelixAccessToken: ''
+
+  # Helix Job Monitor runs as a job within the XHarness test stage too
+  - template: /eng/common/core-templates/job/helix-job-monitor.yml
+    parameters:
+      timeoutInMinutes: 90
+      # Arcade's own tests intentionally exercise failure paths, so test failures should
+      # not be promoted to work-item failures or trigger resubmissions here.
+      failWorkItemsWithFailedTests: false
+      # Install from the nupkg produced by the Build stage's Windows_NT Release job.
+      toolNupkgArtifactName: Artifacts_Windows_NT_Release
+      toolNupkgArtifactSubPath: packages/Release/NonShipping

@@ -271,6 +271,9 @@ type CalledMeth<'T> =
 
     member IsIndexParamArraySetter: bool
 
+    /// True when this method call is for a property indexer setter (set_Item or named indexer set).
+    member IsIndexerSetter: bool
+
     /// The method we're attempting to call
     member Method: MethInfo
 
@@ -291,6 +294,9 @@ type CalledMeth<'T> =
     member TotalNumUnnamedCalledArgs: int
 
     member TotalNumUnnamedCallerArgs: int
+
+    /// FS-1095: name to report if this positional call targets a RequireNamedArguments method, else None.
+    member TryGetRequireNamedArgumentsViolationName: m: range -> string option
 
     /// Unassigned args
     member UnassignedNamedArgs: CallerNamedArg<'T> list

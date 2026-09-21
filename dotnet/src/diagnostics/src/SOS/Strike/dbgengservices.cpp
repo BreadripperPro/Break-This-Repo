@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "hostservices.h"
 #include "exts.h"
+#include "symbols.h"
 
 extern IMachine* GetTargetMachine(ULONG processorType);
 
@@ -622,6 +623,38 @@ DbgEngServices::ExecuteHostCommand(
     return m_control->Execute(DEBUG_OUTCTL_THIS_CLIENT, commandLine, DEBUG_EXECUTE_NO_REPEAT);
 }
 
+static HRESULT GetDebuggerSettingValue(
+    IModelObject* settings,
+    PCWSTR categoryName,
+    PCWSTR settingName,
+    VARIANT* value)
+{
+    if (settings == nullptr || categoryName == nullptr || settingName == nullptr || value == nullptr)
+    {
+        return E_INVALIDARG;
+    }
+
+    VariantInit(value);
+    ReleaseHolder<IModelObject> category;
+    HRESULT hr = settings->GetKeyValue(categoryName, category.GetAddr(), nullptr);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    ReleaseHolder<IModelObject> setting;
+    hr = category->GetKeyValue(settingName, setting.GetAddr(), nullptr);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    hr = setting->GetIntrinsicValue(value);
+    if (FAILED(hr))
+    {
+        VariantClear(value);
+    }
+    return hr;
+}
+
 HRESULT
 DbgEngServices::GetDacSignatureVerificationSettings(
     BOOL* dacSignatureVerificationEnabled)
@@ -632,23 +665,23 @@ DbgEngServices::GetDacSignatureVerificationSettings(
     }
     *dacSignatureVerificationEnabled = FALSE;
 
-    HRESULT hr;
-    ReleaseHolder <IModelObject> engineInit;
-    if (FAILED(hr = m_settings->GetKeyValue(L"EngineInitialization", engineInit.GetAddr(), nullptr)))
-    {
-        return hr;
-    }
-    ReleaseHolder <IModelObject> secureLoadDotNetExtensions;
-    if (FAILED(hr = engineInit->GetKeyValue(L"SecureLoadDotNetExtensions", secureLoadDotNetExtensions.GetAddr(), nullptr)))
-    {
-        return hr;
-    }
     VARIANT value;
-    if (FAILED(hr = secureLoadDotNetExtensions->GetIntrinsicValue(&value)))
+    HRESULT hr = GetDebuggerSettingValue(
+        m_settings,
+        L"EngineInitialization",
+        L"SecureLoadDotNetExtensions",
+        &value);
+    if (FAILED(hr))
     {
         return hr;
+    }
+    if (value.vt != VT_BOOL)
+    {
+        VariantClear(&value);
+        return E_INVALIDARG;
     }
     *dacSignatureVerificationEnabled = value.boolVal != 0;
+    VariantClear(&value);
     return S_OK;
 }
 
@@ -860,6 +893,9 @@ DbgEngServices::SetCurrentThreadIdFromSystemId(
 void 
 DbgEngServices::InitializeSymbolStoreFromSymPath()
 {
+    // Clear the negative symbol lookup cache so modules are retried with the new path.
+    ClearSymbolLookupCache();
+
     ISymbolService* symbolService = GetSymbolService();
     if (symbolService != nullptr)
     {

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -49,14 +49,14 @@ public class EnableBlameArgumentProcessorTests
     [TestMethod]
     public void GetMetadataShouldReturnEnableBlameArgumentProcessorCapabilities()
     {
-        var processor = new EnableBlameArgumentProcessor();
+        var processor = new EnableBlameArgumentProcessor(new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Metadata.Value is EnableBlameArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnEnableBlameArgumentProcessorCapabilities()
     {
-        var processor = new EnableBlameArgumentProcessor();
+        var processor = new EnableBlameArgumentProcessor(new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Executor!.Value is EnableBlameArgumentExecutor);
     }
 
@@ -211,7 +211,6 @@ public class EnableBlameArgumentProcessorTests
     }
 
     [TestMethod]
-    [ExpectedException(typeof(CommandLineException))]
     public void InitializeShouldThrowIfInvalidParameterFormatIsSpecifiedForCollectDumpOption()
     {
         var invalidString = "CollectDump;sdf=sdg;;as;a=";
@@ -225,32 +224,7 @@ public class EnableBlameArgumentProcessorTests
         _mockEnvronment.Setup(x => x.Architecture)
             .Returns(PlatformArchitecture.X64);
 
-        _executor.Initialize(invalidString);
-        _mockOutput.Verify(x => x.WriteLine(string.Format(CultureInfo.CurrentCulture, CommandLineResources.InvalidBlameArgument, invalidString), OutputLevel.Warning));
-
-        Assert.IsNotNull(_settingsProvider.ActiveRunSettings);
-        Assert.AreEqual(string.Join(Environment.NewLine,
-                "<?xml version=\"1.0\" encoding=\"utf-16\"?>",
-                "<RunSettings>",
-                "  <DataCollectionRunSettings>",
-                "    <DataCollectors>",
-                "      <DataCollector friendlyName=\"blame\" enabled=\"True\">",
-                "        <Configuration>",
-                "          <ResultsDirectory>C:\\dir\\TestResults</ResultsDirectory>",
-                "        </Configuration>",
-                "      </DataCollector>",
-                "    </DataCollectors>",
-                "  </DataCollectionRunSettings>",
-                "  <RunConfiguration>",
-                "    <ResultsDirectory>C:\\dir\\TestResults</ResultsDirectory>",
-                "  </RunConfiguration>",
-                "  <LoggerRunSettings>",
-                "    <Loggers>",
-                "      <Logger friendlyName=\"blame\" enabled=\"True\" />",
-                "    </Loggers>",
-                "  </LoggerRunSettings>",
-                "</RunSettings>"),
-            _settingsProvider.ActiveRunSettings.SettingsXml);
+        Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(invalidString));
     }
 
     [TestMethod]
@@ -419,7 +393,6 @@ public class EnableBlameArgumentProcessorTests
     }
 
     [TestMethod]
-    [TestCategory("Windows-Review")]
     public void InitializeMonitorPostmortemDebuggerShouldGenerateCorrectConfiguration()
     {
         var runsettingsString = string.Format(CultureInfo.CurrentCulture, _defaultRunSettings, "");
@@ -460,7 +433,6 @@ public class EnableBlameArgumentProcessorTests
     }
 
     [TestMethod]
-    [TestCategory("Windows-Review")]
     public void InitializeMonitorPostmortemDebuggerShouldGenerateCorrectConfigurationAlsoIfIncomplete()
     {
         var runsettingsString = string.Format(CultureInfo.CurrentCulture, _defaultRunSettings, "");

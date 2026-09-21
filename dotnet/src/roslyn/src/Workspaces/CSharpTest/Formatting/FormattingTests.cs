@@ -6,7 +6,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp.Formatting;
-using Microsoft.CodeAnalysis.CSharp.Shared.Extensions;
 using Microsoft.CodeAnalysis.Editor.UnitTests.CodeActions;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Test.Utilities;
@@ -6739,6 +6738,175 @@ public sealed class FormattingTests : CSharpFormattingTestBase
             """, changingOptions);
     }
 
+    #region Labeled iteration_statement formatting (documents current behavior)
+
+    private static OptionsCollection LabelPositioningOptions(LabelPositionOptions value)
+        => new(LanguageNames.CSharp) { { CSharpFormattingOptions2.LabelPositioning, value } };
+
+    [Fact]
+    public Task LabeledForeach_SameLine_OneLess()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+                outer: foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer: foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.OneLess));
+
+    [Fact]
+    public Task LabeledForeach_SameLine_LeftMost()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+            outer: foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer: foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.LeftMost));
+
+    [Fact]
+    public Task LabeledForeach_SameLine_NoIndent()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+                    outer: foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer: foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.NoIndent));
+
+    [Fact]
+    public Task LabeledForeach_NextLine_OneLess()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+                outer:
+                    foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer:
+                foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.OneLess));
+
+    [Fact]
+    public Task LabeledForeach_NextLine_LeftMost()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+            outer:
+                    foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer:
+                foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.LeftMost));
+
+    [Fact]
+    public Task LabeledForeach_NextLine_NoIndent()
+        => AssertFormatAsync("""
+            class C
+            {
+                void M()
+                {
+                    outer:
+                    foreach (var x in new[] { 1 })
+                    {
+                        System.Console.Write(x);
+                    }
+                }
+            }
+            """, """
+            class C
+            {
+                void M()
+                {
+                outer:
+                foreach (var x in new[] { 1 })
+                {
+                System.Console.Write(x);
+                }
+                }
+            }
+            """, LabelPositioningOptions(LabelPositionOptions.NoIndent));
+
+    #endregion
+
     [Fact, WorkItem(707064, "DevDiv_Projects/Roslyn")]
     public Task Bugfix_707064_SpaceAfterSecondSemiColonInFor()
         => AssertFormatAsync("""
@@ -11073,6 +11241,17 @@ public sealed class FormattingTests : CSharpFormattingTestBase
             """);
 
     [Fact]
+    public Task Union_01()
+        => AssertFormatAsync(
+            """
+            union U<T>(T, string) { }
+            """,
+            """
+            union  U  <  T   >   (  T ,string   )  {  }
+            """,
+            parseOptions: CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp15));
+
+    [Fact]
     public async Task FormatListPattern()
     {
         var code = """
@@ -12752,4 +12931,130 @@ public sealed class FormattingTests : CSharpFormattingTestBase
                 var v = [ null :  1  +  1 , ( x . y ) :  from   x    in   y    select  z ];
                 """);
 #endif
+
+    [Fact]
+    public Task StandaloneBlocksShouldNotCollapseWhenMethodBraceOptionIsOff()
+        => AssertFormatAsync(
+            expected: """
+                class C
+                {
+                    void M() {
+                        {
+                        }
+                        {
+                        }
+                    }
+                }
+                """,
+            code: """
+                class C
+                {
+                    void M()
+                    {
+                        {
+                        }
+                        {
+                        }
+                    }
+                }
+                """,
+            changedOptionSet: new OptionsCollection(LanguageNames.CSharp)
+            {
+                { NewLineBeforeOpenBrace, NewLineBeforeOpenBrace.DefaultValue.WithFlagValue(NewLineBeforeOpenBracePlacement.Methods, false) }
+            });
+
+    [Fact]
+    public Task StandaloneBlocksShouldNotCollapseWhenAllBraceOptionsOff()
+        => AssertFormatAsync(
+            expected: """
+                class C {
+                    void M() {
+                        {
+                        }
+                        {
+                        }
+                    }
+                }
+                """,
+            code: """
+                class C
+                {
+                    void M()
+                    {
+                        {
+                        }
+                        {
+                        }
+                    }
+                }
+                """,
+            changedOptionSet: new OptionsCollection(LanguageNames.CSharp)
+            {
+                { NewLineBeforeOpenBrace, NewLineBeforeOpenBracePlacement.None }
+            });
+
+    [Fact]
+    public Task TopLevelStandaloneBlocksShouldNotCollapseWhenMethodBraceOptionIsOff()
+        => AssertFormatAsync(
+            expected: """
+                {
+                }
+                {
+                }
+                """,
+            code: """
+                {
+                }
+                {
+                }
+                """,
+            changedOptionSet: new OptionsCollection(LanguageNames.CSharp)
+            {
+                { NewLineBeforeOpenBrace, NewLineBeforeOpenBrace.DefaultValue.WithFlagValue(NewLineBeforeOpenBracePlacement.Methods, false) }
+            });
+
+    [Fact]
+    public Task TopLevelStandaloneBlocksShouldNotCollapseWhenAllBraceOptionsOff()
+        => AssertFormatAsync(
+            expected: """
+                {
+                }
+                {
+                }
+                """,
+            code: """
+                {
+                }
+                {
+                }
+                """,
+            changedOptionSet: new OptionsCollection(LanguageNames.CSharp)
+            {
+                { NewLineBeforeOpenBrace, NewLineBeforeOpenBracePlacement.None }
+            });
+
+    [Fact, WorkItem("https://github.com/dotnet/vscode-csharp/issues/9339")]
+    public Task CollectionExpressionAtStartOfFile()
+        => AssertFormatAsync("""
+            [1].ToString();
+            """, """
+            [1].ToString();
+            """);
+
+    [Fact]
+    public Task TopLevelLocalFunctionBraceStillFormatsWhenMethodBraceOptionIsOff()
+        => AssertFormatAsync(
+            expected: """
+                void M() {
+                }
+                """,
+            code: """
+                void M()
+                {
+                }
+                """,
+            changedOptionSet: new OptionsCollection(LanguageNames.CSharp)
+            {
+                { NewLineBeforeOpenBrace, NewLineBeforeOpenBrace.DefaultValue.WithFlagValue(NewLineBeforeOpenBracePlacement.Methods, false) }
+            });
 }

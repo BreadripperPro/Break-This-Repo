@@ -6,7 +6,6 @@
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
-using System.CommandLine.Help;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -87,11 +86,6 @@ namespace NuGet.CommandLine.XPlat
                 Arity = ArgumentArity.ExactlyOne
             };
 
-            var help = new HelpOption()
-            {
-                Arity = ArgumentArity.Zero
-            };
-
             searchCommand.Arguments.Add(searchTerm);
             searchCommand.Options.Add(sources);
             searchCommand.Options.Add(exactMatch);
@@ -102,7 +96,6 @@ namespace NuGet.CommandLine.XPlat
             searchCommand.Options.Add(format);
             searchCommand.Options.Add(verbosity);
             searchCommand.Options.Add(configFile);
-            searchCommand.Options.Add(help);
 
             searchCommand.SetAction(async (parserResult, cancelationToken) =>
             {
@@ -118,6 +111,7 @@ namespace NuGet.CommandLine.XPlat
                         Interactive = parserResult.GetValue(interactive),
                         Prerelease = parserResult.GetValue(prerelease),
                         Logger = logger,
+                        ConsoleWidth = GetConsoleWidth(),
                     };
 
                     return await setupSettingsAndRunSearchAsync(packageSearchArgs, parserResult.GetValue(configFile), cancelationToken);
@@ -130,6 +124,24 @@ namespace NuGet.CommandLine.XPlat
             });
 
             rootCommand.Subcommands.Add(searchCommand);
+        }
+
+        internal static int GetConsoleWidth()
+        {
+            try
+            {
+                int width = Console.WindowWidth;
+                if (width > 0)
+                {
+                    return width;
+                }
+            }
+            catch (IOException)
+            {
+                // Console.WindowWidth throws IOException when no console is attached
+            }
+
+            return Table.DefaultWindowWidth;
         }
 
         public static async Task<int> SetupSettingsAndRunSearchAsync(PackageSearchArgs packageSearchArgs, string configFile, CancellationToken cancellationToken)

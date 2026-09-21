@@ -72,7 +72,8 @@ namespace Microsoft.CodeAnalysis.CompilerServer
             ClientDirectory = clientDirectory;
             SdkDirectory = sdkDirectory;
             Logger = logger;
-            AnalyzerAssemblyLoader = Microsoft.CodeAnalysis.AnalyzerAssemblyLoader.CreateNonLockingLoader(Path.Combine(Path.GetTempPath(), "VBCSCompiler", "AnalyzerAssemblyLoader"));
+            Microsoft.CodeAnalysis.AnalyzerAssemblyLoader.CleanLegacyShadowCopyDirectoryIfNeeded(Path.Combine(Path.GetTempPath(), "VBCSCompiler", "AnalyzerAssemblyLoader"));
+            AnalyzerAssemblyLoader = Microsoft.CodeAnalysis.AnalyzerAssemblyLoader.CreateNonLockingLoader(Path.Combine(Path.GetTempPath(), "VBCSCompiler", "AnalyzerPathResolver"));
         }
 
         public bool TryCreateCompiler(in RunRequest request, BuildPaths buildPaths, [NotNullWhen(true)] out CommonCompiler? compiler)
@@ -86,7 +87,8 @@ namespace Microsoft.CodeAnalysis.CompilerServer
                         buildPaths: buildPaths,
                         libDirectory: request.LibDirectory,
                         analyzerLoader: AnalyzerAssemblyLoader,
-                        _driverCache);
+                        _driverCache,
+                        logger: Logger);
                     return true;
                 case LanguageNames.VisualBasic:
                     compiler = new VisualBasicCompilerServer(
@@ -95,7 +97,8 @@ namespace Microsoft.CodeAnalysis.CompilerServer
                         buildPaths: buildPaths,
                         libDirectory: request.LibDirectory,
                         analyzerLoader: AnalyzerAssemblyLoader,
-                        _driverCache);
+                        _driverCache,
+                        logger: Logger);
                     return true;
                 default:
                     compiler = null;
@@ -155,7 +158,19 @@ Run Compilation for {request.RequestId}
 Return code: {returnCode}
 Output:
 {outputString}");
-                return new CompletedBuildResponse(returnCode, utf8output, outputString);
+
+                IReadOnlyList<BuildTelemetryEvent>? telemetryEvents;
+                try
+                {
+                    telemetryEvents = (compiler as ICompilerServerTelemetryProvider)?.GetTelemetryEvents();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, $"Failed to get telemetry events for {request.RequestId}");
+                    telemetryEvents = null;
+                }
+
+                return new CompletedBuildResponse(returnCode, utf8output, outputString, telemetryEvents);
             }
             catch (Exception ex)
             {

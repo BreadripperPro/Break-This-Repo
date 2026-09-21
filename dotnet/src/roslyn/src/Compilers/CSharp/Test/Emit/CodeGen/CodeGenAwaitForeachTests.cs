@@ -2720,11 +2720,11 @@ unsafe class C
         public int* Current { get => throw null; }
     }
 }";
-            var comp = CreateCompilationWithTasksExtensions(source + s_IAsyncEnumerable, options: TestOptions.UnsafeDebugDll);
+            var comp = CreateCompilationWithTasksExtensions(source + s_IAsyncEnumerable, options: TestOptions.UnsafeDebugDll, parseOptions: TestOptions.Regular14);
             comp.VerifyDiagnostics(
-                // (6,9): error CS4004: Cannot await in an unsafe context
+                // (6,9): error CS8652: The feature 'updated memory safety rules' is currently in Preview and *unsupported*. To use Preview features, use the 'preview' language version.
                 //         await foreach (var i in new C())
-                Diagnostic(ErrorCode.ERR_AwaitInUnsafeContext, "await").WithLocation(6, 9));
+                Diagnostic(ErrorCode.ERR_FeatureInPreview, "await").WithArguments("updated memory safety rules").WithLocation(6, 9));
 
             var tree = comp.SyntaxTrees.Single();
             var model = (SyntaxTreeSemanticModel)comp.GetSemanticModel(tree, ignoreAccessibility: false);
@@ -9653,6 +9653,80 @@ class C
                   IL_0059:  ret
                 }
                 """);
+        }
+
+        [Fact]
+        public void RuntimeAsync_PatternBasedDisposal_ReturnsNullableTask_Warns()
+        {
+            string source = @"#nullable enable
+using System.Threading.Tasks;
+class C
+{
+    static async Task M()
+    {
+        await foreach (var i in new C())
+        {
+        }
+    }
+    public Enumerator GetAsyncEnumerator() => new Enumerator();
+    public sealed class Enumerator
+    {
+        public int Current => 0;
+        public Task<bool> MoveNextAsync() => Task.FromResult(false);
+        public Task? DisposeAsync() => null;
+    }
+}";
+            var comp = CreateRuntimeAsyncCompilation(source);
+            comp.VerifyEmitDiagnostics(
+                // (7,33): warning CS8604: Possible null reference argument for parameter 'task' in 'void AsyncHelpers.Await(Task task)'.
+                //         await foreach (var i in new C())
+                Diagnostic(ErrorCode.WRN_NullReferenceArgument, "new C()").WithArguments("task", "void AsyncHelpers.Await(Task task)").WithLocation(7, 33)
+                );
+        }
+
+        [Fact]
+        public void RuntimeAsync_UserDefinedIAsyncDisposable_ReturnsNullableValueTask_Errors()
+        {
+            string source = @"#nullable enable
+using System.Threading.Tasks;
+namespace System
+{
+    public interface IAsyncDisposable
+    {
+        ValueTask? DisposeAsync();
+    }
+}
+class C
+{
+    static async Task M()
+    {
+        await foreach (var i in new C())
+        {
+        }
+    }
+    public Enumerator GetAsyncEnumerator() => new Enumerator();
+    public sealed class Enumerator : System.IAsyncDisposable
+    {
+        public int Current => 0;
+        public Task<bool> MoveNextAsync() => Task.FromResult(false);
+        ValueTask? System.IAsyncDisposable.DisposeAsync() => null;
+    }
+}";
+            var comp = CreateRuntimeAsyncCompilation(source);
+            comp.VerifyEmitDiagnostics(
+                // (14,9): error CS0656: Missing compiler required member 'System.IAsyncDisposable.DisposeAsync'
+                //         await foreach (var i in new C())
+                Diagnostic(ErrorCode.ERR_MissingPredefinedMember, @"await foreach (var i in new C())
+        {
+        }").WithArguments("System.IAsyncDisposable", "DisposeAsync").WithLocation(14, 9),
+                // (19,45): warning CS0436: The type 'IAsyncDisposable' in '' conflicts with the imported type 'IAsyncDisposable' in 'System.Runtime, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'. Using the type defined in ''.
+                //     public sealed class Enumerator : System.IAsyncDisposable
+                Diagnostic(ErrorCode.WRN_SameFullNameThisAggAgg, "IAsyncDisposable").WithArguments("", "System.IAsyncDisposable", "System.Runtime, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a", "System.IAsyncDisposable").WithLocation(19, 45),
+                // (23,27): warning CS0436: The type 'IAsyncDisposable' in '' conflicts with the imported type 'IAsyncDisposable' in 'System.Runtime, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'. Using the type defined in ''.
+                //         ValueTask? System.IAsyncDisposable.DisposeAsync() => null;
+                Diagnostic(ErrorCode.WRN_SameFullNameThisAggAgg, "IAsyncDisposable").WithArguments("", "System.IAsyncDisposable", "System.Runtime, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a", "System.IAsyncDisposable").WithLocation(23, 27)
+
+                );
         }
 
         [Fact]

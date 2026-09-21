@@ -419,6 +419,7 @@ type internal TransparentCompiler
         enableBackgroundItemKeyStoreAndSemanticClassification,
         enablePartialTypeChecking,
         parallelReferenceResolution,
+        shareImportedAssemblies,
         captureIdentifiersWhenParsing,
         getSource: (string -> Async<ISourceText option>) option,
         useChangeNotifications,
@@ -469,6 +470,7 @@ type internal TransparentCompiler
             enableBackgroundItemKeyStoreAndSemanticClassification,
             enablePartialTypeChecking,
             parallelReferenceResolution,
+            shareImportedAssemblies,
             captureIdentifiersWhenParsing,
             getSource,
             useChangeNotifications
@@ -612,8 +614,7 @@ type internal TransparentCompiler
                 tcConfig.primaryAssembly.Name,
                 tcConfig.GetTargetFrameworkDirectories(),
                 tcConfig.fsharpBinariesDir,
-                tcConfig.langVersion.SpecifiedVersion,
-                tcConfig.checkNullness
+                tcConfig.importReuseKey
             )
 
         caches.FrameworkImports.Get(
@@ -931,6 +932,7 @@ type internal TransparentCompiler
                 |> Some
 
             tcConfigB.parallelReferenceResolution <- parallelReferenceResolution
+            tcConfigB.shareImportedAssemblies <- shareImportedAssemblies
             tcConfigB.captureIdentifiersWhenParsing <- captureIdentifiersWhenParsing
 
             return tcConfigB, sourceFilesNew, loadClosureOpt
@@ -1308,30 +1310,6 @@ type internal TransparentCompiler
             return nodeGraph, graph
         }
 
-    let removeImplFilesThatHaveSignatures (projectSnapshot: ProjectSnapshot) (graph: Graph<FileIndex>) =
-
-        let removeIndexes =
-            projectSnapshot.SourceFileNames
-            |> Seq.mapi pair
-            |> Seq.groupBy (
-                snd
-                >> (fun fileName ->
-                    if fileName.EndsWith(".fsi") then
-                        fileName.Substring(0, fileName.Length - 1)
-                    else
-                        fileName)
-            )
-            |> Seq.map (snd >> Seq.toList)
-            |> Seq.choose (function
-                | [ idx1, _; idx2, _ ] -> max idx1 idx2 |> Some
-                | _ -> None)
-            |> Set
-
-        graph
-        |> Seq.filter (fun x -> not (removeIndexes.Contains x.Key))
-        |> Seq.map (fun x -> x.Key, x.Value |> Array.filter (fun node -> not (removeIndexes.Contains node)))
-        |> Graph.make
-
     let removeImplFilesThatHaveSignaturesExceptLastOne (projectSnapshot: ProjectSnapshotBase<_>) (graph: Graph<FileIndex>) =
 
         let removeIndexes =
@@ -1373,7 +1351,7 @@ type internal TransparentCompiler
     let ComputeDependencyGraphForProject (tcConfig: TcConfig) (projectSnapshot: ProjectSnapshotBase<FSharpParsedFile>) =
 
         let key = projectSnapshot.SourceFiles.Key(DependencyGraphType.Project)
-        //caches.DependencyGraph.Get(key, computeDependencyGraph parsedInputs (removeImplFilesThatHaveSignatures projectSnapshot))
+
         caches.DependencyGraph.Get(
             key,
             computeDependencyGraph tcConfig (projectSnapshot.SourceFiles |> Seq.map (fun f -> f.ParsedInput)) id
@@ -1505,7 +1483,7 @@ type internal TransparentCompiler
 
                             let partialResult, tcState = finisher tcInfo.tcState
 
-                            let tcEnv, topAttribs, _checkImplFileOpt, ccuSigForFile = partialResult
+                            let tcEnv, topAttribs, _, ccuSigForFile, _ = partialResult
 
                             let tcEnvAtEndOfFile =
                                 if keepAllBackgroundResolutions then
@@ -1551,7 +1529,7 @@ type internal TransparentCompiler
                                      parsedInput)
                                     tcInfo.tcState
 
-                            let tcEnv, topAttribs, _checkImplFileOpt, ccuSigForFile = partialResult
+                            let tcEnv, topAttribs, _, ccuSigForFile, _ = partialResult
 
                             let tcEnvAtEndOfFile =
                                 if keepAllBackgroundResolutions then
@@ -1663,7 +1641,7 @@ type internal TransparentCompiler
 
                     let! result, tcInfo = ComputeTcLastFile bootstrapInfo snapshotWithSources
 
-                    let tcEnv, _topAttribs, checkedImplFileOpt, ccuSigForFile = result
+                    let tcEnv, _topAttribs, checkedImplFileOpt, ccuSigForFile, ownSigForFile = result
 
                     let tcState = tcInfo.tcState
 
@@ -1738,6 +1716,7 @@ type internal TransparentCompiler
                             tcDiagnostics,
                             keepAssemblyContents,
                             ccuSigForFile,
+                            ownSigForFile,
                             tcState.Ccu,
                             bootstrapInfo.TcImports,
                             tcEnv.AccessRights,
@@ -1830,6 +1809,8 @@ type internal TransparentCompiler
 
                 let generatedCcu = tcState.Ccu.CloneWithFinalizedContents(ccuContents)
 
+                let mutable hasTypeProviderAssemblyAttrib = false
+
                 // Compute the identity of the generated assembly based on attributes, options etc.
                 // Some of this is duplicated from fsc.fs
                 let ilAssemRef =
@@ -1844,22 +1825,30 @@ type internal TransparentCompiler
                             errorRecoveryNoRange exn
                             None
 
-                    let locale =
-                        TryFindFSharpStringAttribute
-                            tcGlobals
-                            (tcGlobals.FindSysAttrib "System.Reflection.AssemblyCultureAttribute")
-                            topAttrs.assemblyAttrs
+                    let locale, assemVerFromAttrib =
+                        let mutable locale = None
+                        let mutable ver = None
 
-                    let assemVerFromAttrib =
-                        TryFindFSharpStringAttribute
-                            tcGlobals
-                            (tcGlobals.FindSysAttrib "System.Reflection.AssemblyVersionAttribute")
-                            topAttrs.assemblyAttrs
-                        |> Option.bind (fun v ->
-                            try
-                                Some(parseILVersion v)
-                            with _ ->
-                                None)
+                        for attr in topAttrs.assemblyAttrs do
+                            let flag = classifyAssemblyAttrib tcGlobals attr
+
+                            if hasFlag flag WellKnownAssemblyAttributes.AssemblyCultureAttribute then
+                                match attr with
+                                | Attrib(_, _, [ AttribStringArg s ], _, _, _, _) -> locale <- Some s
+                                | _ -> ()
+                            elif hasFlag flag WellKnownAssemblyAttributes.AssemblyVersionAttribute then
+                                match attr with
+                                | Attrib(_, _, [ AttribStringArg s ], _, _, _, _) ->
+                                    ver <-
+                                        (try
+                                            Some(parseILVersion s)
+                                         with _ ->
+                                             None)
+                                | _ -> ()
+                            elif hasFlag flag WellKnownAssemblyAttributes.TypeProviderAssemblyAttribute then
+                                hasTypeProviderAssemblyAttrib <- true
+
+                        locale, ver
 
                     let ver =
                         match assemVerFromAttrib with
@@ -1872,13 +1861,6 @@ type internal TransparentCompiler
                     try
                         // Assemblies containing type provider components cannot successfully be used via cross-assembly references.
                         // We return 'None' for the assembly portion of the cross-assembly reference
-                        let hasTypeProviderAssemblyAttrib =
-                            topAttrs.assemblyAttrs
-                            |> List.exists (fun (Attrib(tcref, _, _, _, _, _, _)) ->
-                                let nm = tcref.CompiledRepresentationForNamedType.BasicQualifiedName
-
-                                nm = !!typeof<Microsoft.FSharp.Core.CompilerServices.TypeProviderAssemblyAttribute>.FullName)
-
                         if tcState.CreatesGeneratedProvidedTypes || hasTypeProviderAssemblyAttrib then
                             ProjectAssemblyDataResult.Unavailable true
                         else
@@ -2067,7 +2049,8 @@ type internal TransparentCompiler
                                 bootstrapInfo.TcGlobals,
                                 bootstrapInfo.TcImports.GetImportMap(),
                                 sink.GetFormatSpecifierLocations(),
-                                None
+                                None,
+                                RelatedSymbolUseKind.All
                             )
 
                         let sckBuilder = SemanticClassificationKeyStoreBuilder()
@@ -2110,6 +2093,11 @@ type internal TransparentCompiler
                             // Skip synthetic ranges (e.g., compiler-generated event handler values) (#4136)
                             if not r.IsSynthetic && preventDuplicates.Add struct (r.Start, r.End) then
                                 builder.Write(cnr.Range, cnr.Item))
+
+                        sResolutions.CapturedRelatedSymbolUses
+                        |> Seq.iter (fun (m, item, _kind) ->
+                            if not m.IsSynthetic then
+                                builder.Write(m, item))
 
                         builder.TryBuildAndReset())
             }
@@ -2185,7 +2173,6 @@ type internal TransparentCompiler
                                 yield options.ApplyLineDirectives
                                 yield options.DiagnosticOptions.GlobalWarnAsError
                                 yield options.IsInteractive
-                                yield! (Option.toList options.StrictIndentation)
                                 yield options.CompilingFSharpCore
                                 yield options.IsExe
                             ]

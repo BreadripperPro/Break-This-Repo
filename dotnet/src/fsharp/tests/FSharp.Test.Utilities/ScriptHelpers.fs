@@ -16,10 +16,11 @@ open FSharp.Test
 type LangVersion =
     | V80
     | V90
+    | V10
     | Preview
     | Latest
 
-type FSharpScript(?additionalArgs: string[], ?quiet: bool, ?langVersion: LangVersion) =
+type FSharpScript(?additionalArgs: string[], ?quiet: bool, ?langVersion: LangVersion, ?outWriter: IO.TextWriter, ?errWriter: IO.TextWriter) =
 
     let additionalArgs = defaultArg additionalArgs [||]
     let quiet = defaultArg quiet true
@@ -40,17 +41,28 @@ type FSharpScript(?additionalArgs: string[], ?quiet: bool, ?langVersion: LangVer
         | LangVersion.Latest -> "--langversion:latest"
         | LangVersion.V80 -> "--langversion:8.0"
         | LangVersion.V90 -> "--langversion:9.0"
+        | LangVersion.V10 -> "--langversion:10.0"
         |]
 
     let argv = Array.append baseArgs additionalArgs
 
-    let fsi = FsiEvaluationSession.Create (config, argv, TextReader.Null, stdout, stderr)
+    let outWriter = defaultArg outWriter stdout
+    let errWriter = defaultArg errWriter stderr
+    let fsi = FsiEvaluationSession.Create (config, argv, TextReader.Null, outWriter, errWriter)
 
     member _.ValueBound = fsi.ValueBound
 
     member _.Fsi = fsi
 
-    member this.Eval(code: string, ?cancellationToken: CancellationToken, ?desiredCulture: Globalization.CultureInfo) =
+    member _.ApplyExitShadowing() =
+        fsi.EvalInteraction """
+let exit (code:int) = 
+    if code = 0 then 
+        () 
+    else failwith $"Script called function 'exit' with code={code}."
+        """
+
+    member _.Eval(code: string, ?cancellationToken: CancellationToken, ?desiredCulture: Globalization.CultureInfo) =
         let originalCulture = Thread.CurrentThread.CurrentCulture
         let originalUICulture = Thread.CurrentThread.CurrentUICulture
         Thread.CurrentThread.CurrentCulture <- Option.defaultValue Globalization.CultureInfo.InvariantCulture desiredCulture

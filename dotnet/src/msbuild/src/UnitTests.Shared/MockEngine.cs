@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Execution;
@@ -12,7 +13,7 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Logging;
 
 using Shouldly;
-using Xunit.Abstractions;
+using Xunit;
 
 #nullable disable
 
@@ -42,6 +43,7 @@ namespace Microsoft.Build.UnitTests
         private readonly ConcurrentDictionary<object, object> _objectCache = new ConcurrentDictionary<object, object>();
         private readonly ConcurrentQueue<BuildErrorEventArgs> _errorEvents = new ConcurrentQueue<BuildErrorEventArgs>();
         private readonly ConcurrentQueue<BuildWarningEventArgs> _warningEvents = new ConcurrentQueue<BuildWarningEventArgs>();
+        private readonly ConcurrentQueue<BuildMessageEventArgs> _messageEvents = new ConcurrentQueue<BuildMessageEventArgs>();
 
         public MockEngine() : this(false)
         {
@@ -53,10 +55,13 @@ namespace Microsoft.Build.UnitTests
 
         public int Errors { get; set; }
 
+        public ISet<string> WarningsAsErrors { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         public bool AllowFailureWithoutError { get; set; } = false;
 
         public BuildErrorEventArgs[] ErrorEvents => _errorEvents.ToArray();
         public BuildWarningEventArgs[] WarningEvents => _warningEvents.ToArray();
+        public BuildMessageEventArgs[] MessageEvents => _messageEvents.ToArray();
 
         public Dictionary<string, string> GlobalProperties { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -160,6 +165,7 @@ namespace Microsoft.Build.UnitTests
         {
             lock (_lockObj)
             {
+                _messageEvents.Enqueue(eventArgs);
                 if (_logToConsole)
                 {
                     Console.WriteLine(eventArgs.Message);
@@ -478,7 +484,7 @@ namespace Microsoft.Build.UnitTests
         /// <summary>
         /// Delegate which will get the resource from the correct resource manager
         /// </summary>
-        public delegate string GetStringDelegate(string resourceName);
+        public delegate string GetStringDelegate(string resourceName, CultureInfo culture = null);
 
         public object GetRegisteredTaskObject(object key, RegisteredTaskObjectLifetime lifetime)
         {
@@ -503,7 +509,7 @@ namespace Microsoft.Build.UnitTests
         {
         }
 
-        public bool ShouldTreatWarningAsError(string warningCode) => false;
+        public bool ShouldTreatWarningAsError(string warningCode) => WarningsAsErrors.Contains(warningCode);
 
         public override bool LogsMessagesOfImportance(MessageImportance importance)
             => importance <= MinimumMessageImportance;

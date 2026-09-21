@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Data;
 using Microsoft.EntityFrameworkCore.Design.Internal;
 using Microsoft.EntityFrameworkCore.Migrations.Design.Internal;
 using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
@@ -16,14 +17,14 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
 {
     protected TFixture Fixture { get; } = fixture;
 
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         using var context = CreateContext();
         await Fixture.TestStore.CleanAsync(context, createTables: false);
     }
 
-    public virtual Task DisposeAsync()
-        => Task.CompletedTask;
+    public virtual ValueTask DisposeAsync()
+        => ValueTask.CompletedTask;
 
     protected abstract Assembly ProviderAssembly { get; }
 
@@ -120,12 +121,14 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
     {
         var tables = new List<string>();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME != '__EFMigrationsHistory'";
+        command.CommandText =
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME != '__EFMigrationsHistory'";
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             tables.Add(reader.GetString(0));
         }
+
         return tables;
     }
 
@@ -144,7 +147,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
 
     #region Tests
 
-    [ConditionalFact]
+    [Fact]
     public void Can_scaffold_migration()
     {
         using var context = CreateContext();
@@ -159,7 +162,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_compile_migration()
     {
         using var context = CreateContext();
@@ -177,7 +180,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_register_and_apply_compiled_migration()
     {
         using var context = CreateContext();
@@ -200,7 +203,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Compiled_migration_generates_valid_sql()
     {
         using var context = CreateContext();
@@ -227,7 +230,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void HasPendingModelChanges_returns_true_for_new_model()
     {
         using var context = CreateContext();
@@ -238,7 +241,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.True(migrator.HasPendingModelChanges());
     }
 
-    [ConditionalFact]
+    [Fact]
     public void HasPendingModelChanges_returns_false_after_migration()
     {
         using var context = CreateContext();
@@ -259,7 +262,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Compiled_migration_contains_correct_operations()
     {
         using var context = CreateContext();
@@ -281,7 +284,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_scaffold_and_save_migration_to_disk()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), "EFCoreMigrationTest_" + Guid.NewGuid().ToString("N"));
@@ -315,12 +318,15 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
             if (Directory.Exists(tempDirectory))
             {
                 try { Directory.Delete(tempDirectory, recursive: true); }
-                catch { /* Ignore cleanup errors */ }
+                catch
+                {
+                    /* Ignore cleanup errors */
+                }
             }
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_apply_multiple_migrations_sequentially()
     {
         using var context = CreateContext();
@@ -361,7 +367,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Contains(migration2.MigrationId, appliedAfterSecond);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_down_reverses_up()
     {
         using var context = CreateContext();
@@ -403,7 +409,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
     {
         var databaseModelFactory = services.ServiceProvider.GetRequiredService<IDatabaseModelFactory>();
         var connection = context.Database.GetDbConnection();
-        if (connection.State != System.Data.ConnectionState.Open)
+        if (connection.State != ConnectionState.Open)
         {
             context.Database.OpenConnection();
         }
@@ -435,7 +441,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         return (migration, compiledAssembly);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Can_revert_migration_using_down_operations()
     {
         using var context = CreateContext();
@@ -483,7 +489,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         }
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Applied_migration_is_recorded_in_history()
     {
         using var context = CreateContext();
@@ -512,7 +518,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Contains(migration.MigrationId, afterApplied);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Compiled_migration_has_matching_up_and_down_table_operations()
     {
         using var context = CreateContext();
@@ -545,7 +551,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
 
     #region Rigorous Schema Verification Tests
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_creates_correct_table_structure()
     {
         using var context = CreateContext();
@@ -571,7 +577,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Single(postsTable.Columns, c => c.Name == "BlogId");
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_creates_correct_primary_keys()
     {
         using var context = CreateContext();
@@ -598,7 +604,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.False(postsId.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_creates_correct_foreign_keys()
     {
         using var context = CreateContext();
@@ -623,7 +629,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Equal(ReferentialAction.Cascade, fk.OnDelete);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_creates_columns_with_correct_constraints()
     {
         using var context = CreateContext();
@@ -648,7 +654,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.False(blogIdColumn.IsNullable);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_down_removes_schema_completely()
     {
         using var context = CreateContext();
@@ -674,7 +680,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.DoesNotContain(dbModelAfter.Tables, t => t.Name == "Posts");
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_creates_foreign_key_index()
     {
         using var context = CreateContext();
@@ -694,7 +700,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Equal("BlogId", fkIndex.Columns[0].Name);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_with_no_changes_produces_empty_operations()
     {
         using var context = CreateContext();
@@ -735,7 +741,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Empty(migrationInstance.DownOperations);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Migration_preserves_existing_data()
     {
         using var context = CreateContext();
@@ -761,12 +767,13 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         context.SaveChanges();
 
         var blogId = context.Blogs.Single().Id;
-        context.Posts.Add(new Post
-        {
-            Title = "Test Post",
-            Content = "Test Content",
-            BlogId = blogId
-        });
+        context.Posts.Add(
+            new Post
+            {
+                Title = "Test Post",
+                Content = "Test Content",
+                BlogId = blogId
+            });
         context.SaveChanges();
 
         Assert.Equal(1, context.Blogs.Count());
@@ -794,7 +801,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Equal("Test Content", post.Content);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void Applied_migration_snapshot_matches_model()
     {
         using var context = CreateContext();
@@ -820,7 +827,7 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
         Assert.Equal(4, postsTable.Columns.Count);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void RemoveMigration_removes_dynamically_created_migration()
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), "EFCoreRemoveMigrationTest_" + Guid.NewGuid().ToString("N"));
@@ -862,7 +869,8 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
             var appliedAfterRevert = context.Database.GetAppliedMigrations().ToList();
             Assert.DoesNotContain(migration.MigrationId, appliedAfterRevert);
 
-            var removedFiles = scaffolder.RemoveMigration(tempDirectory, rootNamespace: "TestNamespace", force: false, language: "C#", dryRun: false);
+            var removedFiles = scaffolder.RemoveMigration(
+                tempDirectory, rootNamespace: "TestNamespace", force: false, language: "C#", dryRun: false);
 
             Assert.NotNull(removedFiles.MigrationFile);
             Assert.False(File.Exists(removedFiles.MigrationFile));
@@ -873,7 +881,10 @@ public abstract class RuntimeMigrationTestBase<TFixture>(TFixture fixture) : ICl
             if (Directory.Exists(tempDirectory))
             {
                 try { Directory.Delete(tempDirectory, recursive: true); }
-                catch { /* Ignore cleanup errors */ }
+                catch
+                {
+                    /* Ignore cleanup errors */
+                }
             }
         }
     }

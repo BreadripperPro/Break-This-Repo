@@ -44,6 +44,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Test.Utilities
         public static readonly CSharpParseOptions Regular12 = Regular.WithLanguageVersion(LanguageVersion.CSharp12);
         public static readonly CSharpParseOptions Regular13 = Regular.WithLanguageVersion(LanguageVersion.CSharp13);
         public static readonly CSharpParseOptions Regular14 = Regular.WithLanguageVersion(LanguageVersion.CSharp14);
+        public static readonly CSharpParseOptions Regular15 = Regular.WithLanguageVersion(LanguageVersion.CSharp15);
         public static readonly CSharpParseOptions RegularWithDocumentationComments = Regular.WithDocumentationMode(DocumentationMode.Diagnose);
         public static readonly CSharpParseOptions RegularPreviewWithDocumentationComments = RegularPreview.WithDocumentationMode(DocumentationMode.Diagnose);
         public static readonly CSharpParseOptions RegularWithLegacyStrongName = Regular.WithFeature(Feature.UseLegacyStrongNameProvider);
@@ -176,6 +177,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Test.Utilities
             return options.WithSpecificDiagnosticOptions(ImmutableDictionary<string, ReportDiagnostic>.Empty.Add(key1, value).Add(key2, value));
         }
 
+        public static CSharpCompilationOptions AddSpecificDiagnosticOptions(this CSharpCompilationOptions options, string key, ReportDiagnostic value)
+        {
+            return options.WithSpecificDiagnosticOptions(options.SpecificDiagnosticOptions.Add(key, value));
+        }
+
         /// <summary>
         /// Create <see cref="CSharpCompilationOptions"/> with the maximum warning level.
         /// </summary>
@@ -187,4 +193,3 @@ namespace Microsoft.CodeAnalysis.CSharp.Test.Utilities
             => new CSharpCompilationOptions(outputKind, optimizationLevel: optimizationLevel, warningLevel: Diagnostic.MaxWarningLevel, allowUnsafe: allowUnsafe);
     }
 }
-

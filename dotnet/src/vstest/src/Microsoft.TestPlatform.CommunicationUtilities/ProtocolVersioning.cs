@@ -11,13 +11,14 @@ internal static class ProtocolVersioning
     public const int LowestSupportedVersion = Version0;
 
     // 0: the original protocol with no versioning (Message). It is used during negotiation.
-    // 1: new protocol with versioning (VersionedMessage).
+    // 1: new protocol with versioning (Message with Version field).
     // 2: changed serialization because the serialization of properties in bag was too verbose,
     //    so common properties are considered built-in and serialized without type info.
     // 3: introduced because of changes to allow attaching debugger to external process.
     // 4: introduced because 3 did not update this table and ended up using the serializer for protocol v1,
     //    which is extremely slow. We negotiate 2 or 4, but never 3 unless the flag above is set.
-    // 5: ???
+    // 5: added the test session messages, which pre-started a set of testhosts so a later run could
+    //    reuse them. The messages were removed, so nothing is gated on this version anymore.
     // 6: accepts abort and cancel with handlers that report the status.
     /// <summary>
     /// The original protocol with no versioning. It sends and receives a Message that carries just data
@@ -27,7 +28,7 @@ internal static class ProtocolVersioning
     public const int Version0 = 0;
 
     /// <summary>
-    /// Adds versioning to the protocol by introducing VersionedMessage.
+    /// Adds versioning to the protocol by including a Version field in the Message.
     /// </summary>
     public const int Version1 = 1;
 
@@ -52,6 +53,16 @@ internal static class ProtocolVersioning
     // 4: introduced because 3 did not update this table and ended up using the serializer for protocol v1,
     //    which is extremely slow. We negotiate 2 or 4, but never 3 unless the flag above is set.
     public const int Version4 = 4;
+
+    /// <summary>
+    /// Added the test session messages, which pre-started a set of testhosts so a later run could
+    /// reuse them. Added in https://github.com/microsoft/vstest/pull/2584.
+    /// The feature was experimental, was never finalized, and was removed in
+    /// https://github.com/microsoft/vstest/pull/16231 together with its messages
+    /// (TestSession.StartTestSession, TestSession.StartTestSessionCallback,
+    /// TestSession.StopTestSession, TestSession.StopTestSessionCallback), so nothing is gated on
+    /// this version anymore. The version number stays reserved and negotiable.
+    /// </summary>
     public const int Version5 = 5;
     public const int Version6 = 6;
     public const int Version7 = 7;

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -7,9 +7,11 @@ using System.Globalization;
 
 using Microsoft.VisualStudio.TestPlatform.CommandLine;
 using Microsoft.VisualStudio.TestPlatform.CommandLine.Processors;
-using Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests;
 using Microsoft.VisualStudio.TestPlatform.Common;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
+using Microsoft.VisualStudio.TestPlatform.Utilities.Helpers;
+using Microsoft.VisualStudio.TestPlatform.Utilities.Helpers.Interfaces;
+using Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using CommandLineResources = Microsoft.VisualStudio.TestPlatform.CommandLine.Resources.Resources;
@@ -22,6 +24,7 @@ public class CliRunSettingsArgumentProcessorTests
     private readonly TestableRunSettingsProvider _settingsProvider;
     private readonly CliRunSettingsArgumentExecutor _executor;
     private readonly CommandLineOptions _commandLineOptions;
+    private readonly IRunSettingsHelper _runSettingsHelper;
     private readonly string _defaultRunSettings = string.Join(Environment.NewLine,
         "<?xml version=\"1.0\" encoding=\"utf-16\"?>",
         "<RunSettings>",
@@ -54,28 +57,28 @@ public class CliRunSettingsArgumentProcessorTests
 
     public CliRunSettingsArgumentProcessorTests()
     {
-        _commandLineOptions = CommandLineOptions.Instance;
+        _commandLineOptions = new CommandLineOptions();
         _settingsProvider = new TestableRunSettingsProvider();
-        _executor = new CliRunSettingsArgumentExecutor(_settingsProvider, _commandLineOptions);
+        _runSettingsHelper = new RunSettingsHelper();
+        _executor = new CliRunSettingsArgumentExecutor(_settingsProvider, _commandLineOptions, _runSettingsHelper);
     }
 
     [TestCleanup]
     public void Cleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnRunSettingsArgumentProcessorCapabilities()
     {
-        var processor = new CliRunSettingsArgumentProcessor();
+        var processor = new CliRunSettingsArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider(), _runSettingsHelper);
         Assert.IsTrue(processor.Metadata.Value is CliRunSettingsArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnRunSettingsArgumentProcessorCapabilities()
     {
-        var processor = new CliRunSettingsArgumentProcessor();
+        var processor = new CliRunSettingsArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider(), _runSettingsHelper);
         Assert.IsTrue(processor.Executor!.Value is CliRunSettingsArgumentExecutor);
     }
 
@@ -157,7 +160,7 @@ public class CliRunSettingsArgumentProcessorTests
         var args = new string[] { arg };
         var str = CommandLineResources.MalformedRunSettingsKey;
 
-        CommandLineException ex = Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(args));
+        CommandLineException ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(args));
 
         Assert.AreEqual(str, ex.Message);
     }
@@ -178,11 +181,8 @@ public class CliRunSettingsArgumentProcessorTests
     {
         var args = new string[] { "MST est.DeploymentEnabled=False" };
 
-        Action action = () => _executor.Initialize(args);
-
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            action,
-            "One or more runsettings provided contain invalid token");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(args));
+        Assert.Contains("One or more runsettings provided contain invalid token", ex.Message);
     }
 
     [TestMethod]
@@ -315,8 +315,8 @@ public class CliRunSettingsArgumentProcessorTests
         Assert.IsFalse(_commandLineOptions.FrameworkVersionSpecified);
     }
 
-    [DynamicData(nameof(TestRunParameterArgValidTestCases), DynamicDataSourceType.Method)]
-    [DataTestMethod]
+    [DynamicData(nameof(TestRunParameterArgValidTestCases))]
+    [TestMethod]
     public void InitializeShouldValidateTestRunParameter(string arg, string runSettingsWithTestRunParameters)
     {
         var args = new string[] { arg };
@@ -327,14 +327,14 @@ public class CliRunSettingsArgumentProcessorTests
         Assert.AreEqual(runSettingsWithTestRunParameters, _settingsProvider.ActiveRunSettings.SettingsXml);
     }
 
-    [DynamicData(nameof(TestRunParameterArgInvalidTestCases), DynamicDataSourceType.Method)]
-    [DataTestMethod]
+    [DynamicData(nameof(TestRunParameterArgInvalidTestCases))]
+    [TestMethod]
     public void InitializeShouldThrowErrorIfTestRunParameterNodeIsInValid(string arg)
     {
         var args = new string[] { arg };
         var str = string.Format(CultureInfo.CurrentCulture, CommandLineResources.InvalidTestRunParameterArgument, arg);
 
-        CommandLineException ex = Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(args));
+        CommandLineException ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(args));
 
         Assert.AreEqual(str, ex.Message);
     }

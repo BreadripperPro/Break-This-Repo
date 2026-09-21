@@ -14,6 +14,7 @@ using static Microsoft.CodeAnalysis.CSharp.UnitTests.FunctionPointerUtilities;
 
 namespace Microsoft.CodeAnalysis.CSharp.UnitTests
 {
+    [CompilerTrait(CompilerFeature.Unsafe)]
     public class FunctionPointerTests : CompilingTestBase
     {
         private static CSharpCompilation CreateCompilationWithFunctionPointers(string source, CSharpCompilationOptions? options = null, CSharpParseOptions? parseOptions = null, TargetFramework? targetFramework = null)
@@ -646,7 +647,7 @@ ISimpleAssignmentOperation (OperationKind.SimpleAssignment, Type: delegate*<Syst
   Left:
     IDiscardOperation (Symbol: delegate*<System.Int32*, System.Void> _) (OperationKind.Discard, Type: delegate*<System.Int32*, System.Void>) (Syntax: '_')
   Right:
-    IConversionOperation (TryCast: False, Unchecked) (OperationKind.Conversion, Type: delegate*<System.Int32*, System.Void>, IsImplicit) (Syntax: '(delegate*< ... id>)new S()')
+    IConversionOperation (TryCast: False, Unchecked) (OperationKind.Conversion, Type: delegate*<System.Int32*, System.Void>) (Syntax: '(delegate*< ... id>)new S()')
       Conversion: CommonConversion (Exists: True, IsIdentity: False, IsNumeric: False, IsReference: False, IsUserDefined: False) (MethodSymbol: null)
       Operand:
         IConversionOperation (TryCast: False, Unchecked) (OperatorMethod: delegate*<System.Void*, System.Void> S.op_Implicit(S _)) (OperationKind.Conversion, Type: delegate*<System.Void*, System.Void>, IsImplicit) (Syntax: '(delegate*< ... id>)new S()')
@@ -693,7 +694,7 @@ ISimpleAssignmentOperation (OperationKind.SimpleAssignment, Type: delegate*<Syst
   Left:
     IDiscardOperation (Symbol: delegate*<System.Int32*, System.Void> _) (OperationKind.Discard, Type: delegate*<System.Int32*, System.Void>) (Syntax: '_')
   Right:
-    IConversionOperation (TryCast: False, Unchecked) (OperationKind.Conversion, Type: delegate*<System.Int32*, System.Void>, IsImplicit) (Syntax: '(delegate*< ... id>)new S()')
+    IConversionOperation (TryCast: False, Unchecked) (OperationKind.Conversion, Type: delegate*<System.Int32*, System.Void>) (Syntax: '(delegate*< ... id>)new S()')
       Conversion: CommonConversion (Exists: True, IsIdentity: False, IsNumeric: False, IsReference: False, IsUserDefined: False) (MethodSymbol: null)
       Operand:
         IConversionOperation (TryCast: False, Unchecked) (OperatorMethod: delegate*<System.Void*, System.Void> S.op_Explicit(S _)) (OperationKind.Conversion, Type: delegate*<System.Void*, System.Void>, IsImplicit) (Syntax: '(delegate*< ... id>)new S()')

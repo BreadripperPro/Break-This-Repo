@@ -211,6 +211,13 @@ public static class QueryableMethods
     public static MethodInfo LeftJoin { get; }
 
     /// <summary>
+    ///     The <see cref="MethodInfo" /> for
+    ///     <see
+    ///         cref="Queryable.FullJoin{TOuter,TInner,TKey,TResult}(IQueryable{TOuter},IEnumerable{TInner},Expression{Func{TOuter,TKey}},Expression{Func{TInner,TKey}},Expression{Func{TOuter,TInner,TResult}},IEqualityComparer{TKey})" />
+    /// </summary>
+    public static MethodInfo FullJoin { get; }
+
+    /// <summary>
     ///     The <see cref="MethodInfo" /> for <see cref="Queryable.LongCount{TSource}(IQueryable{TSource})" />
     /// </summary>
     public static MethodInfo LongCountWithoutPredicate { get; }
@@ -273,14 +280,14 @@ public static class QueryableMethods
     /// <summary>
     ///     The <see cref="MethodInfo" /> for
     ///     <see
-    ///         cref="Queryable.MaxBy{TSource, TKey}(IQueryable{TSource}, Expression{Func{TSource, TKey}})"/>
+    ///         cref="Queryable.MaxBy{TSource, TKey}(IQueryable{TSource}, Expression{Func{TSource, TKey}})" />
     /// </summary>
     public static MethodInfo MaxBy { get; }
 
     /// <summary>
     ///     The <see cref="MethodInfo" /> for
     ///     <see
-    ///         cref="Queryable.MinBy{TSource, TKey}(IQueryable{TSource}, Expression{Func{TSource, TKey}})"/>
+    ///         cref="Queryable.MinBy{TSource, TKey}(IQueryable{TSource}, Expression{Func{TSource, TKey}})" />
     /// </summary>
     public static MethodInfo MinBy { get; }
 
@@ -767,6 +774,18 @@ public static class QueryableMethods
                 typeof(Expression<>).MakeGenericType(typeof(Func<,,>).MakeGenericType(types[0], types[1], types[3]))
             ]);
 
+        FullJoin = GetMethod(
+            nameof(Queryable.FullJoin), 4,
+            types =>
+            [
+                typeof(IQueryable<>).MakeGenericType(types[0]),
+                typeof(IEnumerable<>).MakeGenericType(types[1]),
+                typeof(Expression<>).MakeGenericType(typeof(Func<,>).MakeGenericType(types[0], types[2])),
+                typeof(Expression<>).MakeGenericType(typeof(Func<,>).MakeGenericType(types[1], types[2])),
+                typeof(Expression<>).MakeGenericType(typeof(Func<,,>).MakeGenericType(types[0], types[1], types[3])),
+                typeof(IEqualityComparer<>).MakeGenericType(types[2])
+            ]);
+
         Select = GetMethod(
             nameof(Queryable.Select), 2,
             types =>
@@ -885,10 +904,10 @@ public static class QueryableMethods
             typeof(decimal?)
         };
 
-        AverageWithoutSelectorMethods = new Dictionary<Type, MethodInfo>();
-        AverageWithSelectorMethods = new Dictionary<Type, MethodInfo>();
-        SumWithoutSelectorMethods = new Dictionary<Type, MethodInfo>();
-        SumWithSelectorMethods = new Dictionary<Type, MethodInfo>();
+        AverageWithoutSelectorMethods = [];
+        AverageWithSelectorMethods = [];
+        SumWithoutSelectorMethods = [];
+        SumWithSelectorMethods = [];
 
         foreach (var type in numericTypes)
         {

@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -13,7 +14,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.CommandLineUtils;
+using FluentAssertions;
 using Microsoft.Internal.NuGet.Testing.SignedPackages;
 using Moq;
 using NuGet.CommandLine.XPlat;
@@ -52,7 +53,7 @@ namespace NuGet.XPlat.FuncTest
                     var argList = new List<string> { "list", "--interactive", projectPath };
 
                     // Act
-                    var result = testApp.Execute(argList.ToArray());
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
 
                     // Assert
                     mockCommandRunner.Verify();
@@ -62,16 +63,20 @@ namespace NuGet.XPlat.FuncTest
         }
 
         [Fact]
-        public void BasicListPackageParsing_InteractiveTakesNoArguments_ThrowsException()
+        public void BasicListPackageParsing_InteractiveTakesNoArguments_ReturnsNonZero()
         {
             VerifyCommand(
                 (projectPath, mockCommandRunner, testApp, getLogLevel) =>
                 {
                     // Arrange
+                    // In System.CommandLine, passing extra unrecognized tokens results in a non-zero exit code
                     var argList = new List<string>() { "list", "--interactive", "no", projectPath };
 
-                    // Act & Assert
-                    Assert.Throws<CommandParsingException>(() => testApp.Execute(argList.ToArray()));
+                    // Act
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
+
+                    // Assert
+                    Assert.NotEqual(0, result);
                 });
         }
 
@@ -96,7 +101,7 @@ namespace NuGet.XPlat.FuncTest
                     var argList = new List<string> { "list", projectPath, "--verbosity", verbosity };
 
                     // Act
-                    var result = testApp.Execute(argList.ToArray());
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
 
                     // Assert
                     Assert.Equal(logLevel, getLogLevel());
@@ -113,7 +118,7 @@ namespace NuGet.XPlat.FuncTest
                     var argList = new List<string> { "list", projectPath };
 
                     // Act
-                    var result = testApp.Execute(argList.ToArray());
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
 
                     // Assert
                     Assert.Equal(LogLevel.Minimal, getLogLevel());
@@ -143,7 +148,7 @@ namespace NuGet.XPlat.FuncTest
                     argList.Add(projectPath);
 
                     // Act
-                    var result = testApp.Execute(argList.ToArray());
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
 
                     // Assert
                     mockCommandRunner.Verify();
@@ -174,7 +179,8 @@ namespace NuGet.XPlat.FuncTest
                     argList.Add(projectPath);
 
                     // Act & Assert
-                    Assert.Throws<AggregateException>(() => testApp.Execute(argList.ToArray()));
+                    var result = testApp.Parse(argList.ToArray()).Invoke();
+                    Assert.NotEqual(0, result);
                 });
         }
 
@@ -223,7 +229,7 @@ namespace NuGet.XPlat.FuncTest
             using TextWriter consoleOut = new StringWriter(output);
             using TextWriter consoleError = new StringWriter(error);
             var logger = new TestLogger(_testOutputHelper);
-            ListPackageCommandRunner listPackageCommandRunner = new();
+            ListPackageCommandRunner listPackageCommandRunner = new(new MSBuildAPIUtility(logger, virtualProjectBuilder: null));
             var packageRefArgs = new ListPackageArgs(
                                         path: Path.Combine(pathContext.SolutionRoot, "solution.sln"),
                                         packageSources: [new(mockServer.ServiceIndexUri)],
@@ -332,7 +338,7 @@ namespace NuGet.XPlat.FuncTest
             using TextWriter consoleOut = new StringWriter(output);
             using TextWriter consoleError = new StringWriter(error);
             var logger = new TestLogger(_testOutputHelper);
-            ListPackageCommandRunner listPackageCommandRunner = new();
+            ListPackageCommandRunner listPackageCommandRunner = new(new MSBuildAPIUtility(logger, virtualProjectBuilder: null));
             var packageRefArgs = new ListPackageArgs(
                                         path: solution.SolutionPath,
                                         packageSources: [new PackageSource(pathContext.PackageSource)],
@@ -349,6 +355,106 @@ namespace NuGet.XPlat.FuncTest
 
             int result = await listPackageCommandRunner.ExecuteCommandAsync(packageRefArgs);
             Assert.True(result == 0, userMessage: logger.ShowMessages());
+        }
+
+        [Fact]
+        public async Task CanListPackagesForFileBasedApp()
+        {
+            // Arrange
+            using var pathContext = new SimpleTestPathContext();
+
+            var packageA100 = new SimpleTestPackageContext("A", "1.0.0");
+
+            await SimpleTestPackageUtility.CreatePackagesAsync(
+                pathContext.PackageSource,
+                packageA100);
+
+            var projectA = XPlatTestUtils.CreateProject("ProjectA", pathContext, "net6.0", fileBasedApp: true);
+            projectA.AddPackageToAllFrameworks(packageA100);
+            var projectB = SimpleTestProjectContext.CreateNETCore("ProjectB", pathContext.SolutionRoot, "net6.0");
+
+            projectA.Save();
+            projectB.Save();
+
+            // List package command requires restore to be run before it can list packages.
+            await RestoreProjectsAsync(pathContext, projectA, projectB, _testOutputHelper);
+
+            var output = new StringBuilder();
+            var error = new StringBuilder();
+            using TextWriter consoleOut = new StringWriter(output);
+            using TextWriter consoleError = new StringWriter(error);
+            var logger = new TestLogger(_testOutputHelper);
+            using var builder = TestVirtualProjectBuilder.From(projectA);
+            ListPackageCommandRunner listPackageCommandRunner = new(new MSBuildAPIUtility(logger, builder));
+            var packageRefArgs = new ListPackageArgs(
+                                        path: builder.FilePath,
+                                        packageSources: [new PackageSource(pathContext.PackageSource)],
+                                        frameworks: ["net6.0"],
+                                        reportType: ReportType.Outdated,
+                                        renderer: new ListPackageConsoleRenderer(consoleOut, consoleError),
+                                        includeTransitive: false,
+                                        prerelease: false,
+                                        highestPatch: false,
+                                        highestMinor: false,
+                                        auditSources: null,
+                                        logger: logger,
+                                        cancellationToken: CancellationToken.None);
+
+            int result = await listPackageCommandRunner.ExecuteCommandAsync(packageRefArgs);
+            Assert.True(result == 0, userMessage: $"{output}\n{error}\n{logger.ShowMessages()}");
+        }
+
+        [Fact]
+        public async Task CanListPackagesAfterError()
+        {
+            // Arrange
+            using var pathContext = new SimpleTestPathContext();
+
+            var unsupportedProject = SimpleTestProjectContext.CreateNonNuGet("Frontend", pathContext.SolutionRoot, NuGetFramework.Parse("net8.0"));
+            var packagesConfigProject = SimpleTestProjectContext.CreatePackagesConfigProject("Legacy", pathContext.SolutionRoot, NuGetFramework.Parse("net8.0"));
+
+            var packageReferenceProject = SetupTestProject(pathContext);
+            var solution = new SimpleTestSolutionContext(pathContext.SolutionRoot, packagesConfigProject, unsupportedProject, packageReferenceProject);
+            solution.Create();
+
+            File.WriteAllText(
+                Path.Combine(Path.GetDirectoryName(packagesConfigProject.ProjectPath), "packages.config"),
+                "<packages />");
+            SetupAssetsAndProps(packageReferenceProject);
+
+            var output = new StringBuilder();
+            var error = new StringBuilder();
+            using TextWriter consoleOut = new StringWriter(output);
+            using TextWriter consoleError = new StringWriter(error);
+            var logger = new TestLogger(_testOutputHelper);
+            var listPackageCommandRunner = new ListPackageCommandRunner(
+                new MSBuildAPIUtility(logger, virtualProjectBuilder: null));
+            var listPackageArgs = new ListPackageArgs(
+                path: solution.SolutionPath,
+                packageSources: [new PackageSource(pathContext.PackageSource)],
+                frameworks: [],
+                reportType: ReportType.Default,
+                renderer: new ListPackageConsoleRenderer(consoleOut, consoleError),
+                includeTransitive: false,
+                prerelease: false,
+                highestPatch: false,
+                highestMinor: false,
+                auditSources: null,
+                logger: logger,
+                cancellationToken: CancellationToken.None);
+
+            // Act
+            int result = await listPackageCommandRunner.ExecuteCommandAsync(listPackageArgs);
+
+            // Assert
+            Assert.Equal(1, result);
+            Assert.Contains(
+                string.Format(CultureInfo.CurrentCulture, CommandLine.XPlat.Strings.Error_NotPRProject, packagesConfigProject.ProjectPath),
+                error.ToString());
+            Assert.Contains(
+                string.Format(CultureInfo.CurrentCulture, CommandLine.XPlat.Strings.Error_NotPRProject, unsupportedProject.ProjectPath),
+                error.ToString());
+            Assert.Contains("Project 'ProjectA'", output.ToString());
         }
 
         [Fact]
@@ -380,7 +486,7 @@ namespace NuGet.XPlat.FuncTest
                 CancellationToken.None
             );
 
-            var listPackageCommandRunner = new ListPackageCommandRunner();
+            var listPackageCommandRunner = new ListPackageCommandRunner(new MSBuildAPIUtility(mockLogger.Object, virtualProjectBuilder: null));
 
 
             // Act
@@ -426,7 +532,7 @@ namespace NuGet.XPlat.FuncTest
                 CancellationToken.None
             );
 
-            var listPackageCommandRunner = new ListPackageCommandRunner();
+            var listPackageCommandRunner = new ListPackageCommandRunner(new MSBuildAPIUtility(mockLogger.Object, virtualProjectBuilder: null));
 
             // Act
             var result = await listPackageCommandRunner.GetReportDataAsync(listPackageArgs);
@@ -481,7 +587,7 @@ namespace NuGet.XPlat.FuncTest
                 CancellationToken.None
             );
 
-            var listPackageCommandRunner = new ListPackageCommandRunner();
+            var listPackageCommandRunner = new ListPackageCommandRunner(new MSBuildAPIUtility(mockLogger.Object, virtualProjectBuilder: null));
 
             // Act
             var result = await listPackageCommandRunner.GetReportDataAsync(listPackageArgs);
@@ -501,7 +607,7 @@ namespace NuGet.XPlat.FuncTest
         }
 
 
-        private void VerifyCommand(Action<string, Mock<IListPackageCommandRunner>, CommandLineApplication, Func<LogLevel>> verify)
+        private void VerifyCommand(Action<string, Mock<IListPackageCommandRunner>, RootCommand, Func<LogLevel>> verify)
         {
             // Arrange
             using (var testDirectory = TestDirectory.Create())
@@ -511,13 +617,12 @@ namespace NuGet.XPlat.FuncTest
 
                 var logLevel = LogLevel.Information;
                 var logger = new TestCommandOutputLogger(_testOutputHelper);
-                var testApp = new CommandLineApplication();
+                var testApp = new RootCommand();
                 var mockCommandRunner = new Mock<IListPackageCommandRunner>();
                 mockCommandRunner
                     .Setup(m => m.ExecuteCommandAsync(It.IsAny<ListPackageArgs>()))
                     .Returns(Task.FromResult(0));
 
-                testApp.Name = "dotnet nuget_test";
                 ListPackageCommand.Register(testApp,
                     () => logger,
                     ll => logLevel = ll,
@@ -540,7 +645,7 @@ namespace NuGet.XPlat.FuncTest
         {
             Type listPackageArgsType = typeof(ListPackageArgs);
             FieldInfo[] fields = listPackageArgsType.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.True(13 == fields.Length, "Number of fields are changed in ListPackageArgs.cs. Please make sure this change is accounted for GetReportParameters method in that file.");
+            fields.Length.Should().Be(13, because: "Number of fields are changed in ListPackageArgs.cs. Please make sure this change is accounted for GetReportParameters method in that file.");
         }
 
         private static SimpleTestSolutionContext SetupTestSolution(SimpleTestPathContext pathContext)

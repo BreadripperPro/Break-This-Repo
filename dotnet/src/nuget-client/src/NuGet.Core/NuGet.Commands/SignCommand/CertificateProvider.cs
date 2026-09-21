@@ -61,6 +61,14 @@ namespace NuGet.Commands
 
                     resultCollection = new X509Certificate2Collection(cert);
                 }
+                catch (CryptographicException ex) when (ex.InnerException is FileNotFoundException)
+                {
+                    throw new SignCommandException(
+                        LogMessage.CreateError(NuGetLogCode.NU3001,
+                            string.Format(CultureInfo.CurrentCulture,
+                                Strings.SignCommandCertificateFileNotFound,
+                                options.CertificatePath)));
+                }
                 catch (CryptographicException ex)
                 {
                     switch (ex.HResult)
@@ -217,7 +225,7 @@ namespace NuGet.Commands
 
             store.Close();
 
-            resultCollection = GetValidCertificates(resultCollection);
+            resultCollection = GetValidCertificates(resultCollection, options.AllowUntrustedRoot);
 
             return resultCollection;
         }
@@ -244,13 +252,13 @@ namespace NuGet.Commands
             }
         }
 
-        private static X509Certificate2Collection GetValidCertificates(X509Certificate2Collection certificates)
+        private static X509Certificate2Collection GetValidCertificates(X509Certificate2Collection certificates, bool allowUntrustedRoot = false)
         {
             var validCertificates = new X509Certificate2Collection();
 
             foreach (var certificate in certificates)
             {
-                if (IsValid(certificate, certificates))
+                if (IsValid(certificate, certificates, allowUntrustedRoot))
                 {
                     validCertificates.Add(certificate);
                 }
@@ -259,7 +267,7 @@ namespace NuGet.Commands
             return validCertificates;
         }
 
-        private static bool IsValid(X509Certificate2 certificate, X509Certificate2Collection extraStore)
+        private static bool IsValid(X509Certificate2 certificate, X509Certificate2Collection extraStore, bool allowUntrustedRoot = false)
         {
             try
             {
@@ -267,7 +275,8 @@ namespace NuGet.Commands
                     certificate,
                     extraStore,
                     NullLogger.Instance,
-                    CertificateType.Signature))
+                    CertificateType.Signature,
+                    allowUntrustedRoot))
                 {
                     return chain != null && chain.Count > 0;
                 }

@@ -16,32 +16,32 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class ResultsDirectoryArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private readonly ResultsDirectoryArgumentExecutor _executor;
     private readonly TestableRunSettingsProvider _runSettingsProvider;
 
     public ResultsDirectoryArgumentProcessorTests()
     {
         _runSettingsProvider = new TestableRunSettingsProvider();
-        _executor = new ResultsDirectoryArgumentExecutor(CommandLineOptions.Instance, _runSettingsProvider);
+        _executor = new ResultsDirectoryArgumentExecutor(_commandLineOptions, _runSettingsProvider);
     }
 
     [TestCleanup]
     public void TestCleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnResultsDirectoryArgumentProcessorCapabilities()
     {
-        var processor = new ResultsDirectoryArgumentProcessor();
+        var processor = new ResultsDirectoryArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Metadata.Value is ResultsDirectoryArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnResultsDirectoryArgumentExecutor()
     {
-        var processor = new ResultsDirectoryArgumentProcessor();
+        var processor = new ResultsDirectoryArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Executor!.Value is ResultsDirectoryArgumentExecutor);
     }
 
@@ -108,20 +108,8 @@ public class ResultsDirectoryArgumentProcessorTests
 
     private void InitializeExceptionTestTemplate(string? folder, string message)
     {
-        var isExceptionThrown = false;
-
-        try
-        {
-            _executor.Initialize(folder);
-        }
-        catch (Exception ex)
-        {
-            isExceptionThrown = true;
-            Assert.IsTrue(ex is CommandLineException, "ex is CommandLineException");
-            StringAssert.StartsWith(ex.Message, message);
-        }
-
-        Assert.IsTrue(isExceptionThrown, "isExceptionThrown");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(folder));
+        Assert.StartsWith(message, ex.Message);
     }
 
     [TestMethod]
@@ -130,7 +118,7 @@ public class ResultsDirectoryArgumentProcessorTests
         var relativePath = TranslatePath(@".\relative\path");
         var absolutePath = Path.GetFullPath(relativePath);
         _executor.Initialize(relativePath);
-        Assert.AreEqual(absolutePath, CommandLineOptions.Instance.ResultsDirectory);
+        Assert.AreEqual(absolutePath, _commandLineOptions.ResultsDirectory);
         Assert.AreEqual(absolutePath, _runSettingsProvider.QueryRunSettingsNode(ResultsDirectoryArgumentExecutor.RunSettingsPath));
     }
 
@@ -139,7 +127,7 @@ public class ResultsDirectoryArgumentProcessorTests
     {
         var absolutePath = TranslatePath(@"c:\random\someone\testresults");
         _executor.Initialize(absolutePath);
-        Assert.AreEqual(absolutePath, CommandLineOptions.Instance.ResultsDirectory);
+        Assert.AreEqual(absolutePath, _commandLineOptions.ResultsDirectory);
         Assert.AreEqual(absolutePath, _runSettingsProvider.QueryRunSettingsNode(ResultsDirectoryArgumentExecutor.RunSettingsPath));
     }
 
@@ -158,7 +146,7 @@ public class ResultsDirectoryArgumentProcessorTests
     private static string TranslatePath(string path)
     {
         // RuntimeInformation has conflict when used
-        if (Environment.OSVersion.Platform.ToString().StartsWith("Win"))
+        if (Environment.OSVersion.Platform.ToString().StartsWith("Win", StringComparison.Ordinal))
             return path;
 
         var prefix = Path.GetTempPath();

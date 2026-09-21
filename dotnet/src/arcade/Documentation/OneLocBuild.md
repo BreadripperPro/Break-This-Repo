@@ -1,7 +1,7 @@
 # Localization with OneLocBuild in Arcade
 
 As of April 1, 2021, all .NET repositories will be using OneLocBuild for localization. Documentation on this system can
-be found [here](https://ceapex.visualstudio.com/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task).
+be found [here](https://dev.azure.com/ceapex/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task).
 This system is **not a replacement for Xliff-Tasks**; rather, it is replacing the localization team's old system called
 Simple Loc. OneLocBuild coordinates getting translations for new and updated strings and merging them back into the
 repo. Xliff-Tasks will continue to be used in addition to OneLocBuild.
@@ -10,6 +10,11 @@ To make OneLocBuild easier to use, we have integrated the task into Arcade. This
 ([here](/eng/common/templates/job/onelocbuild.yml)) that is described in this document.
 
 To see your repo's current loc configuration, please refer to https://aka.ms/locstats.
+
+> **Authenticating the check-in PR:** GitHub-based repos can use a short-lived, repository-scoped
+> **GitHub App** installation token for the localization check-in PR. See
+> [Authenticating OneLocBuild's GitHub check-in with the GitHub App](OneLocBuildGitHubApp.md)
+> for access requirements and configuration details.
 
 ## Onboarding to OneLocBuild Using Arcade
 
@@ -62,7 +67,9 @@ that the official build is based on.
 As a further note, the template by default assumes that your mirror repository is located in the dotnet GitHub
 organization. If that is not the case, you will need to specify `GitHubOrg` as well.
 
-If the repo is not in the dotnet organization, dotnet-bot may need to be granted additional permissions to interact with your repository.  Invite dotnet-bot (Go to the repository's "Settings" then click "Collaborators" in the left menu).  After the invite has been sent, reach out to the "First Responders" [channel](https://teams.microsoft.com/l/channel/19%3Aafba3d1545dd45d7b79f34c1821f6055%40thread.skype/First%20Responders?groupId=4d73664c-9f2f-450d-82a5-c2f02756606d&tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47) and ask them to accept the "dotnet bot" collaboration invite.  To accept the invite, the first responder will need to [login](https://dev.azure.com/dnceng/internal/_wiki/wikis/DNCEng%20Services%20Wiki/869/How-to-log-into-a-GitHub-bot-in-Key-Vault) as dotnet bot, go to the inviting repository, and then accept the invitation which should appear.
+If the repo is not in the dotnet organization, the `dotnet OneLoc Localization` GitHub App must
+be installed for that organization and granted access to the repository. Follow the
+[OneLocBuild GitHub App instructions](OneLocBuildGitHubApp.md).
 
 8. Merge the changes to your main branch and then open a
    [repo modification ticket](https://aka.ms/ceChangeLocConfig)
@@ -89,7 +96,7 @@ Depending on how often you want to release from the servicing branch you could:
   3. Merge the OneLocBuild PRs to your release branch.
   4. After the release, open another repo modification ticket to re-target your repository to the `main` branch again.
 
-* Register a servicing branch with the loc team using [this ticket](https://aka.ms/ceNewLoc) ([Here](https://ceapex.visualstudio.com/CEINTL/_workitems/edit/523494)'s an example). This allows the loc team to parse your servicing branch(es) while your default branch continues to be parsed. If you already have an old servicing branch parsed by the loc team, you could update it to point to a newer servicing branch. Here's what you would need to do to update the branch:
+* Register a servicing branch with the loc team using [this ticket](https://aka.ms/ceNewLoc) ([Here](https://dev.azure.com/ceapex/CEINTL/_workitems/edit/523494)'s an example). This allows the loc team to parse your servicing branch(es) while your default branch continues to be parsed. If you already have an old servicing branch parsed by the loc team, you could update it to point to a newer servicing branch. Here's what you would need to do to update the branch:
    1. Open a [repo modification ticket](https://aka.ms/ceChangeLocConfig) with the 
    loc team at least two weeks before the release and request that they re-target your servicing branch to new branch.
    2. Ask the loc team for a package Id for this servicing branch on the ticket. The value of the Package ID would then be substituted in the YAML of the OneLocBuild task.
@@ -192,15 +199,22 @@ The parameters that can be passed to the template are as follows:
 | `MirrorBranch` | `'main'` | The branch on GitHub to make a PR to (only used when using a mirrored repository). |
 | `UseCheckedInLocProjectJson` | `false` | When set to `true`, instructs the LocProject.json generation script to use build-time validation rather than build-time generation, as described above. |
 | `SkipLocProjectJsonGeneration` | `false` | When set to `true`, skips the LocProject.json generation in favor of using a checked-in LocProject.json.
-| `LanguageSet` | `VS_Main_Languages` | This defines the `LanguageSet` of the LocProject.json as described in the [OneLocBuild task documentation](https://ceapex.visualstudio.com/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=languageset%2C-languages-(required)). |
-| `LclSource` | `LclFilesInRepo` | This passes the `LclSource` input to the OneLocBuild task as described in [its documentation](https://ceapex.visualstudio.com/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=languageset%2C-languages-(required)). For most repos, this should be set to `LclFilesfromPackage`. |
-| `LclPackageId` | `''` | When `LclSource` is set to `LclFilesfromPackage`, this passes in the package ID as described in the [OneLocBuild task documentation](https://ceapex.visualstudio.com/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=scenario-2%3A-lcl-files-from-a-package). |
+| `LanguageSet` | `VS_Main_Languages` | This defines the `LanguageSet` of the LocProject.json as described in the [OneLocBuild task documentation](https://dev.azure.com/ceapex/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=languageset%2C-languages-(required)). |
+| `LclSource` | `LclFilesInRepo` | This passes the `LclSource` input to the OneLocBuild task as described in [its documentation](https://dev.azure.com/ceapex/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=languageset%2C-languages-(required)). For most repos, this should be set to `LclFilesfromPackage`. |
+| `LclPackageId` | `''` | When `LclSource` is set to `LclFilesfromPackage`, this passes in the package ID as described in the [OneLocBuild task documentation](https://dev.azure.com/ceapex/CEINTL/_wiki/wikis/CEINTL.wiki/107/Localization-with-OneLocBuild-Task?anchor=scenario-2%3A-lcl-files-from-a-package). |
+| `CeapexServiceConnection` | `'dnceng-onelocbuild-ceapex'` | The project-scoped WIF service connection used to acquire a short-lived token for the Ceapex feeds. OneLocBuild supports only `dnceng/internal` and `DevDiv/DevDiv`; pipelines must be authorized to use the connection. |
+| `GitHubAppServiceConnection` | `'dnceng-oneloc-githubapp'` | Project-scoped WIF service connection used to read the App credentials from Key Vault. DevDiv automatically uses `devdiv-oneloc-githubapp` when this default is unchanged. |
+| `GitHubAppKeyVaultName` | `'EngKeyVault'` | Key Vault containing the Secret Manager-managed GitHub App credentials. |
+| `GitHubAppIdSecretName` | `'oneloc-localization-app-app-id'` | Secret Manager projection containing the GitHub App ID. |
+| `GitHubAppPrivateKeySecretName` | `'oneloc-localization-app-app-private-key'` | Secret Manager projection containing the PEM private key. |
 | `condition` | `''` | Allows for conditionalizing the template's steps on build-time variables. |
 | `JobNameSuffix` | `''` | Allows for custom job name suffix. This is helpful for disambiguation in case of need for more then one OneLocBuild job run - e.g. as a way to set multiple package IDs. |
 
+GitHub OneLoc pipelines must be authorized to use their project's GitHub App WIF service
+connection. The service connection has read access only to the two required Key Vault secrets.
+
+The previous Key Vault RSA signing parameters have been removed. See
+[Authenticating OneLocBuild's GitHub check-in with the GitHub App](OneLocBuildGitHubApp.md#migrating-from-key-vault-rsa-signing)
+for the required parameter migration.
+
 It is recommended that you set `LclSource` and `LclPackageId` as shown in the example above.
-
-
-<!-- Begin Generated Content: Doc Feedback -->
-<sub>Was this helpful? [![Yes](https://helix.dot.net/f/ip/5?p=Documentation%5COneLocBuild.md)](https://helix.dot.net/f/p/5?p=Documentation%5COneLocBuild.md) [![No](https://helix.dot.net/f/in)](https://helix.dot.net/f/n/5?p=Documentation%5COneLocBuild.md)</sub>
-<!-- End Generated Content-->

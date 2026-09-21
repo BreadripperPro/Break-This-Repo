@@ -208,9 +208,9 @@ static BasicBlock* optRangeCheckCloning_DoClone(Compiler*             comp,
 
     // Find the maximum offset
     int offset = 0;
-    for (int i = 0; i < bndChkStack->Height(); i++)
+    for (const BoundsCheckInfo& bci : bndChkStack->TopDownOrder())
     {
-        offset = max(offset, bndChkStack->Top(i).offset);
+        offset = max(offset, bci.offset);
     }
     assert(offset >= 0);
 
@@ -337,14 +337,8 @@ static BasicBlock* optRangeCheckCloning_DoClone(Compiler*             comp,
                 statementFound = true;
 
                 // Find the bndChk in the statement
-                Compiler::fgWalkResult result = comp->fgWalkTreePre(
-                    stmt->GetRootNodePointer(),
-                    [](GenTree** pTree, Compiler::fgWalkData* data) -> Compiler::fgWalkResult {
-                    return (*pTree == (GenTree*)data->pCallbackData) ? Compiler::WALK_ABORT : Compiler::WALK_CONTINUE;
-                },
-                    info.BndChk());
                 // We don't need to validate bndChkParent - RemoveBoundsChk will do it for us
-                assert(result == Compiler::WALK_ABORT);
+                assert(comp->gtFindLink(stmt, info.BndChk()).result != nullptr);
                 break;
             }
         }
@@ -574,10 +568,9 @@ PhaseStatus Compiler::optRangeCheckCloning()
         // We could do it directly in the visitor above and avoid this O(n) pass,
         // but it's more TP/Memory wise to use stack-allocated ArrayStack first and
         // bail out on <MIN_CHECKS_PER_GROUP cases.
-        for (int i = 0; i < bndChkLocations.Height(); i++)
+        for (BoundCheckLocation loc : bndChkLocations.BottomUpOrder())
         {
-            BoundCheckLocation loc = bndChkLocations.Bottom(i);
-            BoundsCheckInfo    bci{};
+            BoundsCheckInfo bci{};
             if (bci.Initialize(this, loc.stmt, loc.stmtIdx, loc.bndChkUse))
             {
                 IdxLenPair             key(bci.idxVN, bci.lenVN);
@@ -625,11 +618,10 @@ PhaseStatus Compiler::optRangeCheckCloning()
         //
         BoundsCheckInfoStack* firstGroup = groups.Top();
         BoundsCheckInfoStack* lastGroup  = groups.Top();
-        for (int i = 0; i < groups.Height(); i++)
+        for (BoundsCheckInfoStack* const group : groups.BottomUpOrder())
         {
-            BoundsCheckInfoStack* group      = groups.Bottom(i);
-            int                   firstStmt  = group->Bottom().stmtIdx;
-            int                   secondStmt = group->Top().stmtIdx;
+            int firstStmt  = group->Bottom().stmtIdx;
+            int secondStmt = group->Top().stmtIdx;
             if (firstStmt < firstGroup->Bottom().stmtIdx)
             {
                 firstGroup = group;

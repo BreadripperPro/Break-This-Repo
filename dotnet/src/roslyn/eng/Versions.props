@@ -5,9 +5,9 @@
   <!-- Roslyn version -->
   <PropertyGroup>
     <MajorVersion>5</MajorVersion>
-    <MinorVersion>5</MinorVersion>
+    <MinorVersion>12</MinorVersion>
     <PatchVersion>0</PatchVersion>
-    <PreReleaseVersionLabel>2</PreReleaseVersionLabel>
+    <PreReleaseVersionLabel>1</PreReleaseVersionLabel>
     <PreReleaseVersionLabel Condition="'$(DotNetSignType)' == 'test'">$(PreReleaseVersionLabel)-test</PreReleaseVersionLabel>
     <VersionPrefix>$(MajorVersion).$(MinorVersion).$(PatchVersion)</VersionPrefix>
     <!--
@@ -15,6 +15,40 @@
       Keep the setting conditional. The toolset sets the assembly version to 42.42.42.42 if not set explicitly.
     -->
     <AssemblyVersion Condition="'$(OfficialBuild)' == 'true' or '$(DotNetUseShippingVersions)' == 'true'">$(MajorVersion).$(MinorVersion).0.0</AssemblyVersion>
+  </PropertyGroup>
+
+  <!-- Razor version (used by src/Razor projects and VS insertion) -->
+  <PropertyGroup>
+    <RazorMajorVersion>11</RazorMajorVersion>
+    <RazorMinorVersion>1</RazorMinorVersion>
+    <RazorPatchVersion>0</RazorPatchVersion>
+    <RazorPreReleaseVersionLabel>preview</RazorPreReleaseVersionLabel>
+    <RazorDotNetFinalVersionKind></RazorDotNetFinalVersionKind>
+    <RazorVersionPrefix>$(RazorMajorVersion).$(RazorMinorVersion).$(RazorPatchVersion)</RazorVersionPrefix>
+    <RazorAssemblyVersion>$(RazorMajorVersion).$(RazorMinorVersion).0.0</RazorAssemblyVersion>
+  </PropertyGroup>
+
+  <!-- Visual Studio train version (used to version VS components that ship out-of-band from Roslyn/Razor) -->
+  <PropertyGroup>
+    <VsMajorVersion>$([MSBuild]::Add($(MajorVersion), 13))</VsMajorVersion>
+    <VsMinorVersion>$(MinorVersion)</VsMinorVersion>
+  </PropertyGroup>
+
+  <!-- Razor tooling version -->
+  <PropertyGroup>
+    <RazorVsixPatchVersion>1</RazorVsixPatchVersion>
+    <RazorVsixVersionPrefix>$(VsMajorVersion).$(VsMinorVersion).$(RazorVsixPatchVersion)</RazorVsixVersionPrefix>
+    <RazorAddinMajorVersion>$(VsMajorVersion).$(VsMinorVersion)</RazorAddinMajorVersion>
+    <RazorAddinVersion>$(RazorAddinMajorVersion)</RazorAddinVersion>
+    <RazorAddinVersion Condition="'$(OfficialBuildId)' != ''">$(RazorAddinVersion).$(OfficialBuildId)</RazorAddinVersion>
+    <RazorAddinVersion Condition="'$(OfficialBuildId)' == ''">$(RazorAddinVersion).42424242.42</RazorAddinVersion>
+  </PropertyGroup>
+
+  <!-- EditorConfig components version -->
+  <PropertyGroup>
+    <EditorConfigPatchVersion>0</EditorConfigPatchVersion>
+    <EditorConfigVersionPrefix>$(VsMajorVersion).$(VsMinorVersion).$(EditorConfigPatchVersion)</EditorConfigVersionPrefix>
+    <EditorConfigAssemblyVersion>$(VsMajorVersion).$(VsMinorVersion).0.0</EditorConfigAssemblyVersion>
   </PropertyGroup>
 
   <!--
@@ -28,20 +62,19 @@
     <SystemMemoryVersion>4.6.3</SystemMemoryVersion>
     <SystemNumericsVectorsVersion>4.6.1</SystemNumericsVectorsVersion>
     <SystemRuntimeCompilerServicesUnsafeVersion>6.1.2</SystemRuntimeCompilerServicesUnsafeVersion>
+    <SystemSecurityCryptographyPkcsVersion>10.0.10</SystemSecurityCryptographyPkcsVersion>
+    <SystemSecurityCryptographyXmlVersion>10.0.10</SystemSecurityCryptographyXmlVersion>
     <SystemThreadingTasksExtensionsVersion>4.6.3</SystemThreadingTasksExtensionsVersion>
     <SystemValueTupleVersion>4.6.2</SystemValueTupleVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(DotNetBuildSourceOnly)' != 'true'">
     <MicrosoftIORedistVersion>6.1.0</MicrosoftIORedistVersion>
     <SystemBuffersVersion>4.6.1</SystemBuffersVersion>
-    <!--
-    Microsoft.TeamFoundationServer.Client is referencing System.Data.SqlClient causing CG alert
-    When it updates its referenced System.Data.SqlClient version this should be removed
-    -->
-    <SystemDataSqlClientVersion>4.8.6</SystemDataSqlClientVersion>
     <SystemMemoryVersion>4.6.3</SystemMemoryVersion>
     <SystemNumericsVectorsVersion>4.6.1</SystemNumericsVectorsVersion>
     <SystemRuntimeCompilerServicesUnsafeVersion>6.1.2</SystemRuntimeCompilerServicesUnsafeVersion>
+    <SystemSecurityCryptographyPkcsVersion>10.0.10</SystemSecurityCryptographyPkcsVersion>
+    <SystemSecurityCryptographyXmlVersion>10.0.10</SystemSecurityCryptographyXmlVersion>
     <SystemThreadingTasksExtensionsVersion>4.6.3</SystemThreadingTasksExtensionsVersion>
     <SystemValueTupleVersion>4.6.2</SystemValueTupleVersion>
   </PropertyGroup>
@@ -56,7 +89,7 @@
     <MicrosoftDevDivOptimizationDataPowerShellVersion>1.0.865</MicrosoftDevDivOptimizationDataPowerShellVersion>
     <MicrosoftIdentityModelJsonWebTokensVersion>6.34.0</MicrosoftIdentityModelJsonWebTokensVersion>
     <MicrosoftIdentityClientVersion>4.61.3</MicrosoftIdentityClientVersion>
-    <NewtonsoftJsonVersion>13.0.3</NewtonsoftJsonVersion>
+    <NewtonsoftJsonVersion>13.0.4</NewtonsoftJsonVersion>
     <SystemIdentityModelTokensJwtVersion>6.34.0</SystemIdentityModelTokensJwtVersion>
   </PropertyGroup>
 
@@ -118,7 +151,7 @@
   <!-- Arcade features -->
   <PropertyGroup>
     <UsingToolVSSDK Condition="$([MSBuild]::IsOSPlatform('Windows'))">true</UsingToolVSSDK>
-    <UsingToolPdbConverter>false</UsingToolPdbConverter>
+    <UsingToolPdbConverter>true</UsingToolPdbConverter>
     <UsingToolSymbolUploader>true</UsingToolSymbolUploader>
     <UsingToolNuGetRepack>true</UsingToolNuGetRepack>
     <!-- Avoid attempting IBC on platforms where ngen won't work, or the IBC tooling won't work -->
@@ -135,7 +168,7 @@
       in Directory.Packages.props - Microsoft.TestPlatform.TranslationLayer and Microsoft.TestPlatform.ObjectModel.
       This version needs to match the Test SDK version consumed by Arcade.
     -->
-    <MicrosoftNETTestSdkVersion>17.13.0</MicrosoftNETTestSdkVersion>
+    <MicrosoftNETTestSdkVersion>17.14.1</MicrosoftNETTestSdkVersion>
   </PropertyGroup>
 
 </Project>

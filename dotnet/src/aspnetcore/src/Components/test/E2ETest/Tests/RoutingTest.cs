@@ -923,6 +923,7 @@ public class RoutingTest : ServerTestBase<ToggleExecutionModeServerFixture<Progr
     }
 
     [Fact]
+    [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/68642")]
     public void NavigationLock_OverlappingNavigationsCancelExistingNavigations_PushState()
     {
         SetUrlViaPushState("/");
@@ -970,8 +971,7 @@ public class RoutingTest : ServerTestBase<ToggleExecutionModeServerFixture<Progr
     }
 
     [Fact]
-    [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/61080")]
-    public void NavigationLock_OverlappingNavigationsCancelExistingNavigations_HistoryNavigation()
+    public virtual void NavigationLock_OverlappingNavigationsCancelExistingNavigations_HistoryNavigation()
     {
         SetUrlViaPushState("/");
 
@@ -990,6 +990,7 @@ public class RoutingTest : ServerTestBase<ToggleExecutionModeServerFixture<Progr
         // Add a navigation lock that blocks internal navigations
         Browser.FindElement(By.Id("add-navigation-lock")).Click();
         Browser.FindElement(By.CssSelector("#navigation-lock-0 > input.block-internal-navigation")).Click();
+        Browser.Equal("true", () => Browser.FindElement(By.CssSelector("#navigation-lock-0 > input.navigation-lock-ready")).GetDomProperty("value"));
 
         Browser.Navigate().Back();
 
@@ -1156,7 +1157,8 @@ public class RoutingTest : ServerTestBase<ToggleExecutionModeServerFixture<Progr
         Browser.Equal("1", () => app.FindElement(By.Id("location-changed-count"))?.Text);
     }
 
-    [Fact(Skip = "https://github.com/dotnet/aspnetcore/issues/57153")]
+    [Fact]
+    [QuarantinedTest("https://github.com/dotnet/aspnetcore/issues/66041")]
     public void NavigationLock_CanBlockExternalNavigation()
     {
         SetUrlViaPushState("/");
@@ -1591,7 +1593,7 @@ public class RoutingTest : ServerTestBase<ToggleExecutionModeServerFixture<Progr
     }
 
     [Fact]
-    public void CanNavigateToQueryStringPageWithNoQuery()
+    public virtual void CanNavigateToQueryStringPageWithNoQuery()
     {
         SetUrlViaPushState("/");
 

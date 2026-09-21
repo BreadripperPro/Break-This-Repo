@@ -747,12 +747,6 @@ public sealed class PartialEventsAndConstructorsTests : CSharpTestBase
             // (3,5): error CS0267: The 'partial' modifier can only appear immediately before 'class', 'record', 'struct', 'interface', 'event', an instance constructor name, or a method or property return type.
             //     partial static C();
             Diagnostic(ErrorCode.ERR_PartialMisplaced, "partial").WithLocation(3, 5),
-            // (3,5): error CS0267: The 'partial' modifier can only appear immediately before 'class', 'record', 'struct', 'interface', 'event', an instance constructor name, or a method or property return type.
-            //     partial static C();
-            Diagnostic(ErrorCode.ERR_PartialMisplaced, "partial").WithLocation(3, 5),
-            // (4,5): error CS0267: The 'partial' modifier can only appear immediately before 'class', 'record', 'struct', 'interface', 'event', an instance constructor name, or a method or property return type.
-            //     partial static C() { }
-            Diagnostic(ErrorCode.ERR_PartialMisplaced, "partial").WithLocation(4, 5),
             // (4,5): error CS0267: The 'partial' modifier can only appear immediately before 'class', 'record', 'struct', 'interface', 'event', an instance constructor name, or a method or property return type.
             //     partial static C() { }
             Diagnostic(ErrorCode.ERR_PartialMisplaced, "partial").WithLocation(4, 5),
@@ -3090,7 +3084,7 @@ public sealed class PartialEventsAndConstructorsTests : CSharpTestBase
                 partial event System.Action F { add { int* p = null; } remove { } }
             }
             """;
-        CreateCompilation(source, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics(
+        CreateCompilation(source, parseOptions: TestOptions.Regular14, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics(
             // (8,15): error CS0214: Pointers and fixed size buffers may only be used in an unsafe context
             //     partial C(int* p) { }
             Diagnostic(ErrorCode.ERR_UnsafeNeeded, "int*").WithLocation(8, 15),
@@ -3100,6 +3094,9 @@ public sealed class PartialEventsAndConstructorsTests : CSharpTestBase
             // (10,43): error CS0214: Pointers and fixed size buffers may only be used in an unsafe context
             //     partial event System.Action F { add { int* p = null; } remove { } }
             Diagnostic(ErrorCode.ERR_UnsafeNeeded, "int*").WithLocation(10, 43));
+
+        CreateCompilation(source, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics();
+        CreateCompilation(source, parseOptions: TestOptions.RegularNext, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics();
     }
 
     [Fact]

@@ -1,7 +1,6 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-#nullable disable
 
 using System;
 using System.Diagnostics;
@@ -52,7 +51,7 @@ namespace NuGet.Protocol
             try
             {
                 // Find the package from the local folder
-                LocalPackageInfo packageInfo = null;
+                LocalPackageInfo? packageInfo = null;
 
                 var sourcePackage = identity as SourcePackageDependencyInfo;
 
@@ -70,6 +69,18 @@ namespace NuGet.Protocol
                 if (packageInfo != null)
                 {
                     var stream = File.OpenRead(packageInfo.Path);
+                    try
+                    {
+                        HttpStreamValidation.ValidatePackageIdentity(packageInfo.Path, stream, identity);
+                    }
+                    catch (InvalidDataException ex)
+                    {
+                        stream.Dispose();
+                        // To make this API consistent with HTTP DownloadReosurce implementations, we need to throw FatalProtocolException.
+                        // Also try to avoid duplicate messages when ExceptionUtilities.DisplayMessage appends inner exception messages.
+                        throw new FatalProtocolException(ex.Message, ex.InnerException ?? ex);
+                    }
+                    stream.Position = 0;
                     return Task.FromResult(new DownloadResourceResult(stream, packageInfo.GetReader(), _localResource.Root));
                 }
                 else

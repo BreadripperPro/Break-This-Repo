@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -31,13 +32,16 @@ namespace NuGet.CommandLine.XPlat
         private const string ProjectName = "MSBuildProjectName";
         private const int GenericSuccessExitCode = 0;
         private const int GenericFailureExitCode = 1;
-        private Dictionary<PackageSource, SourceRepository> _sourceRepositoryCache;
+        private readonly MSBuildAPIUtility _msbuildUtility;
+        private readonly Dictionary<PackageSource, SourceRepository> _sourceRepositoryCache;
 
-        public ListPackageCommandRunner()
+        public ListPackageCommandRunner(MSBuildAPIUtility msbuildUtility)
         {
+            _msbuildUtility = msbuildUtility;
             _sourceRepositoryCache = new Dictionary<PackageSource, SourceRepository>();
         }
 
+        [RequiresUnreferencedCode("In-process MSBuild execution loads task assemblies and loggers via reflection and is not trim-safe.")]
         public async Task<int> ExecuteCommandAsync(ListPackageArgs listPackageArgs)
         {
             IReportRenderer reportRenderer = listPackageArgs.Renderer;
@@ -46,6 +50,7 @@ namespace NuGet.CommandLine.XPlat
             return exitCode;
         }
 
+        [RequiresUnreferencedCode("In-process MSBuild execution loads task assemblies and loggers via reflection and is not trim-safe.")]
         internal async Task<(int, ListPackageReportModel)> GetReportDataAsync(ListPackageArgs listPackageArgs)
         {
             // It's important not to print anything to console from below methods and sub method calls, because it'll affect both json/console outputs.
@@ -71,11 +76,9 @@ namespace NuGet.CommandLine.XPlat
                     ? MSBuildAPIUtility.GetProjectsFromSolution(listPackageArgs.Path).Where(File.Exists)
                     : [listPackageArgs.Path];
 
-            MSBuildAPIUtility msBuild = listPackageReportModel.MSBuildAPIUtility;
-
             foreach (string projectPath in projectsPaths)
             {
-                await GetProjectMetadataAsync(projectPath, listPackageReportModel, msBuild, listPackageArgs);
+                await GetProjectMetadataAsync(projectPath, listPackageReportModel, listPackageArgs);
             }
 
             // if there is any error then return failure code.
@@ -87,15 +90,15 @@ namespace NuGet.CommandLine.XPlat
             return (exitCode, listPackageReportModel);
         }
 
+        [RequiresUnreferencedCode("In-process MSBuild execution loads task assemblies and loggers via reflection and is not trim-safe.")]
         private async Task GetProjectMetadataAsync(
             string projectPath,
             ListPackageReportModel listPackageReportModel,
-            MSBuildAPIUtility msBuild,
             ListPackageArgs listPackageArgs)
         {
             //Open project to evaluate properties for the assets
             //file and the name of the project
-            Project project = MSBuildAPIUtility.GetProject(projectPath);
+            Project project = _msbuildUtility.GetProject(projectPath).Project;
             var projectName = project.GetPropertyValue(ProjectName);
             ListPackageProjectModel projectModel = listPackageReportModel.CreateProjectReportData(projectPath: projectPath, projectName);
 
@@ -111,6 +114,16 @@ namespace NuGet.CommandLine.XPlat
             if (!IsProjectAssetsFileValid(assetsPath, projectPath, projectModel, out LockFile assetsFile))
             {
                 return;
+            }
+
+            foreach (string frameworkAlias in listPackageArgs.Frameworks)
+            {
+                if (assetsFile.PackageSpec?.GetTargetFramework(frameworkAlias) == null)
+                {
+                    projectModel.AddProjectInformation(problemType: ProblemType.Error,
+                    string.Format(CultureInfo.CurrentCulture, Strings.ListPkg_InvalidFramework, frameworkAlias, projectPath));
+                    return;
+                }
             }
 
             List<FrameworkPackages> frameworks;
@@ -186,7 +199,7 @@ namespace NuGet.CommandLine.XPlat
 
             foreach (var frameworkPackages in frameworks)
             {
-                var frameworkPackage = new ListPackageReportFrameworkPackage(frameworkPackages.Framework)
+                var frameworkPackage = new ListPackageReportFrameworkPackage(frameworkPackages.Framework, frameworkPackages.TargetAlias)
                 {
                     TransitivePackages = new List<ListReportPackage>(),
                     TopLevelPackages = new List<ListReportPackage>()

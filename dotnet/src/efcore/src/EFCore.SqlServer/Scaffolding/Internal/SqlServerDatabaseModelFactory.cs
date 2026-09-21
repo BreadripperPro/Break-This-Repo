@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -120,8 +119,8 @@ public class SqlServerDatabaseModelFactory(
             foreach (var table in tableList)
             {
                 var (parsedSchema, parsedTableName) = Parse(table);
-                if (!databaseModel.Tables.Any(t => !string.IsNullOrEmpty(parsedSchema)
-                        && t.Schema == parsedSchema
+                if (!databaseModel.Tables.Any(t => (!string.IsNullOrEmpty(parsedSchema)
+                            && t.Schema == parsedSchema)
                         || t.Name == parsedTableName))
                 {
                     _logger.MissingTableWarning(table);
@@ -655,14 +654,16 @@ AND [v].[is_date_correlation_view] = 0
         // This is done separately due to MARS property may be turned off
         GetColumns(connection, tables, tableFilterSql, viewFilter, typeAliases, databaseCollation);
 
-        if (SupportsIndexes)
-        {
-            GetIndexes(connection, tables, tableFilterSql);
-        }
+        GetIndexes(connection, tables, tableFilterSql);
 
         if (SupportsFullTextSearch)
         {
             GetFullTextIndexes(connection, tables, tableFilterSql);
+        }
+
+        if (SupportsJsonIndexes)
+        {
+            GetJsonIndexPaths(connection, tables, tableFilterSql);
         }
 
         GetForeignKeys(connection, tables, tableFilterSql);
@@ -837,9 +838,7 @@ LEFT JOIN [sys].[default_constraints] AS [dc] ON [c].[object_id] = [dc].[parent_
                         ? ValueGenerated.OnAdd
                         : storeType == "rowversion"
                             ? ValueGenerated.OnAddOrUpdate
-#pragma warning disable IDE0034 // Simplify 'default' expression - Ternary expression causes default(ValueGenerated) which is non-nullable
                             : default(ValueGenerated?)
-#pragma warning restore IDE0034 // Simplify 'default' expression
                 };
 
                 if (storeType == "rowversion")
@@ -880,8 +879,8 @@ LEFT JOIN [sys].[default_constraints] AS [dc] ON [c].[object_id] = [dc].[parent_
         Unwrap();
         if (defaultValueSql.StartsWith("CONVERT", StringComparison.OrdinalIgnoreCase))
         {
-            defaultValueSql = defaultValueSql.Substring(defaultValueSql.IndexOf(',') + 1);
-            defaultValueSql = defaultValueSql.Substring(0, defaultValueSql.LastIndexOf(')'));
+            defaultValueSql = defaultValueSql[(defaultValueSql.IndexOf(',') + 1)..];
+            defaultValueSql = defaultValueSql[..defaultValueSql.LastIndexOf(')')];
             Unwrap();
         }
 
@@ -964,7 +963,7 @@ LEFT JOIN [sys].[default_constraints] AS [dc] ON [c].[object_id] = [dc].[parent_
         {
             while (defaultValueSql.StartsWith('(') && defaultValueSql.EndsWith(')'))
             {
-                defaultValueSql = (defaultValueSql.Substring(1, defaultValueSql.Length - 2)).Trim();
+                defaultValueSql = defaultValueSql[1..^1].Trim();
             }
         }
     }
@@ -1028,7 +1027,7 @@ SELECT
     [i].[has_filter],
     [i].[filter_definition],
     [i].[fill_factor],
-    COL_NAME([ic].[object_id], [ic].[column_id]) AS [column_name],
+    [c].[name] AS [column_name],
     [ic].[is_descending_key],
     [ic].[is_included_column],
     {(SupportsVectorIndexes ? "[vi].[distance_metric]" : "NULL as [distance_metric]")},
@@ -1133,9 +1132,16 @@ ORDER BY [table_schema], [table_name], [index_name], [ic].[key_ordinal];
                         primaryKey.Columns.Add(column);
                     }
 
-                    _logger.PrimaryKeyFound(primaryKey.Name, DisplayName(tableSchema, tableName));
-                    table.PrimaryKey = primaryKey;
+                    if (IsValidPrimaryKey(primaryKey))
+                    {
+                        _logger.PrimaryKeyFound(primaryKey.Name, DisplayName(tableSchema, tableName));
+                        table.PrimaryKey = primaryKey;
+                    }
                 }
+
+                bool IsValidPrimaryKey(DatabasePrimaryKey primaryKey)
+                    => _engineEdition != EngineEdition.DynamicsCrm
+                        || (primaryKey.Columns.Count == 1 && primaryKey.Columns[0].StoreType == "uniqueidentifier");
 
                 void ProcessUniqueConstraint()
                 {
@@ -1269,6 +1275,92 @@ FROM [sys].[fulltext_catalogs];
         if (catalogs.Count > 0)
         {
             databaseModel[SqlServerAnnotationNames.FullTextCatalogs] = catalogs;
+        }
+    }
+
+    private void GetJsonIndexPaths(DbConnection connection, IReadOnlyList<DatabaseTable> tables, string tableFilter)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+SELECT
+    SCHEMA_NAME([t].[schema_id]) AS [table_schema],
+    [t].[name] AS [table_name],
+    [i].[name] AS [index_name],
+    [i].[is_unique],
+    [i].[has_filter],
+    [i].[filter_definition],
+    [i].[fill_factor],
+    COL_NAME([ic].[object_id], [ic].[column_id]) AS [column_name],
+    [jip].[path]
+FROM [sys].[json_index_paths] AS [jip]
+JOIN [sys].[indexes] AS [i] ON [jip].[object_id] = [i].[object_id] AND [jip].[index_id] = [i].[index_id]
+JOIN [sys].[tables] AS [t] ON [i].[object_id] = [t].[object_id]
+JOIN [sys].[index_columns] AS [ic] ON [i].[object_id] = [ic].[object_id] AND [i].[index_id] = [ic].[index_id]
+WHERE {tableFilter}
+ORDER BY [table_schema], [table_name], [index_name], [jip].[path];
+""";
+
+        using var reader = command.ExecuteReader();
+        var indexGroups = reader.Cast<DbDataRecord>()
+            .GroupBy(r => (
+                tableSchema: r.GetValueOrDefault<string>("table_schema"),
+                tableName: r.GetFieldValue<string>("table_name"),
+                indexName: r.GetFieldValue<string>("index_name")))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var ((tableSchema, tableName, indexName), records) in indexGroups)
+        {
+            var table = tables.SingleOrDefault(t => t.Schema == tableSchema && t.Name == tableName);
+            if (table is null)
+            {
+                continue;
+            }
+
+            var index = table.Indexes.SingleOrDefault(i => i.Name == indexName);
+            var firstRecord = records[0];
+            var jsonColumn = firstRecord.GetValueOrDefault<string>("column_name");
+            var paths = records.Select(r => r.GetFieldValue<string>("path")).ToArray();
+            if (jsonColumn is null || table.Columns.FirstOrDefault(c => c.Name == jsonColumn) is not { } column)
+            {
+                continue;
+            }
+
+            var isUnique = firstRecord.GetFieldValue<bool>("is_unique");
+            var filter = firstRecord.GetFieldValue<bool>("has_filter")
+                ? firstRecord.GetValueOrDefault<string>("filter_definition")
+                : null;
+            var fillFactor = firstRecord.GetValueOrDefault<byte>("fill_factor") is var fillFactorRaw && fillFactorRaw is > 0 and <= 100
+                ? (int?)fillFactorRaw
+                : null;
+
+            if (index is null)
+            {
+                // JSON indexes aren't surfaced by the generic GetIndexes query: although they do
+                // have rows in sys.index_columns, those rows reference column ids that don't
+                // resolve through the inner join to sys.columns, so the join drops them.
+                // Synthesize a DatabaseIndex carrying the JSON container column and the path annotation.
+                index = new DatabaseIndex
+                {
+                    Table = table,
+                    Name = indexName,
+                    IsUnique = isUnique,
+                    Filter = filter
+                };
+                index.Columns.Add(column);
+                table.Indexes.Add(index);
+            }
+            else
+            {
+                index.IsUnique = isUnique;
+                index.Filter = filter;
+            }
+
+            if (fillFactor is not null)
+            {
+                index[SqlServerAnnotationNames.FillFactor] = fillFactor.Value;
+            }
+
+            index[RelationalAnnotationNames.JsonIndexPaths] = (jsonColumn, paths);
         }
     }
 
@@ -1490,6 +1582,14 @@ ORDER BY [table_schema], [table_name], [f].[name], [fc].[constraint_column_id];
                     foreignKey.PrincipalColumns.Add(principalColumn);
                 }
 
+                if (!invalid && _engineEdition == EngineEdition.DynamicsCrm && !IsValidDataverseForeignKey(foreignKey))
+                {
+                    invalid = true;
+                    _logger.DataverseForeignKeyInvalidWarning(
+                        fkName!,
+                        DisplayName(table.Schema, table.Name));
+                }
+
                 if (!invalid)
                 {
                     if (foreignKey.Columns.SequenceEqual(foreignKey.PrincipalColumns))
@@ -1518,6 +1618,14 @@ ORDER BY [table_schema], [table_name], [f].[name], [fc].[constraint_column_id];
                 }
             }
         }
+
+        static bool IsValidDataverseForeignKey(DatabaseForeignKey foreignKey)
+            => foreignKey.Columns.Count == 1
+                && foreignKey.Columns[0].StoreType == "uniqueidentifier"
+                && foreignKey.PrincipalTable.PrimaryKey != null
+                && foreignKey.PrincipalTable.PrimaryKey.Columns.Count == 1
+                && foreignKey.PrincipalTable.PrimaryKey.Columns[0].StoreType == "uniqueidentifier"
+                && foreignKey.PrincipalTable.PrimaryKey.Columns[0].Name == foreignKey.PrincipalColumns[0].Name;
     }
 
     private void GetTriggers(DbConnection connection, IReadOnlyList<DatabaseTable> tables, string tableFilter)
@@ -1567,13 +1675,13 @@ ORDER BY [table_schema], [table_name], [tr].[name];
     private bool SupportsSequences
         => _compatibilityLevel >= 110 && IsFullFeaturedEngineEdition;
 
-    private bool SupportsIndexes
-        => _engineEdition != EngineEdition.DynamicsCrm;
-
     private bool SupportsFullTextSearch
         => IsFullFeaturedEngineEdition;
 
     private bool SupportsVectorIndexes
+        => _compatibilityLevel >= 170 && IsFullFeaturedEngineEdition;
+
+    private bool SupportsJsonIndexes
         => _compatibilityLevel >= 170 && IsFullFeaturedEngineEdition;
 
     private bool SupportsViews
@@ -1583,7 +1691,8 @@ ORDER BY [table_schema], [table_name], [tr].[name];
         => IsFullFeaturedEngineEdition;
 
     private bool IsFullFeaturedEngineEdition
-        => _engineEdition is not EngineEdition.AzureSynapseAnalytics and not EngineEdition.AzureSynapseServerlessOrFabric and not EngineEdition.DynamicsCrm
+        => _engineEdition is not EngineEdition.AzureSynapseAnalytics and not EngineEdition.AzureSynapseServerlessOrFabric
+                and not EngineEdition.DynamicsCrm
             && _version != "Microsoft SQL Kusto";
 
     private static string DisplayName(string? schema, string name)
@@ -1623,7 +1732,7 @@ ORDER BY [table_schema], [table_name], [tr].[name];
         Express = 4,
 
         /// <summary>
-        ///    SQL Database (Azure SQL Database)
+        ///     SQL Database (Azure SQL Database)
         /// </summary>
         SqlDatabase = 5,
 

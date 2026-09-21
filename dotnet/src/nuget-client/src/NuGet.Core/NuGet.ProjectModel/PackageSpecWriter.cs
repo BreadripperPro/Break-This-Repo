@@ -11,6 +11,7 @@ using NuGet.Common;
 using NuGet.Frameworks;
 using NuGet.LibraryModel;
 using NuGet.RuntimeModel;
+using NuGet.Shared;
 using NuGet.Versioning;
 
 namespace NuGet.ProjectModel
@@ -54,11 +55,16 @@ namespace NuGet.ProjectModel
                 SetValue(writer, "version", packageSpec.Version?.ToFullString());
             }
 
-            SetMSBuildMetadata(writer, packageSpec, environmentVariableReader, useLegacyWriter);
+            SetMSBuildMetadata(writer, packageSpec, hashing, environmentVariableReader, useLegacyWriter);
 
             SetFrameworks(writer, packageSpec.TargetFrameworks, hashing, useLegacyWriter);
 
             JsonRuntimeFormat.WriteRuntimeGraph(writer, packageSpec.RuntimeGraph);
+        }
+
+        internal static string NormalizePathForHashing(string path, bool hashing)
+        {
+            return hashing && PathUtility.IsFileSystemCaseInsensitive ? path?.ToUpperInvariant() : path;
         }
 
         private static bool IsMetadataValid(ProjectRestoreMetadata msbuildMetadata)
@@ -81,7 +87,7 @@ namespace NuGet.ProjectModel
         /// <summary>
         /// This method sets the msbuild metadata that's important for restore. Ensures that frameworks regardless of which way they're stores in the metadata(full name or short tfm name) are written out the same.
         /// </summary>
-        private static void SetMSBuildMetadata(IObjectWriter writer, PackageSpec packageSpec, IEnvironmentVariableReader environmentVariableReader, bool useTargetFrameworkAsKey)
+        private static void SetMSBuildMetadata(IObjectWriter writer, PackageSpec packageSpec, bool hashing, IEnvironmentVariableReader environmentVariableReader, bool useTargetFrameworkAsKey)
         {
             var msbuildMetadata = packageSpec.RestoreMetadata;
 
@@ -95,12 +101,12 @@ namespace NuGet.ProjectModel
 
             writer.WriteObjectStart(JsonPackageSpecReader.RestoreOptions);
 
-            SetValue(writer, "projectUniqueName", msbuildMetadata.ProjectUniqueName);
+            SetValue(writer, "projectUniqueName", NormalizePathForHashing(msbuildMetadata.ProjectUniqueName, hashing));
             SetValue(writer, "projectName", msbuildMetadata.ProjectName);
-            SetValue(writer, "projectPath", msbuildMetadata.ProjectPath);
+            SetValue(writer, "projectPath", NormalizePathForHashing(msbuildMetadata.ProjectPath, hashing));
             SetValue(writer, "projectJsonPath", msbuildMetadata.ProjectJsonPath);
             SetValue(writer, "packagesPath", ApplyMacro(msbuildMetadata.PackagesPath, userSettingsDirectory, useMacros));
-            SetValue(writer, "outputPath", msbuildMetadata.OutputPath);
+            SetValue(writer, "outputPath", NormalizePathForHashing(msbuildMetadata.OutputPath, hashing));
 
             if (msbuildMetadata.ProjectStyle != ProjectStyle.Unknown)
             {
@@ -130,7 +136,7 @@ namespace NuGet.ProjectModel
 
             WriteMetadataSources(writer, msbuildMetadata);
             WriteMetadataFiles(writer, msbuildMetadata);
-            WriteMetadataTargetFrameworks(writer, msbuildMetadata, useTargetFrameworkAsKey);
+            WriteMetadataTargetFrameworks(writer, msbuildMetadata, hashing, useTargetFrameworkAsKey);
             SetWarningProperties(writer, msbuildMetadata);
 
             WriteNuGetLockFileProperties(writer, msbuildMetadata);
@@ -169,7 +175,9 @@ namespace NuGet.ProjectModel
             SetValueIfTrue(writer, "centralPackageVersionOverrideDisabled", msbuildMetadata.CentralPackageVersionOverrideDisabled);
             SetValueIfTrue(writer, "CentralPackageTransitivePinningEnabled", msbuildMetadata.CentralPackageTransitivePinningEnabled);
             SetValueIfFalse(writer, "UsingMicrosoftNETSdk", msbuildMetadata.UsingMicrosoftNETSdk);
+            SetValueIfTrue(writer, "restoreEnableAnalyzerAssets", msbuildMetadata.RestoreEnableAnalyzerAssets);
             SetValueIfTrue(writer, "restoreUseLegacyDependencyResolver", msbuildMetadata.UseLegacyDependencyResolver);
+            SetValueIfTrue(writer, "restoreDoNotWriteDependencyGraphSpec", msbuildMetadata.RestoreDoNotWriteDependencyGraphSpec);
         }
 
 
@@ -215,7 +223,7 @@ namespace NuGet.ProjectModel
             writer.WriteObjectEnd();
         }
 
-        private static void WriteMetadataTargetFrameworks(IObjectWriter writer, ProjectRestoreMetadata msbuildMetadata, bool useTargetFrameworkAsKey)
+        private static void WriteMetadataTargetFrameworks(IObjectWriter writer, ProjectRestoreMetadata msbuildMetadata, bool hashing, bool useTargetFrameworkAsKey)
         {
             if (msbuildMetadata.TargetFrameworks?.Count > 0)
             {
@@ -241,9 +249,9 @@ namespace NuGet.ProjectModel
 
                         foreach (var project in framework.ProjectReferences.OrderBy(e => e.ProjectPath, PathUtility.GetStringComparerBasedOnOS()))
                         {
-                            writer.WriteObjectStart(project.ProjectUniqueName);
+                            writer.WriteObjectStart(NormalizePathForHashing(project.ProjectUniqueName, hashing));
 
-                            writer.WriteNameValue("projectPath", project.ProjectPath);
+                            writer.WriteNameValue("projectPath", NormalizePathForHashing(project.ProjectPath, hashing));
 
                             if (project.IncludeAssets != LibraryIncludeFlags.All)
                             {
@@ -589,19 +597,9 @@ namespace NuGet.ProjectModel
 
             writer.WriteObjectStart("centralPackageVersions");
 
-            if (hashing)
+            foreach (var dependency in centralPackageVersions.OrderBy(dep => dep.Name, StringComparer.OrdinalIgnoreCase))
             {
-                foreach (var dependency in centralPackageVersions)
-                {
-                    writer.WriteNameValue(name: dependency.Name, value: dependency.VersionRange.OriginalString ?? dependency.VersionRange.ToNormalizedString());
-                }
-            }
-            else
-            {
-                foreach (var dependency in centralPackageVersions.OrderBy(dep => dep.Name, StringComparer.OrdinalIgnoreCase))
-                {
-                    writer.WriteNameValue(name: dependency.Name, value: dependency.VersionRange.OriginalString ?? dependency.VersionRange.ToNormalizedString());
-                }
+                writer.WriteNameValue(name: dependency.Name, value: dependency.VersionRange.OriginalString ?? dependency.VersionRange.ToNormalizedString());
             }
 
             writer.WriteObjectEnd();
@@ -616,19 +614,9 @@ namespace NuGet.ProjectModel
 
             writer.WriteObjectStart("packagesToPrune");
 
-            if (hashing)
+            foreach (var dependency in packagesToPrune.OrderBy(dep => dep.Key, StringComparer.OrdinalIgnoreCase))
             {
-                foreach (var dependency in packagesToPrune)
-                {
-                    writer.WriteNameValue(name: dependency.Key, value: dependency.Value.VersionRange.OriginalString ?? dependency.Value.VersionRange.ToNormalizedString());
-                }
-            }
-            else
-            {
-                foreach (var dependency in packagesToPrune.OrderBy(dep => dep.Key, StringComparer.OrdinalIgnoreCase))
-                {
-                    writer.WriteNameValue(name: dependency.Key, value: dependency.Value.VersionRange.OriginalString ?? dependency.Value.VersionRange.ToNormalizedString());
-                }
+                writer.WriteNameValue(name: dependency.Key, value: dependency.Value.VersionRange.OriginalString ?? dependency.Value.VersionRange.ToNormalizedString());
             }
 
             writer.WriteObjectEnd();

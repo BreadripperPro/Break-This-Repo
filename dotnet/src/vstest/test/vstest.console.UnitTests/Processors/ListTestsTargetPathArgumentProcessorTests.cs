@@ -11,17 +11,18 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class ListTestsTargetPathArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     [TestMethod]
     public void GetMetadataShouldReturnListTestsTargetPathArgumentProcessorCapabilities()
     {
-        ListTestsTargetPathArgumentProcessor processor = new();
+        ListTestsTargetPathArgumentProcessor processor = new(_commandLineOptions);
         Assert.IsTrue(processor.Metadata.Value is ListTestsTargetPathArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecutorShouldReturnListTestsTargetPathArgumentProcessorCapabilities()
     {
-        ListTestsTargetPathArgumentProcessor processor = new();
+        ListTestsTargetPathArgumentProcessor processor = new(_commandLineOptions);
         Assert.IsTrue(processor.Executor!.Value is ListTestsTargetPathArgumentExecutor);
     }
 
@@ -46,24 +47,17 @@ public class ListTestsTargetPathArgumentProcessorTests
     [TestMethod]
     public void ExecutorInitializeWithNullOrEmptyListTestsTargetPathShouldThrowCommandLineException()
     {
-        var options = CommandLineOptions.Instance;
+        var options = new CommandLineOptions();
         ListTestsTargetPathArgumentExecutor executor = new(options);
 
-        try
-        {
-            executor.Initialize(null);
-        }
-        catch (Exception ex)
-        {
-            Assert.IsTrue(ex is CommandLineException);
-            StringAssert.Contains(ex.Message, "ListTestsTargetPath is required with ListFullyQualifiedTests!");
-        }
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => executor.Initialize(null));
+        Assert.Contains("ListTestsTargetPath is required with ListFullyQualifiedTests!", ex.Message);
     }
 
     [TestMethod]
     public void ExecutorInitializeWithValidListTestsTargetPathShouldAddListTestsTargetPathToCommandLineOptions()
     {
-        var options = CommandLineOptions.Instance;
+        var options = new CommandLineOptions();
         ListTestsTargetPathArgumentExecutor executor = new(options);
 
         executor.Initialize(@"C:\sample.txt");
@@ -73,7 +67,7 @@ public class ListTestsTargetPathArgumentProcessorTests
     [TestMethod]
     public void ExecutorListTestsTargetPathArgumentProcessorResultSuccess()
     {
-        var executor = new ListTestsTargetPathArgumentExecutor(CommandLineOptions.Instance);
+        var executor = new ListTestsTargetPathArgumentExecutor(_commandLineOptions);
         var result = executor.Execute();
         Assert.AreEqual(ArgumentProcessorResult.Success, result);
     }

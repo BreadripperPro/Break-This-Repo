@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.SqlServer.Metadata.Internal;
 
 // ReSharper disable once CheckNamespace
@@ -18,6 +17,10 @@ namespace Microsoft.EntityFrameworkCore;
 /// </remarks>
 public static class SqlServerEntityTypeBuilderExtensions
 {
+    // DO NOT REMOVE, IN GENERATED CODE
+
+    #region IsMemoryOptimized (obsolete, kept for existing migration snapshots)
+
     /// <summary>
     ///     Configures the table that the entity maps to when targeting SQL Server as memory-optimized.
     /// </summary>
@@ -54,7 +57,7 @@ public static class SqlServerEntityTypeBuilderExtensions
         this EntityTypeBuilder<TEntity> entityTypeBuilder,
         bool memoryOptimized = true)
         where TEntity : class
-        => (EntityTypeBuilder<TEntity>)IsMemoryOptimized((EntityTypeBuilder)entityTypeBuilder, memoryOptimized);
+        => (EntityTypeBuilder<TEntity>)((EntityTypeBuilder)entityTypeBuilder).IsMemoryOptimized(memoryOptimized);
 
     /// <summary>
     ///     Configures the table that the entity maps to when targeting SQL Server as memory-optimized.
@@ -94,8 +97,10 @@ public static class SqlServerEntityTypeBuilderExtensions
         bool memoryOptimized = true)
         where TEntity : class
         where TRelatedEntity : class
-        => (OwnedNavigationBuilder<TEntity, TRelatedEntity>)IsMemoryOptimized(
-            (OwnedNavigationBuilder)collectionOwnershipBuilder, memoryOptimized);
+        => (OwnedNavigationBuilder<TEntity, TRelatedEntity>)((OwnedNavigationBuilder)collectionOwnershipBuilder).IsMemoryOptimized(
+            memoryOptimized);
+
+    #endregion
 
     /// <summary>
     ///     Configures the table that the entity maps to when targeting SQL Server as memory-optimized.

@@ -7,7 +7,7 @@ namespace Microsoft.EntityFrameworkCore.Migrations.Design;
 
 public class CSharpMigrationCompilerTest
 {
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_compiles_valid_migration_code()
     {
         var compiler = new CSharpMigrationCompiler();
@@ -103,7 +103,7 @@ public class CSharpMigrationCompilerTest
         Assert.Equal("20231215120000_TestMigration", migrationAttribute.Id);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_finds_snapshot_type()
     {
         var compiler = new CSharpMigrationCompiler();
@@ -120,7 +120,7 @@ public class CSharpMigrationCompilerTest
         Assert.Equal(typeof(ModelSnapshot), snapshotType.BaseType);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_creates_unique_assembly_per_compilation()
     {
         var compiler = new CSharpMigrationCompiler();
@@ -135,26 +135,24 @@ public class CSharpMigrationCompilerTest
         Assert.NotEqual(assembly1.FullName, assembly2.FullName);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_throws_on_null_migration()
     {
         var compiler = new CSharpMigrationCompiler();
 
-        Assert.Throws<NullReferenceException>(
-            () => compiler.CompileMigration(null!, typeof(TestContext)));
+        Assert.Throws<NullReferenceException>(() => compiler.CompileMigration(null!, typeof(TestContext)));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_throws_on_null_context_type()
     {
         var compiler = new CSharpMigrationCompiler();
         var scaffoldedMigration = CreateValidScaffoldedMigration("20231215160000_NullContext");
 
-        Assert.Throws<NullReferenceException>(
-            () => compiler.CompileMigration(scaffoldedMigration, null!));
+        Assert.Throws<NullReferenceException>(() => compiler.CompileMigration(scaffoldedMigration, null!));
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_throws_on_empty_migration_code()
     {
         var compiler = new CSharpMigrationCompiler();
@@ -190,13 +188,12 @@ public class CSharpMigrationCompilerTest
             snapshotName: "TestContextModelSnapshot");
 
         // Empty migration code results in compilation failure
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => compiler.CompileMigration(scaffoldedMigration, typeof(TestContext)));
+        var exception = Assert.Throws<InvalidOperationException>(() => compiler.CompileMigration(scaffoldedMigration, typeof(TestContext)));
 
         Assert.Contains("20231215170000_EmptyCode", exception.Message);
     }
 
-    [ConditionalFact]
+    [Fact]
     public void CompileMigration_handles_unicode_in_migration_name()
     {
         var compiler = new CSharpMigrationCompiler();
@@ -291,8 +288,7 @@ namespace TestNamespace
         string metadataCode,
         string snapshotCode,
         string snapshotName)
-    {
-        return new ScaffoldedMigration(
+        => new(
             fileExtension: ".cs",
             previousMigrationId: null,
             migrationCode: migrationCode,
@@ -302,7 +298,6 @@ namespace TestNamespace
             snapshotCode: snapshotCode,
             snapshotName: snapshotName,
             snapshotSubNamespace: "TestNamespace");
-    }
 
     private class TestContext : DbContext
     {

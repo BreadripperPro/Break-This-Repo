@@ -12,6 +12,7 @@
 #include "simdhash.h"
 #include "intrinsics.h"
 #include "interpalloc.h"
+#include "interpmethoddata.h"
 
 struct InterpException
 {
@@ -26,21 +27,6 @@ struct InterpException
 
 class InterpreterStackMap;
 class InterpCompiler;
-
-// MemPoolAllocator provides an allocator interface for use with TArray and other
-// data structures. It wraps the InterpCompiler's arena allocator with a specific
-// memory kind for statistics tracking.
-class MemPoolAllocator
-{
-    InterpCompiler* const m_compiler;
-    InterpMemKind m_memKind;
-public:
-    MemPoolAllocator(InterpCompiler* compiler, InterpMemKind memKind)
-        : m_compiler(compiler), m_memKind(memKind) {}
-    void* Alloc(size_t sz) const;
-    void Free(void* ptr) const;
-    InterpMemKind getMemKind() const { return m_memKind; }
-};
 
 class InterpDataItemIndexMap
 {
@@ -225,6 +211,12 @@ class InterpDumpScope
 #define INTERP_DUMP(...)
 #endif // DEBUG
 
+#ifdef DEBUG
+static const char* const PointerIsClassHandle = (const char*)0x1;
+static const char* const PointerIsMethodHandle = (const char*)0x2;
+static const char* const PointerIsStringLiteral = (const char*)0x3;
+#endif // DEBUG
+
 struct InterpInst;
 struct InterpBasicBlock;
 
@@ -247,7 +239,18 @@ enum InterpInstFlags
 {
     INTERP_INST_FLAG_CALL               = 0x01,
     // Flag used internally by the var offset allocator
-    INTERP_INST_FLAG_ACTIVE_CALL        = 0x02
+    INTERP_INST_FLAG_ACTIVE_CALL        = 0x02,
+    // The IL stack is empty at this instruction
+    INTERP_INST_FLAG_EMPTY_IL_STACK    = 0x04,
+    // Marks a value-returning managed call site whose return value is reportable to the debugger
+    INTERP_INST_FLAG_DBG_CALL_INSTRUCTION = 0x08
+};
+
+struct InterpCallReturnInfo
+{
+    uint32_t ilOffset;
+    uint32_t postCallNativeOffset;
+    int32_t returnValueVarOffset;
 };
 
 struct InterpInst
@@ -408,7 +411,6 @@ struct InterpVar
     InterpInst *call = nullptr;
 
     unsigned int callArgs : 1; // Var used as argument to a call
-    unsigned int noCallArgs : 1; // Var can't be used as argument to a call, needs to be copied to temp
     unsigned int global : 1; // Dedicated stack offset throughout method execution
     unsigned int ILGlobal : 1; // Args and IL locals
     unsigned int alive : 1; // Used internally by the var offset allocator
@@ -424,7 +426,6 @@ struct InterpVar
         bbIndex = -1;
 
         callArgs = false;
-        noCallArgs = false;
         global = false;
         ILGlobal = false;
         alive = false;
@@ -625,11 +626,20 @@ private:
     // All memory allocated via AllocMemPool is freed when the compiler is destroyed.
     InterpArenaAllocator *m_arenaAllocator;
 
+    // Builder for the unified method data allocation
+    InterpMethodDataBuilder m_methodDataBuilder;
+
     CORINFO_METHOD_HANDLE m_methodHnd;
     CORINFO_MODULE_HANDLE m_compScopeHnd;
     COMP_HANDLE m_compHnd;
     CORINFO_METHOD_INFO* m_methodInfo;
     CORJIT_FLAGS m_corJitFlags;
+#ifdef PERFTRACING_DISABLE_THREADS
+    bool m_emitSamplingProfiler;
+#ifdef TARGET_BROWSER
+    bool m_emitBrowserProfiler;
+#endif
+#endif // PERFTRACING_DISABLE_THREADS
 
     void DeclarePointerIsClass(CORINFO_CLASS_HANDLE clsHnd)
     {
@@ -681,6 +691,9 @@ private:
     int32_t m_currentILOffset;
     InterpInst* m_pInitLocalsIns;
 
+    // Indicates that we are going to generate the first interpreter byte code instruction for an IL opcode with an empty stack.
+    bool        m_isFirstInstForEmptyILStack = true;
+
     // If the method has a hidden argument, GenerateCode allocates a var to store it and
     //  populates the var at method entry
     int32_t m_hiddenArgumentVar;
@@ -694,6 +707,13 @@ private:
     // directly returns the continuation of the call instead of creating a new
     // suspension point.
     bool m_nextAwaitIsTail = false;
+    bool m_asyncVersionIsTailCalling = false;
+    bool m_hasLocalloc = false;
+
+    // If true, this is a recognized await of ValueTaskReturn().AsTask(). This
+    // does not have strictly the same semantics as 'await ValueTaskReturn()'
+    // so some special treatment is needed.
+    bool m_isValueTaskAdaptedToTask = false;
 
     // Table of mappings of leave instructions to the first finally call island the leave
     // needs to execute.
@@ -706,6 +726,24 @@ private:
     TArray<void*, MemPoolAllocator> m_dataItems;
 
     TArray<InterpAsyncSuspendData*, MemPoolAllocator> m_asyncSuspendDataItems;
+
+    TArray<int32_t, MemPoolAllocator> m_suspensionPointIPOffsets;
+    TArray<ICorDebugInfo::AsyncSuspensionPoint, MemPoolAllocator> m_asyncDebugSuspensionPoints;
+    TArray<ICorDebugInfo::AsyncContinuationVarInfo, MemPoolAllocator> m_asyncDebugContinuationVars;
+
+    // Tracks which data items contain pointers to async suspend data
+    // First = data item index, Second = index into m_asyncSuspendDataItems
+    struct DataItemAsyncSuspendRef
+    {
+        int32_t dataItemIndex;
+        int32_t asyncSuspendDataIndex;
+    };
+    TArray<DataItemAsyncSuspendRef, MemPoolAllocator> m_dataItemAsyncSuspendRefs;
+
+    // Prepared InterpMethod data (stored temporarily until finalization)
+    bool m_initLocals;
+    bool m_unmanagedCallersOnly;
+    bool m_publishSecretStubParam;
 
     InterpDataItemIndexMap m_genericLookupToDataItemIndex;
     int32_t GetDataItemIndex(void* data)
@@ -725,6 +763,8 @@ private:
     void* GetAddrOfDataItemAtIndex(int32_t index);
     int32_t GetMethodDataItemIndex(CORINFO_METHOD_HANDLE mHandle);
     int32_t GetDataForHelperFtn(CorInfoHelpFunc ftn);
+
+    void CreateSynchronizedRetValVar();
 
     void GenerateCode(CORINFO_METHOD_INFO* methodInfo);
     InterpBasicBlock* GenerateCodeForLeaveChainIslands(InterpBasicBlock *pNewBB, InterpBasicBlock *pPrevBB);
@@ -811,12 +851,12 @@ public:
     InterpAllocator getAllocatorInstruction() { return getAllocator(IMK_Instruction); }
 
     // Legacy allocation methods - use getAllocator() for new code
-    MemPoolAllocator GetMemPoolAllocator(InterpMemKind imk) { return MemPoolAllocator(this, imk); }
+    MemPoolAllocator GetMemPoolAllocator(InterpMemKind imk) { return MemPoolAllocator(getAllocator(imk)); }
 
 private:
     // Instructions
     InterpBasicBlock *m_pCBB, *m_pEntryBB;
-    InterpInst* m_pLastNewIns;
+    InterpInst* m_pLastNewIns = nullptr;
 
     int32_t     GetInsLength(InterpInst *pIns);
     bool        InsIsNop(InterpInst *pIns);
@@ -842,6 +882,8 @@ private:
     int32_t* m_pNativeMapIndexToILOffset = NULL;
 #endif
     int32_t m_ILToNativeMapSize = 0;
+
+    TArray<InterpCallReturnInfo, MemPoolAllocator> m_callReturnInfos;
 
     InterpBasicBlock*   AllocBB(int32_t ilOffset);
     InterpBasicBlock*   GetBB(int32_t ilOffset);
@@ -875,11 +917,13 @@ private:
     int32_t m_synchronizedOrAsyncRetValVarIndex = -1; // If the method is synchronized, ret instructions are replaced with a store to this var and a leave to an epilog instruction.
     int32_t m_synchronizedFinallyStartOffset = -1; // If the method is synchronized, this is the offset of the start of the finally epilog
 
+    int32_t m_threadObjVarIndex = -1; // If the method is async, this is the var index of the Thread local
     int32_t m_execContextVarIndex = -1; // If the method is async, this is the var index of the ExecutionContext local
     int32_t m_syncContextVarIndex = -1; // If the method is async, this is the var index of the SynchronizationContext local
 
     void *m_asyncResumeFuncPtr = NULL;
     bool m_isAsyncMethodWithContextSaveRestore = false;
+    bool m_isAsyncVersionOfSyncMethod = false;
     int32_t m_asyncFinallyStartOffset = -1; // If the method is async, this is the offset of the start of the fault handler
 
     bool m_shadowCopyOfThisPointerActuallyNeeded = false;
@@ -963,9 +1007,14 @@ private:
     bool    IsRuntimeAsyncCall(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
     bool    IsRuntimeAsyncCallConfigureAwaitTask(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
     bool    IsRuntimeAsyncCallConfigureAwaitValueTask(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
+    bool    IsRuntimeAsyncCallNewobjRetInAsyncVersion(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
+    bool    IsRuntimeAsyncCallAsTaskRetInAsyncVersion(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
+    bool    IsRuntimeAsyncCallAsTaskRetInAsyncVersionExact(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
     bool    IsRuntimeAsyncCallConfigureAwaitValueTaskExactStLoc(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
+    bool    IsRuntimeAsyncCallRetOrJmpInAsyncVersion(const uint8_t* ip, OpcodePeepElement* peep, void** computedInfo);
 
     int     ApplyRuntimeAsyncCall(const uint8_t* ip, OpcodePeepElement* peep, void* computedInfo) { return -1; }
+    int     ApplyAsyncVersionPeepSkipToRet(const uint8_t* ip, OpcodePeepElement* peep, void* computedInfo);
     ContinuationContextHandling m_currentContinuationContextHandling = ContinuationContextHandling::None;
     CORINFO_RESOLVED_TOKEN m_resolvedAsyncCallToken;
 
@@ -978,8 +1027,9 @@ private:
     void    EmitShiftOp(int32_t opBase);
     void    EmitCompareOp(int32_t opBase);
     void    EmitCall(CORINFO_RESOLVED_TOKEN* pConstrainedToken, bool readonly, bool tailcall, bool newObj, bool isCalli);
+    void    WrapTopOfStackInAwait();
     void    EmitRet(CORINFO_METHOD_INFO* methodInfo);
-    void    EmitSuspend(const CORINFO_CALL_INFO &callInfo, ContinuationContextHandling ContinuationContextHandling);
+    void    EmitSuspend(CorInfoType callRetType, ContinuationContextHandling continuationContextHandling, bool isValueTaskAdaptedToTask);
     void    EmitCalli(bool isTailCall, void* calliCookie, int callIFunctionPointerVar, CORINFO_SIG_INFO* callSiteSig);
     bool    EmitNamedIntrinsicCall(NamedIntrinsic ni, bool nonVirtualCall, CORINFO_CLASS_HANDLE clsHnd, CORINFO_METHOD_HANDLE method, CORINFO_SIG_INFO sig);
     void    EmitLdind(InterpType type, CORINFO_CLASS_HANDLE clsHnd, int32_t offset);
@@ -1026,15 +1076,18 @@ private:
     // Passes
     int32_t* m_pMethodCode;
     int32_t m_methodCodeSize; // code size measured in int32_t slots, instead of bytes
+    int32_t* m_pDebugMethodEnterSeqPointSlot = nullptr; // fixup slot for first seq point offset in INTOP_DEBUG_METHOD_ENTER
 
+    void FixLocallocRet();
     void AllocOffsets();
     int32_t ComputeCodeSize();
-    uint32_t ConvertOffset(int32_t offset);
     void EmitCode();
+    void ReportAsyncDebugInfo();
     int32_t* EmitBBCode(int32_t *ip, InterpBasicBlock *bb, TArray<Reloc*, MemPoolAllocator> *relocs);
     int32_t* EmitCodeIns(int32_t *ip, InterpInst *pIns, TArray<Reloc*, MemPoolAllocator> *relocs);
     void PatchRelocations(TArray<Reloc*, MemPoolAllocator> *relocs);
-    InterpMethod* CreateInterpMethod();
+    void PrepareInterpMethod();
+
     void CreateBasicBlocks(CORINFO_METHOD_INFO* methodInfo);
     void InitializeClauseBuildingBlocks(CORINFO_METHOD_INFO* methodInfo);
     void CreateLeaveChainIslandBasicBlocks(CORINFO_METHOD_INFO* methodInfo, int32_t leaveOffset, InterpBasicBlock* pLeaveTargetBB);
@@ -1044,25 +1097,16 @@ private:
     uint8_t* getILCode(CORINFO_METHOD_INFO* methodInfo);
     unsigned int getILCodeSize(CORINFO_METHOD_INFO* methodInfo);
 
-    // Debug
+#ifdef DEBUG
     void PrintClassName(CORINFO_CLASS_HANDLE cls);
     void PrintMethodName(CORINFO_METHOD_HANDLE method);
     void PrintCode();
     void PrintBBCode(InterpBasicBlock *pBB);
     void PrintIns(InterpInst *ins);
-    void PrintPointer(void* pointer);
-    void PrintHelperFtn(int32_t _data);
     void PrintInsData(InterpInst *ins, int32_t offset, const int32_t *pData, int32_t opcode);
     void PrintCompiledCode();
-    void PrintCompiledIns(const int32_t *ip, const int32_t *start);
-    void PrintInterpAsyncSuspendData(InterpAsyncSuspendData* pSuspendInfo);
-#ifdef DEBUG
     InterpDumpScope m_dumpScope;
     TArray<char, MallocAllocator> m_methodName;
-
-    const char* PointerIsClassHandle = (const char*)0x1;
-    const char* PointerIsMethodHandle = (const char*)0x2;
-    const char* PointerIsStringLiteral = (const char*)0x3;
 
     dn_simdhash_ptr_ptr_holder m_pointerToNameMap;
     bool PointerInNameMap(void* ptr)
@@ -1073,20 +1117,39 @@ private:
     {
         checkNoError(dn_simdhash_ptr_ptr_try_add(m_pointerToNameMap.GetValue(), ptr, (void*)name));
     }
-    void PrintNameInPointerMap(void* ptr);
 #endif // DEBUG
 public:
 
     InterpCompiler(COMP_HANDLE compHnd, CORINFO_METHOD_INFO* methodInfo, InterpreterRetryData *pretryData, InterpArenaAllocator *arenaAllocator);
     ~InterpCompiler();
 
-    InterpMethod* CompileMethod();
+    // Compile the method. Returns true on success, false if retry is needed.
+    bool CompileMethod();
+
+    // Get the total size needed for the unified method data allocation.
+    // Must be called after CompileMethod() succeeds.
+    uint32_t GetTotalAllocationSize();
+
+    // Finalize the method data into the provided allocation.
+    // baseAddressRW is the writable address, baseAddressRX is the executable address.
+    // Returns the InterpMethod pointer within the allocation.
+    InterpMethod* FinalizeMethodData(void* baseAddressRW, void* baseAddressRX);
+
     void BuildGCInfo(InterpMethod *pInterpMethod);
     void BuildEHInfo();
-    void UpdateWithFinalMethodByteCodeAddress(InterpByteCodeStart *pByteCodeStart);
     void dumpMethodMemStats();
 
+    // Get the method data builder for additional customization
+    InterpMethodDataBuilder& GetMethodDataBuilder() { return m_methodDataBuilder; }
+
     int32_t* GetCode(int32_t *pCodeSize);
+
+#ifdef PERFTRACING_DISABLE_THREADS
+    static bool s_samplingProfilerEnabled;
+#ifdef TARGET_BROWSER
+    static bool s_browserProfilerEnabled;
+#endif
+#endif // PERFTRACING_DISABLE_THREADS
 
 #if MEASURE_MEM_ALLOC
     // Memory statistics for profiling.

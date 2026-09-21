@@ -9,6 +9,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Diagnostics.Runtime;
+using Microsoft.Diagnostics.Runtime.Utilities;
 using Microsoft.SymbolStore;
 using Microsoft.SymbolStore.KeyGenerators;
 
@@ -24,9 +25,10 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
         private readonly ISymbolService _symbolService;
         private Version _runtimeVersion;
         private ClrRuntime _clrRuntime;
+        private IClrDataProcess _clrDataProcess;
+        private int? _cdacActivationResult;
         private string _dacFilePath;
-        private bool _verifySignature;      // This only applies to the regular DAC, not the CDAC
-        private string _cdacFilePath;
+        private bool _verifySignature;
         private string _dbiFilePath;
 
         protected readonly ServiceContainer _serviceContainer;
@@ -39,15 +41,7 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
             _settingsService = services.GetService<ISettingsService>() ?? throw new ArgumentException("ISettingsService required");
             _symbolService = services.GetService<ISymbolService>() ?? throw new ArgumentException("ISymbolService required");
 
-            RuntimeType = RuntimeType.Unknown;
-            if (clrInfo.Flavor == ClrFlavor.Core)
-            {
-                RuntimeType = RuntimeType.NetCore;
-            }
-            else if (clrInfo.Flavor == ClrFlavor.Desktop)
-            {
-                RuntimeType = RuntimeType.Desktop;
-            }
+            RuntimeType = GetRuntimeType(clrInfo.Flavor);
             RuntimeModule = services.GetService<IModuleService>().GetModuleFromBaseAddress(clrInfo.ModuleInfo.ImageBase);
 
             ServiceContainerFactory containerFactory = services.GetService<IServiceManager>().CreateServiceContainerFactory(ServiceScope.Runtime, services);
@@ -67,6 +61,9 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
             _clrRuntime = null;
             _serviceContainer.RemoveService(typeof(IRuntime));
             _serviceContainer.DisposeServices();
+            _clrDataProcess?.Dispose();
+            _clrDataProcess = null;
+            _cdacActivationResult = null;
         }
 
         #region IRuntime
@@ -100,27 +97,8 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
             }
         }
 
-        public string GetCDacFilePath()
-        {
-            if (_cdacFilePath is null)
-            {
-                if (_settingsService.UseContractReader || _settingsService.ForceUseContractReader)
-                {
-                    _cdacFilePath = GetLibraryPath(DebugLibraryKind.CDac);
-                }
-            }
-            return _cdacFilePath;
-        }
-
         public string GetDacFilePath(out bool verifySignature)
         {
-            if (_settingsService.ForceUseContractReader)
-            {
-                // Don't verify signature when using the CDAC and don't change the cached value
-                // because it only applies to the regular DAC in _dacFilePath.
-                verifySignature = false;
-                return GetCDacFilePath();
-            }
             if (_dacFilePath is null)
             {
                 _dacFilePath = GetLibraryPath(DebugLibraryKind.Dac);
@@ -131,6 +109,24 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
             }
             verifySignature = _verifySignature;
             return _dacFilePath;
+        }
+
+        public int GetClrDataProcessFromCDac(out IntPtr clrDataProcess)
+        {
+            if (!_cdacActivationResult.HasValue)
+            {
+                IClrDataProcessActivator activator = Services.GetService<IClrDataProcessActivator>();
+                _cdacActivationResult = activator?.CreateClrDataProcessFromCDac(this, out _clrDataProcess) ?? HResult.E_NOINTERFACE;
+            }
+
+            clrDataProcess = _clrDataProcess?.Interface ?? IntPtr.Zero;
+            int result = _cdacActivationResult ?? HResult.E_NOINTERFACE;
+            if (result >= 0 && clrDataProcess == IntPtr.Zero)
+            {
+                result = HResult.E_NOINTERFACE;
+                _cdacActivationResult = result;
+            }
+            return result;
         }
 
         public string GetDbiFilePath()
@@ -146,31 +142,101 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
         /// </summary>
         private ClrRuntime CreateRuntime()
         {
-            string dacFilePath = GetDacFilePath(out bool verifySignature);
+            CDacLoadPolicy policy = _settingsService.CDacLoadPolicy;
+            Trace.TraceInformation($"Runtime #{Id} data-access: begin (cDAC policy={policy})");
+
+            if (policy != CDacLoadPolicy.UseLegacyDac)
+            {
+                int hr = GetClrDataProcessFromCDac(out IntPtr clrDataProcess);
+                if (hr >= 0 && clrDataProcess != IntPtr.Zero)
+                {
+                    Trace.TraceInformation($"Runtime #{Id} data-access: received an IXCLRDataProcess");
+                    return CreateRuntimeFromClrDataProcess();
+                }
+                Trace.TraceInformation($"Runtime #{Id} data-access: IXCLRDataProcess activation failed {hr:X8}");
+            }
+
+            if (policy == CDacLoadPolicy.OnlyUseCDac)
+            {
+                Trace.TraceError($"Runtime #{Id} data-access: cDAC was required but could not service this runtime: {RuntimeModule.FileName}");
+                return null;
+            }
+
+            // We ignore the dac signature verification param since it's already set as part of the CLRMD DataTarget creation
+            // now (it's a global setting to the session).
+            string dacFilePath = GetDacFilePath(out _);
             if (dacFilePath is not null)
             {
-                Trace.TraceInformation($"Creating ClrRuntime #{Id} {dacFilePath}");
-                try
-                {
-                    // Ignore the DAC version mismatch that can happen because the clrmd ELF dump reader
-                    // returns 0.0.0.0 for the runtime module that the DAC is matched against.
-                    return _clrRuntime = _clrInfo.CreateRuntime(dacFilePath, ignoreMismatch: true, verifySignature);
-                }
-                catch (Exception ex) when
-                   (ex is DllNotFoundException or
-                    FileNotFoundException or
-                    InvalidOperationException or
-                    InvalidDataException or
-                    ClrDiagnosticsException)
-                {
-                    Trace.TraceError("CreateRuntime FAILED: {0}", ex.ToString());
-                }
+                Trace.TraceInformation($"Runtime #{Id} data-access: falling back to the in-box DAC {dacFilePath}");
+                return TryCreateRuntimeFromDac(dacFilePath);
             }
-            else
-            {
-                Trace.TraceError($"Could not find or download matching DAC for this runtime: {RuntimeModule.FileName}");
-            }
+
+            Trace.TraceError($"Runtime #{Id} data-access: could not find or download a matching DAC for this runtime: {RuntimeModule.FileName}");
             return null;
+        }
+
+        /// <summary>
+        /// Creates a ClrRuntime with the specified DAC.
+        /// </summary>
+        private ClrRuntime TryCreateRuntimeFromDac(string dacFilePath)
+        {
+            Trace.TraceInformation($"Creating ClrRuntime #{Id} {dacFilePath}");
+            try
+            {
+                // Ignore the DAC version mismatch that can happen because the clrmd ELF dump reader
+                // returns 0.0.0.0 for the runtime module that the DAC is matched against.
+                return _clrRuntime = _clrInfo.CreateRuntime(dacFilePath, ignoreMismatch: true);
+            }
+            catch (Exception ex) when
+               (ex is DllNotFoundException or
+                FileNotFoundException or
+                InvalidOperationException or
+                InvalidDataException or
+                ClrDiagnosticsException)
+            {
+                Trace.TraceError("CreateRuntime FAILED: {0}", ex.ToString());
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Creates a ClrRuntime with the supplied IXCLRDataProcess.
+        /// </summary>
+        private ClrRuntime CreateRuntimeFromClrDataProcess()
+        {
+            try
+            {
+                _clrInfo.DataTarget.AddLoadedRuntime(_clrInfo, _clrDataProcess.Interface);
+            }
+            catch (Exception ex) when
+               (ex is DllNotFoundException or
+                FileNotFoundException or
+                InvalidOperationException or
+                InvalidDataException or
+                ClrDiagnosticsException)
+            {
+                Trace.TraceError("Register IXCLRDataProcess FAILED: {0}", ex.ToString());
+                _clrDataProcess.Dispose();
+                _clrDataProcess = null;
+                _cdacActivationResult = null;
+                return null;
+            }
+
+            try
+            {
+                Trace.TraceInformation($"Creating ClrRuntime #{Id} from IXCLRDataProcess");
+                return _clrRuntime = _clrInfo.CreateRuntime();
+            }
+            catch (Exception ex) when
+               (ex is DllNotFoundException or
+                FileNotFoundException or
+                InvalidOperationException or
+                InvalidDataException or
+                ClrDiagnosticsException)
+            {
+                Trace.TraceError("CreateRuntime from registered IXCLRDataProcess FAILED: {0}", ex.ToString());
+                return null;
+            }
         }
 
         private string GetLibraryPath(DebugLibraryKind kind)
@@ -204,22 +270,15 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
         private string GetLocalPath(DebugLibraryInfo libraryInfo)
         {
             string localFilePath;
-            if (libraryInfo.Kind == DebugLibraryKind.CDac)
+            if (!string.IsNullOrEmpty(RuntimeModuleDirectory))
             {
-                localFilePath = libraryInfo.FileName;
+                localFilePath = Path.Combine(RuntimeModuleDirectory, Path.GetFileName(libraryInfo.FileName));
             }
             else
             {
-                if (!string.IsNullOrEmpty(RuntimeModuleDirectory))
-                {
-                    localFilePath = Path.Combine(RuntimeModuleDirectory, Path.GetFileName(libraryInfo.FileName));
-                }
-                else
-                {
-                    localFilePath = Path.Combine(Path.GetDirectoryName(RuntimeModule.FileName), Path.GetFileName(libraryInfo.FileName));
-                }
+                localFilePath = Path.Combine(Path.GetDirectoryName(RuntimeModule.FileName), Path.GetFileName(libraryInfo.FileName));
             }
-            if (!File.Exists(localFilePath))
+            if (localFilePath is null || !File.Exists(localFilePath))
             {
                 localFilePath = null;
             }
@@ -318,7 +377,16 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
             "Desktop .NET Framework",
             ".NET Core",
             ".NET Core (single-file)",
+            "Native AOT",
             "Other"
+        };
+
+        private static RuntimeType GetRuntimeType(ClrFlavor flavor) => flavor switch
+        {
+            ClrFlavor.Core => RuntimeType.NetCore,
+            ClrFlavor.Desktop => RuntimeType.Desktop,
+            ClrFlavor.NativeAOT => RuntimeType.NativeAOT,
+            _ => RuntimeType.Unknown,
         };
 
         public override string ToString()
@@ -345,11 +413,6 @@ namespace Microsoft.Diagnostics.DebugServices.Implementation
                 sb.AppendLine();
                 string verify = _verifySignature ? "(verify)" : "(don't verify)";
                 sb.Append($"    DAC: {_dacFilePath} {verify}");
-            }
-            if (_cdacFilePath is not null)
-            {
-                sb.AppendLine();
-                sb.Append($"    CDAC: {_cdacFilePath}");
             }
             if (_dbiFilePath is not null)
             {

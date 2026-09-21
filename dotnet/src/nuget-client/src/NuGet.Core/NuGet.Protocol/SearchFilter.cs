@@ -1,8 +1,6 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-#nullable disable
-
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -57,9 +55,12 @@ namespace NuGet.Protocol.Core.Types
         public bool IncludeDelisted { get; set; } = false;
 
         /// <summary>
-        /// Restrict the search to certain package types.
+        /// Restrict the search to a certain package type.
         /// </summary>
-        public IEnumerable<string> PackageTypes { get; set; } = Enumerable.Empty<string>();
+        /// <remarks>
+        /// Required compatible feed. See <see cref="PackageSearchResource.SupportsPackageTypeFiltering"/>.
+        /// </remarks>
+        public string? PackageType { get; set; }
 
         /// <summary>
         /// The optional filter type. Absense of this value indicates that all versions should be returned.

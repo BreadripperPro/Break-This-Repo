@@ -8,8 +8,31 @@ namespace Microsoft.NET.TestFramework
 {
     public class SdkTestContext
     {
+        private string? _repoTemplatePackages;
+        private string? _testAssetsDirectory;
         //  Generally the folder the test DLL is in
         private string? _testExecutionDirectory;
+        private string? _testPackages;
+
+        /// <summary>
+        /// Gets the path to the template_feed directory maintained in the repository root.
+        /// In Helix environments, this is set via the DOTNET_SDK_TEST_REPO_TEMPLATE_PACKAGES environment variable.
+        /// </summary>
+        public string RepoTemplatePackages
+        {
+            get
+            {
+                if (_repoTemplatePackages == null)
+                {
+                    throw new InvalidOperationException("RepoTemplatePackages is not set. Ensure the 'template_feed' directory exists in the repo root or set the DOTNET_SDK_TEST_REPO_TEMPLATE_PACKAGES environment variable.");
+                }
+                return _repoTemplatePackages;
+            }
+            set
+            {
+                _repoTemplatePackages = value;
+            }
+        }
 
         public string TestExecutionDirectory
         {
@@ -27,7 +50,6 @@ namespace Microsoft.NET.TestFramework
             }
         }
 
-        private string? _testAssetsDirectory;
 
         public string TestAssetsDirectory
         {
@@ -45,7 +67,21 @@ namespace Microsoft.NET.TestFramework
             }
         }
 
-        public string? TestPackages { get; set; }
+        public string TestPackages
+        {
+            get
+            {
+                if (_testPackages == null)
+                {
+                    throw new InvalidOperationException("TestPackages should never be null.");
+                }
+                return _testPackages;
+            }
+            set
+            {
+                _testPackages = value;
+            }
+        }
 
         //  For tests which want the global packages folder isolated in the repo, but
         //  can share it with other tests
@@ -134,20 +170,36 @@ namespace Microsoft.NET.TestFramework
         }
 
         private static SdkTestContext? _current;
+        private static readonly object s_initializationLock = new();
+
+        [ThreadStatic]
+        private static SdkTestContext? t_initializing;
 
         public static SdkTestContext Current
         {
             get
             {
-                if (_current == null)
+                SdkTestContext? current = Volatile.Read(ref _current) ?? t_initializing;
+                if (current != null)
                 {
-                    Initialize();
+                    return current;
                 }
-                return _current ?? throw new InvalidOperationException("SdkTestContext.Current should never be null.");
+
+                lock (s_initializationLock)
+                {
+                    if (_current == null)
+                    {
+                        InitializeCore();
+                    }
+                    return _current ?? throw new InvalidOperationException("SdkTestContext.Current should never be null.");
+                }
             }
             set
             {
-                _current = value;
+                lock (s_initializationLock)
+                {
+                    Volatile.Write(ref _current, value);
+                }
             }
         }
 
@@ -164,7 +216,7 @@ namespace Microsoft.NET.TestFramework
             return lastWrittenSdk.GetFiles("RuntimeIdentifierGraph.json").Single().FullName;
         }
 
-        public void AddTestEnvironmentVariables(IDictionary<string, string> environment)
+        public void AddTestEnvironmentVariables(IDictionary<string, string?> environment)
         {
             //  Set NUGET_PACKAGES environment variable to match value from build.ps1
             if(NuGetCachePath is not null)
@@ -178,11 +230,23 @@ namespace Microsoft.NET.TestFramework
             //  Prevent test MSBuild nodes from persisting
             environment["MSBUILDDISABLENODEREUSE"] = "1";
 
+            //  Prevent local test runs from modifying the developer's user PATH.
+            //  Tests that validate first-time PATH setup can opt back in explicitly.
+            environment["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "0";
+
             ToolsetUnderTest.AddTestEnvironmentVariables(environment);
         }
 
 
         public static void Initialize()
+        {
+            lock (s_initializationLock)
+            {
+                InitializeCore();
+            }
+        }
+
+        private static void InitializeCore()
         {
             //  Show verbose debugging output for tests
             CommandLoggingContext.SetVerbose(true);
@@ -265,25 +329,46 @@ namespace Microsoft.NET.TestFramework
                 }
             }
 
+            string? envRepoTemplatePackages = Environment.GetEnvironmentVariable("DOTNET_SDK_TEST_REPO_TEMPLATE_PACKAGES");
+            if (!string.IsNullOrEmpty(envRepoTemplatePackages) && Directory.Exists(envRepoTemplatePackages))
+            {
+                testContext.RepoTemplatePackages = envRepoTemplatePackages;
+            }
+            else if (repoRoot != null)
+            {
+                string repoTemplatePackagesFallback = Path.Combine(repoRoot, "template_feed");
+                if (Directory.Exists(repoTemplatePackagesFallback))
+                {
+                    testContext.RepoTemplatePackages = repoTemplatePackagesFallback;
+                }
+            }
+
             testContext.ToolsetUnderTest = ToolsetInfo.Create(repoRoot, artifactsDir, repoConfiguration);
 
-            //  Important to set this before below code which ends up calling through SdkTestContext.Current, which would
-            //  result in infinite recursion / stack overflow if SdkTestContext.Current wasn't set
-            Current = testContext;
+            // Recursive access on the initializing thread needs the context before the process-wide
+            // environment and hooks are ready. Other threads wait for complete initialization.
+            t_initializing = testContext;
+            try
+            {
+                Environment.SetEnvironmentVariable(
+                    Constants.MSBUILD_EXE_PATH,
+                    Path.Combine(testContext.ToolsetUnderTest.SdkFolderUnderTest, "MSBuild.dll"));
 
-            //  Set up test hooks for in-process tests
-            Environment.SetEnvironmentVariable(
-                Constants.MSBUILD_EXE_PATH,
-                Path.Combine(testContext.ToolsetUnderTest.SdkFolderUnderTest, "MSBuild.dll"));
-
-            Environment.SetEnvironmentVariable(
-                "MSBuildSDKsPath",
-                Path.Combine(testContext.ToolsetUnderTest.SdksPath));
+                Environment.SetEnvironmentVariable(
+                    "MSBuildSDKsPath",
+                    Path.Combine(testContext.ToolsetUnderTest.SdksPath));
 
 #if NETCOREAPP
-            MSBuildForwardingAppWithoutLogging.MSBuildExtensionsPathTestHook =
-                testContext.ToolsetUnderTest.SdkFolderUnderTest;
+                MSBuildForwardingAppWithoutLogging.MSBuildExtensionsPathTestHook =
+                    testContext.ToolsetUnderTest.SdkFolderUnderTest;
 #endif
+
+                Volatile.Write(ref _current, testContext);
+            }
+            finally
+            {
+                t_initializing = null;
+            }
         }
 
         public static string? GetRepoRoot()
@@ -292,8 +377,7 @@ namespace Microsoft.NET.TestFramework
 
             while (directory is not null)
             {
-                var gitPath = Path.Combine(directory, ".git");
-                if (Directory.Exists(gitPath) || File.Exists(gitPath))
+                if (File.Exists(Path.Combine(directory, "sdk.slnx")))
                 {
                     // Found the repo root, which should either have a .git folder or, if the repo
                     // is part of a Git worktree, a .git file.
@@ -305,17 +389,7 @@ namespace Microsoft.NET.TestFramework
 
             return null;
         }
-        private static string FindOrCreateFolderInTree(string relativePath, string startPath)
-        {
-            string? ret = FindFolderInTree(relativePath, startPath, throwIfNotFound: false);
-            if (ret != null)
-            {
-                return ret;
-            }
-            ret = Path.Combine(startPath, relativePath);
-            Directory.CreateDirectory(ret);
-            return ret;
-        }
+
         private static string? FindFolderInTree(string relativePath, string startPath, bool throwIfNotFound = true)
         {
             string currentPath = startPath;

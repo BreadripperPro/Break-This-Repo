@@ -38,7 +38,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             => _syntax.AwaitKeyword != default;
 
         public ForEachLoopBinder(Binder enclosing, CommonForEachStatementSyntax syntax)
-            : base(enclosing)
+            : base(enclosing, syntax)
         {
             Debug.Assert(syntax != null);
             _syntax = syntax;
@@ -475,6 +475,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert(!IsDisallowedExtensionInOlderLangVer(builder.MoveNextInfo.Method));
             Debug.Assert(!IsDisallowedExtensionInOlderLangVer(builder.CurrentPropertyGetter));
 
+            builder.ReportDiagnosticsIfUnsafeMemberAccess(this, foreachKeyword, _syntax, diagnostics);
+
             // We want to convert from inferredType in the array/string case and builder.ElementType in the enumerator case,
             // but it turns out that these are equivalent (when both are available).
 
@@ -492,7 +494,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (!elementConversionClassification.IsValid)
             {
-                ImmutableArray<MethodSymbol> originalUserDefinedConversions = elementConversionClassification.OriginalUserDefinedConversions;
+                ImmutableArray<MethodSymbol> originalUserDefinedConversions = elementConversionClassification.OriginalUserDefinedOrUnionConversions;
                 if (originalUserDefinedConversions.Length > 1)
                 {
                     diagnostics.Add(ErrorCode.ERR_AmbigUDConv, foreachKeyword.GetLocation(), originalUserDefinedConversions[0], originalUserDefinedConversions[1], inferredType.Type, iterationVariableType);
@@ -644,6 +646,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             // We're wrapping the collection expression in a (non-synthesized) conversion so that its converted
             // type (i.e. builder.CollectionType) will be available in the binding API.
             Debug.Assert(!collectionConversionClassification.IsUserDefined);
+            Debug.Assert(!collectionConversionClassification.IsUnion);
 
             BoundExpression convertedCollectionExpression = CreateConversion(
                 collectionExpr.Syntax,
@@ -726,7 +729,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                 SyntaxNode exprSyntax = collectionExpr.Syntax;
 
                 MethodSymbol nullableValueGetter = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Nullable_T_get_Value, diagnostics, exprSyntax);
-                if ((object)nullableValueGetter != null)
+
+                // 'collectionExprType' can be a constructed error type over a missing 'System.Nullable<T>', for example when
+                // it comes from a compilation without a core library. Adjusting 'get_Value' to such a type is not possible,
+                // so the collection expression is treated as bad instead.
+                if ((object)nullableValueGetter != null &&
+                    ReferenceEquals(collectionExprType.OriginalDefinition, nullableValueGetter.ContainingSymbol))
                 {
                     nullableValueGetter = nullableValueGetter.AsMember((NamedTypeSymbol)collectionExprType);
 
@@ -1213,6 +1221,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         patternDisposeMethod.ParameterRefKinds.All(static refKind => refKind is RefKind.None or RefKind.In or RefKind.RefReadOnlyParameter));
 
                     diagnostics.AddRangeAndFree(patternDiagnostics);
+
                     var argsBuilder = ArrayBuilder<BoundExpression>.GetInstance(patternDisposeMethod.ParameterCount);
                     var argsToParams = default(ImmutableArray<int>);
 
@@ -1240,6 +1249,10 @@ namespace Microsoft.CodeAnalysis.CSharp
                     }
 
                     return;
+                }
+                else
+                {
+                    patternDiagnostics.Free();
                 }
             }
 
@@ -1556,6 +1569,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                     // Unconditionally convert here, to match what we set the ConvertedExpression to in the main BoundForEachStatement node.
                     Debug.Assert(!collectionConversion.IsUserDefined);
+                    Debug.Assert(!collectionConversion.IsUnion);
                     collectionExpr = new BoundConversion(
                         collectionExpr.Syntax,
                         collectionExpr,

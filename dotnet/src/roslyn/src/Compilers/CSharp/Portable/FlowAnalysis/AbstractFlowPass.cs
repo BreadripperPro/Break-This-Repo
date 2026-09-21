@@ -374,6 +374,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return base.Visit(node);
         }
 
+        [DebuggerStepThrough]
         protected override bool ConvertInsufficientExecutionStackExceptionToCancelledByStackGuardException()
         {
             return false; // just let the original exception bubble up.
@@ -622,7 +623,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// Visit a boolean condition expression.
         /// </summary>
         /// <param name="node"></param>
-        protected void VisitCondition(BoundExpression node)
+        protected virtual void VisitCondition(BoundExpression node)
         {
             Visit(node);
             AdjustConditionalState(node);
@@ -3035,7 +3036,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return false;
             }
 
-            if (!conversion.IsUserDefined)
+            if (!conversion.IsUserDefined && !conversion.IsUnion)
             {
                 return true;
             }

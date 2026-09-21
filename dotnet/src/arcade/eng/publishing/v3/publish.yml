@@ -12,9 +12,7 @@ stages:
     displayName: Publish Assets and Symbols
     timeoutInMinutes: 120
     variables:
-    - group: DotNet-Symbol-Server-Pats
-    - group: AzureDevOps-Artifact-Feeds-Pats
-    - group: Publish-Build-Assets
+    - group: Arcade-Publishing-Client-Ids
 
     - template: /eng/common/templates-official/post-build/common-variables.yml@self
 
@@ -90,7 +88,7 @@ stages:
         downloadType: 'specific'
         artifact: ReleaseConfigs
         itemPattern: |
-          ReleaseConfigs/SymbolPublishingExclusionsFile.txt
+          **/SymbolPublishingExclusionsFile.txt
         downloadPath: '$(Build.ArtifactStagingDirectory)/ReleaseConfigs'
 
     - task: NuGetToolInstaller@1
@@ -98,12 +96,6 @@ stages:
 
     - task: NuGetAuthenticate@1
       displayName: 'Authenticate to AzDO Feeds'
-
-    - task: PowerShell@2
-      displayName: Enable cross-org publishing
-      inputs:
-        filePath: $(System.DefaultWorkingDirectory)/eng/common/enable-cross-org-publishing.ps1
-        arguments: -token $(dn-bot-all-orgs-artifact-feeds-rw)
 
     - task: AzureCLI@2
       displayName: Get aka.ms client certificate
@@ -123,7 +115,7 @@ stages:
         scriptType: ps
         scriptLocation: inlineScript
         inlineScript: |
-          # MaestroAppClientId provided by Publish-Build-Assets
+          # MaestroAppClientId provided by Arcade-Publishing-Client-Ids
           $token = (az account get-access-token --resource "$(MaestroAppClientId)" | ConvertFrom-Json).accessToken
           
           echo "##vso[task.setvariable variable=MaestroToken;isOutput=true;isSecret=true]$token"
@@ -134,6 +126,7 @@ stages:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       inputs:
         azureSubscription: maestro-build-promotion
+        addSpnToEnvironment: true
         scriptType: ps
         scriptLocation: scriptPath
         scriptPath: $(System.DefaultWorkingDirectory)/eng/common/sdk-task.ps1
@@ -150,18 +143,13 @@ stages:
           /p:BlobBasePath='$(Build.ArtifactStagingDirectory)/BlobArtifacts/'
           /p:PackageBasePath='$(Build.ArtifactStagingDirectory)/PackageArtifacts/'
           /p:PublishInstallersAndChecksums=true
-          /p:AzureDevOpsFeedsKey='$(dn-bot-all-orgs-artifact-feeds-rw)'
           /p:AkaMSClientId=$(akams-app-id)
           /p:AkaMSClientCertificate=$(Agent.TempDirectory)/akamsclientcert.pfx
-          ${{ parameters.artifactsPublishingAdditionalParameters }} 
           /p:PDBArtifactsBasePath='$(Build.ArtifactStagingDirectory)/PDBArtifacts/'
           /p:SymbolPublishingExclusionsFile='$(Build.ArtifactStagingDirectory)/ReleaseConfigs/SymbolPublishingExclusionsFile.txt'
           /p:TempSymbolsAzureDevOpsOrg='dnceng'
-          /p:TempSymbolsAzureDevOpsOrgToken='$(dnceng-symbol-server-pat)'
           /p:SymbolRequestProject='dotnet'
-          ${{ parameters.symbolPublishingAdditionalParameters}}
           /p:BuildQuality='${{ parameters.buildQuality }}'
-          /p:AzdoApiToken='$(dn-bot-all-orgs-build-rw-code-rw)'
           /p:ArtifactsBasePath='$(Build.ArtifactStagingDirectory)/'
           /p:BuildId='$(AzDOBuildId)'
           /p:AzureDevOpsOrg='$(AzDOAccount)'
@@ -169,6 +157,8 @@ stages:
           /p:UseStreamingPublishing='true'
           /p:StreamingPublishingMaxClients=16
           /p:NonStreamingPublishingMaxClients=12
+          ${{ parameters.artifactsPublishingAdditionalParameters }}
+          ${{ parameters.symbolPublishingAdditionalParameters}}
 
     - template: /eng/common/templates-official/steps/publish-logs.yml@self
       parameters:
@@ -176,3 +166,4 @@ stages:
         JobLabel: 'AssetsPublishing'
         BinlogToolVersion: $(BinlogToolVersion)
         CustomSensitiveDataList: '$(AuthenticateMaestro.MaestroToken)'
+        enableInternalRuntimes: false

@@ -4588,7 +4588,7 @@ public sealed class RemoveUnnecessaryCastTests
         await VerifyCS.VerifyCodeFixAsync(source, source);
     }
 
-    [Fact, WorkItem("http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/640136")]
+    [ConditionalFact(typeof(IsEnglishLocal)), WorkItem("http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/640136")]
     public async Task RemoveUnnecessaryCastAndParseCorrect()
     {
         var fixedSource =
@@ -11551,6 +11551,88 @@ public sealed class RemoveUnnecessaryCastTests
             LanguageVersion = LanguageVersion.CSharp10,
         }.RunAsync();
 
+    [Fact, WorkItem("https://github.com/dotnet/roslyn/issues/83284")]
+    public Task DoNotRemoveNullableGenericAsCast_InvariantType()
+        => new VerifyCS.Test
+        {
+            TestCode = """
+            #nullable enable
+
+            using System.Collections.Generic;
+
+            class Example
+            {
+                static List<object> Case()
+                {
+                    var lines = new List<object?>();
+                    return new(lines as List<object>);
+                }
+            }
+            """,
+            LanguageVersion = LanguageVersion.CSharp10,
+        }.RunAsync();
+
+    [Fact, WorkItem("https://github.com/dotnet/roslyn/issues/83284")]
+    public Task DoNotRemoveNullableGenericExplicitCast_InvariantType()
+        => new VerifyCS.Test
+        {
+            TestCode = """
+            #nullable enable
+
+            using System.Collections.Generic;
+
+            class Example
+            {
+                static List<object> Case()
+                {
+                    var lines = new List<object?>();
+                    return new({|CS8619:(List<object>)lines|});
+                }
+            }
+            """,
+            LanguageVersion = LanguageVersion.CSharp10,
+        }.RunAsync();
+
+    [Fact, WorkItem("https://github.com/dotnet/roslyn/issues/83284")]
+    public Task DoNotRemoveNullableNestedGenericAsCast()
+        => new VerifyCS.Test
+        {
+            TestCode = """
+            #nullable enable
+
+            using System.Collections.Generic;
+
+            class Example
+            {
+                static List<List<object>> Case()
+                {
+                    var lines = new List<List<object?>>();
+                    return new(lines as List<List<object>>);
+                }
+            }
+            """,
+            LanguageVersion = LanguageVersion.CSharp10,
+        }.RunAsync();
+
+    [Fact, WorkItem("https://github.com/dotnet/roslyn/issues/83284")]
+    public Task DoNotRemoveNullableArrayAsCast()
+        => new VerifyCS.Test
+        {
+            TestCode = """
+            #nullable enable
+
+            class Example
+            {
+                static object[] Case()
+                {
+                    var items = new object?[] { null };
+                    return (items as object[])!;
+                }
+            }
+            """,
+            LanguageVersion = LanguageVersion.CSharp10,
+        }.RunAsync();
+
     [Fact, WorkItem("https://github.com/dotnet/roslyn/issues/45925")]
     public Task DoNotRemoveNecesssaryPatternCasts1()
         => new VerifyCS.Test
@@ -13586,4 +13668,34 @@ public sealed class RemoveUnnecessaryCastTests
             LanguageVersion = LanguageVersion.CSharp14,
             ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
         }.RunAsync();
+
+#if NET
+    [Fact]
+    public Task RemoveNativeIntegerCastsWithNet100References()
+        => new VerifyCS.Test
+        {
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net100,
+            TestCode = """
+                using System;
+
+                public class C
+                {
+                    public nuint FromIntPtr(IntPtr x) => (nuint)[|(nint)|]x;
+                    public int ToInt(IntPtr x) => (int)[|(nint)|]x;
+                    public nint FromUIntPtr(UIntPtr x) => (nint)[|(nuint)|]x;
+                }
+                """,
+            FixedCode = """
+                using System;
+
+                public class C
+                {
+                    public nuint FromIntPtr(IntPtr x) => (nuint)x;
+                    public int ToInt(IntPtr x) => (int)x;
+                    public nint FromUIntPtr(UIntPtr x) => (nint)x;
+                }
+                """,
+            LanguageVersion = LanguageVersion.CSharp9,
+        }.RunAsync();
+#endif
 }

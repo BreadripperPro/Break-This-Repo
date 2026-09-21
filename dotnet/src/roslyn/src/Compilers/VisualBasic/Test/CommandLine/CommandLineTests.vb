@@ -34,6 +34,7 @@ Imports TestResources.Analyzers
 Imports Xunit
 
 Namespace Microsoft.CodeAnalysis.VisualBasic.CommandLine.UnitTests
+    <ValidatePooledObjects(WaitForOutstandingObjectsToBeFreed:=True)>
     Partial Public Class CommandLineTests
         Inherits BasicTestBase
 
@@ -1902,6 +1903,16 @@ End Module").Path
             parsedArgs = DefaultParse({"/checksumAlgorithm:sha256", "a.cs"}, _baseDirectory)
             parsedArgs.Errors.Verify()
             Assert.Equal(SourceHashAlgorithm.Sha256, parsedArgs.ChecksumAlgorithm)
+            Assert.Equal(HashAlgorithmName.SHA256, parsedArgs.EmitOptions.PdbChecksumAlgorithm)
+
+            parsedArgs = DefaultParse({"/checksumAlgorithm:sHa384", "a.cs"}, _baseDirectory)
+            parsedArgs.Errors.Verify()
+            Assert.Equal(SourceHashAlgorithm.Sha384, parsedArgs.ChecksumAlgorithm)
+            Assert.Equal(HashAlgorithmName.SHA256, parsedArgs.EmitOptions.PdbChecksumAlgorithm)
+
+            parsedArgs = DefaultParse({"/checksumAlgorithm:sha512", "a.cs"}, _baseDirectory)
+            parsedArgs.Errors.Verify()
+            Assert.Equal(SourceHashAlgorithm.Sha512, parsedArgs.ChecksumAlgorithm)
             Assert.Equal(HashAlgorithmName.SHA256, parsedArgs.EmitOptions.PdbChecksumAlgorithm)
 
             parsedArgs = DefaultParse({"a.cs"}, _baseDirectory)
@@ -4934,6 +4945,7 @@ End Class
         End Sub
 
         <Fact()>
+        <ValidatePooledObjects(LeakReason:="Binary file detection exception path")>
         Public Sub BinaryFile()
             Dim binaryPath = Temp.CreateFile().WriteAllBytes(Net461.Resources.mscorlib).Path
             Dim outWriter As New StringWriter()
@@ -8947,7 +8959,7 @@ End Class
                 Nothing,
                 _baseDirectory,
                 {"/reportanalyzer", "/t:library", source},
-                analyzers:={New WarningDiagnosticAnalyzer()},
+                analyzers:={New WarningDiagnosticAnalyzer(), New ConcurrentAnalyzer({"C"}), New DiagnosticSuppressorForId("Warning01", "Suppressor01")},
                 generators:={New DoNothingGenerator().AsSourceGenerator()})
             Dim outWriter = New StringWriter()
             Dim exitCode = vbc.Run(outWriter, Nothing)
@@ -8955,8 +8967,44 @@ End Class
             Dim output = outWriter.ToString()
             Assert.Contains(New WarningDiagnosticAnalyzer().ToString(), output, StringComparison.Ordinal)
             Assert.Contains(CodeAnalysisResources.AnalyzerExecutionTimeColumnHeader, output, StringComparison.Ordinal)
+            Assert.Contains($"{NameOf(DiagnosticSuppressorForId)} (Suppressor01)", output, StringComparison.Ordinal)
             Assert.Contains(CodeAnalysisResources.GeneratorNameColumnHeader, output, StringComparison.Ordinal)
             Assert.Contains(GetType(DoNothingGenerator).FullName, output, StringComparison.Ordinal)
+
+            Assert.DoesNotContain(CodeAnalysisResources.AllAnalyzersConcurrentMessage, output, StringComparison.Ordinal)
+            Dim nonConcurrentSection = output.Substring(output.IndexOf(CodeAnalysisResources.NonConcurrentAnalyzersHeader))
+            Assert.Contains(NameOf(WarningDiagnosticAnalyzer), nonConcurrentSection, StringComparison.Ordinal)
+            Assert.DoesNotContain(NameOf(DiagnosticSuppressorForId), nonConcurrentSection, StringComparison.Ordinal)
+            Assert.DoesNotContain(GetType(ConcurrentAnalyzer).Assembly.FullName, nonConcurrentSection, StringComparison.Ordinal)
+            Assert.DoesNotContain(NameOf(ConcurrentAnalyzer), nonConcurrentSection, StringComparison.Ordinal)
+            CleanupAllGeneratedFiles(source)
+        End Sub
+
+        <Fact>
+        Public Sub ReportAnalyzerOutput_AllConcurrentAnalyzers()
+            Dim source As String = Temp.CreateFile().WriteAllText(<text>
+Class C
+End Class
+</text>.Value).Path
+
+            Dim vbc = New MockVisualBasicCompiler(
+                Nothing,
+                _baseDirectory,
+                {"/reportanalyzer", "/t:library", source},
+                analyzers:={New ConcurrentAnalyzer({"C"}), New DiagnosticSuppressorForId("Warning01", "Suppressor01")},
+                generators:={New DoNothingGenerator().AsSourceGenerator()})
+            Dim outWriter = New StringWriter()
+            Dim exitCode = vbc.Run(outWriter, Nothing)
+            Assert.Equal(0, exitCode)
+            Dim output = outWriter.ToString()
+            Assert.Contains(CodeAnalysisResources.AnalyzerExecutionTimeColumnHeader, output, StringComparison.Ordinal)
+            Assert.DoesNotContain(New WarningDiagnosticAnalyzer().ToString(), output, StringComparison.Ordinal)
+            Assert.Contains($"{NameOf(DiagnosticSuppressorForId)} (Suppressor01)", output, StringComparison.Ordinal)
+            Assert.Contains(CodeAnalysisResources.GeneratorNameColumnHeader, output, StringComparison.Ordinal)
+            Assert.Contains(GetType(DoNothingGenerator).FullName, output, StringComparison.Ordinal)
+
+            Assert.DoesNotContain(CodeAnalysisResources.NonConcurrentAnalyzersHeader, output, StringComparison.Ordinal)
+            Assert.Contains(CodeAnalysisResources.AllAnalyzersConcurrentMessage, output, StringComparison.Ordinal)
             CleanupAllGeneratedFiles(source)
         End Sub
 
@@ -9083,6 +9131,7 @@ End Class
         End Sub
 
         <Fact>
+        <ValidatePooledObjects(LeakReason:="Binary file detection exception path")>
         Public Sub AdditionalFileDiagnostics()
             Dim dir = Temp.CreateDirectory()
             Dim source = dir.CreateFile("a.vb").WriteAllText(<text>
@@ -9519,6 +9568,29 @@ a
             CleanupAllGeneratedFiles(dir.Path)
         End Sub
 
+        <Fact>
+        Public Sub RefOnly_EmbeddedDebugInformation()
+            Dim dir = Temp.CreateDirectory()
+            Dim src = dir.CreateFile("a.vb")
+            src.WriteAllText("Public Class C
+End Class")
+
+            Dim outWriter = New StringWriter(CultureInfo.InvariantCulture)
+            Dim vbc = New MockVisualBasicCompiler(Nothing, dir.Path,
+                {"/define:_MYTYPE=""Empty"" ", "/nologo", "/target:library", "/out:a.dll", "/refonly", "/debug:embedded", "/deterministic", "a.vb"})
+
+            Assert.Equal(0, vbc.Run(outWriter))
+            Assert.Equal("", outWriter.ToString())
+
+            Using peReader = New PEReader(File.OpenRead(Path.Combine(dir.Path, "a.dll")))
+                AssertEx.Equal(
+                    {DebugDirectoryEntryType.Reproducible},
+                    peReader.ReadDebugDirectory().Select(Function(entry) entry.Type))
+            End Using
+
+            CleanupAllGeneratedFiles(dir.Path)
+        End Sub
+
         <WorkItem(13681, "https://github.com/dotnet/roslyn/issues/13681")>
         <Theory()>
         <InlineData("/t:exe", "/out:goo.dll", "goo.dll", "goo.dll.exe")>                                'Output with known but different extension
@@ -9684,7 +9756,7 @@ End Module
             result = ProcessUtilities.Run(vbcPath, arguments:="/nologo /t:library unknown.vb", workingDirectory:=dir.Path)
             Assert.Equal(1, result.ExitCode)
             AssertEx.Equal(
-                $"Could not load file or assembly '{GetType(ImmutableArray).Assembly.FullName.Replace(".1", ".0")}' or one of its dependencies. The system cannot find the file specified.",
+                $"Could not load file or assembly '{GetType(ImmutableArray).Assembly.FullName.Replace(".10", ".0")}' or one of its dependencies. The system cannot find the file specified.",
                 result.Output.Trim())
         End Sub
 

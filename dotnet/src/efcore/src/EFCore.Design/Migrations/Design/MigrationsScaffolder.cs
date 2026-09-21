@@ -148,7 +148,7 @@ public class MigrationsScaffolder : IMigrationsScaffolder
             .GetDifferences(lastModel, Dependencies.Model.GetRelationalModel());
         var downOperations = upOperations.Count > 0
             ? Dependencies.MigrationsModelDiffer.GetDifferences(Dependencies.Model.GetRelationalModel(), lastModel)
-            : new List<MigrationOperation>();
+            : [];
         var migrationId = Dependencies.MigrationsIdGenerator.GenerateId(migrationName);
         var modelSnapshotNamespace = overrideNamespace
             ? migrationNamespace
@@ -174,13 +174,13 @@ public class MigrationsScaffolder : IMigrationsScaffolder
         var codeGenerator = Dependencies.MigrationsCodeGeneratorSelector.Select(language);
         var migrationCode = codeGenerator.GenerateMigration(
             migrationNamespace,
-            migrationName,
+            migrationId,
             upOperations,
             downOperations);
         var migrationMetadataCode = codeGenerator.GenerateMetadata(
             migrationNamespace,
             _contextType,
-            migrationName,
+            migrationId,
             migrationId,
             Dependencies.Model);
         var modelSnapshotCode = codeGenerator.GenerateSnapshot(
@@ -268,10 +268,11 @@ public class MigrationsScaffolder : IMigrationsScaffolder
             model = Dependencies.SnapshotModelProcessor.Process(migration.TargetModel);
 
             if (!Dependencies.MigrationsModelDiffer.HasDifferences(
-                    model.GetRelationalModel(), Dependencies.SnapshotModelProcessor.Process(modelSnapshot.Model).GetRelationalModel()))
+                    model.GetRelationalModel(),
+                    Dependencies.SnapshotModelProcessor.Process(modelSnapshot.Model, resetVersion: true).GetRelationalModel()))
             {
                 var applied = false;
-                
+
                 if (!offline)
                 {
                     try
@@ -392,7 +393,7 @@ public class MigrationsScaffolder : IMigrationsScaffolder
 
             if (!dryRun)
             {
-                File.WriteAllText(modelSnapshotFile, modelSnapshotCode, Encoding.UTF8);
+                File.WriteAllText(modelSnapshotFile, modelSnapshotCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
         }
 
@@ -422,12 +423,13 @@ public class MigrationsScaffolder : IMigrationsScaffolder
         if (!dryRun)
         {
             Directory.CreateDirectory(migrationDirectory);
-            File.WriteAllText(migrationFile, migration.MigrationCode, Encoding.UTF8);
-            File.WriteAllText(migrationMetadataFile, migration.MetadataCode, Encoding.UTF8);
+            Directory.CreateDirectory(modelSnapshotDirectory);
+
+            File.WriteAllText(migrationFile, migration.MigrationCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.WriteAllText(migrationMetadataFile, migration.MetadataCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
             Dependencies.OperationReporter.WriteVerbose(DesignStrings.WritingSnapshot(modelSnapshotFile));
-            Directory.CreateDirectory(modelSnapshotDirectory);
-            File.WriteAllText(modelSnapshotFile, migration.SnapshotCode, Encoding.UTF8);
+            File.WriteAllText(modelSnapshotFile, migration.SnapshotCode, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
 
         return new MigrationFiles

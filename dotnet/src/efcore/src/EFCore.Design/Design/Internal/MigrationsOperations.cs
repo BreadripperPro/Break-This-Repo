@@ -2,8 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Microsoft.EntityFrameworkCore.Internal;
-using Microsoft.EntityFrameworkCore.Migrations.Design;
 using Microsoft.EntityFrameworkCore.Migrations.Design.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Design.Internal;
@@ -73,6 +73,11 @@ public class MigrationsOperations
         string? @namespace,
         bool dryRun)
     {
+        if (contextType == "*")
+        {
+            throw new OperationException(DesignStrings.WildcardNotSupported);
+        }
+
         using var context = _contextOperations.CreateContext(contextType);
         var services = PrepareForMigration(name, context);
 
@@ -147,9 +152,35 @@ public class MigrationsOperations
         string? connectionString,
         bool noConnect)
     {
-        using var context = _contextOperations.CreateContext(contextType);
+        if (contextType == "*")
+        {
+            var anyContext = false;
+            var contextsList = new List<MigrationInfo>();
 
-        if (connectionString != null)
+            foreach (var contextItem in _contextOperations.CreateAllContexts())
+            {
+                anyContext = true;
+                using (contextItem)
+                {
+                    contextsList.AddRange(GetMigrationsContext(contextItem, connectionString, noConnect));
+                }
+            }
+
+            if (!anyContext)
+            {
+                throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name));
+            }
+        }
+
+        using var context = _contextOperations.CreateContext(contextType);
+        {
+            return GetMigrationsContext(context, connectionString, noConnect);
+        }
+    }
+
+    private IEnumerable<MigrationInfo> GetMigrationsContext(DbContext context, string? connectionString, bool noConnect)
+    {
+        if (connectionString is not null)
         {
             context.Database.SetConnectionString(connectionString);
         }
@@ -197,7 +228,35 @@ public class MigrationsOperations
         MigrationsSqlGenerationOptions options,
         string? contextType)
     {
+        if (contextType == "*")
+        {
+            var anyContext = false;
+            var stringBuilder = new StringBuilder();
+
+            foreach (var contextItem in _contextOperations.CreateAllContexts())
+            {
+                anyContext = true;
+                using (contextItem)
+                {
+                    stringBuilder.Append(ScriptMigrationContext(fromMigration, toMigration, options, contextItem));
+                }
+            }
+
+            return !anyContext ? throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name)) : stringBuilder.ToString();
+        }
+
         using var context = _contextOperations.CreateContext(contextType);
+        {
+            return ScriptMigrationContext(fromMigration, toMigration, options, context);
+        }
+    }
+
+    private string ScriptMigrationContext(
+        string? fromMigration,
+        string? toMigration,
+        MigrationsSqlGenerationOptions options,
+        DbContext context)
+    {
         var services = _servicesBuilder.Build(context);
         EnsureServices(services);
 
@@ -217,21 +276,47 @@ public class MigrationsOperations
         string? connectionString,
         string? contextType)
     {
-        using (var context = _contextOperations.CreateContext(contextType))
+        if (contextType == "*")
         {
-            if (connectionString != null)
+            var contexts = _contextOperations.CreateAllContexts();
+
+            if (!contexts.Any())
             {
-                context.Database.SetConnectionString(connectionString);
+                throw new OperationException(DesignStrings.NoContext(_assembly.GetName().Name));
             }
 
-            var services = _servicesBuilder.Build(context);
-            EnsureServices(services);
+            foreach (var item in contexts)
+            {
+                using (item)
+                {
+                    MigrateContext(item, targetMigration, connectionString);
+                }
+            }
 
-            var migrator = services.GetRequiredService<IMigrator>();
-            migrator.Migrate(targetMigration);
+            _reporter.WriteInformation(DesignStrings.Done);
+            return;
+        }
+
+        using (var context = _contextOperations.CreateContext(contextType))
+        {
+            MigrateContext(context, targetMigration, connectionString);
         }
 
         _reporter.WriteInformation(DesignStrings.Done);
+    }
+
+    private void MigrateContext(DbContext context, string? targetMigration, string? connectionString)
+    {
+        if (connectionString is not null)
+        {
+            context.Database.SetConnectionString(connectionString);
+        }
+
+        var services = _servicesBuilder.Build(context);
+        EnsureServices(services);
+
+        var migrator = services.GetRequiredService<IMigrator>();
+        migrator.Migrate(targetMigration);
     }
 
     /// <summary>
@@ -247,6 +332,11 @@ public class MigrationsOperations
         bool dryRun,
         string? connectionString)
     {
+        if (contextType == "*")
+        {
+            throw new OperationException(DesignStrings.WildcardNotSupported);
+        }
+
         using var context = _contextOperations.CreateContext(contextType);
 
         if (connectionString != null)
@@ -316,7 +406,7 @@ public class MigrationsOperations
         if (!migrator.HasPendingModelChanges())
         {
             _reporter.WriteInformation(DesignStrings.NoPendingModelChanges);
-            migrator.Migrate(null);
+            migrator.Migrate();
             _reporter.WriteInformation(DesignStrings.Done);
             // Return empty MigrationFiles to indicate no migration was created.
             // When serialized to JSON (with --json), all file path properties will be null.

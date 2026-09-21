@@ -69,11 +69,25 @@ namespace RuntimeHostingConstants
 {
     // This list is in probing order.
     constexpr RuntimeVersion SupportedHostRuntimeVersions[] = {
-        {9, 0},
-        {8, 0},
         {10, 0},
         {11, 0},
+        {9, 0},
+        {8, 0},
+        {12, 0},
     };
+
+    struct RuntimeAssemblyOverride
+    {
+        const char* FileName;
+        uint32_t FirstRuntimeMajor;
+        uint32_t CompatibleRuntimeMajor;
+    };
+
+#define HOST_RUNTIME_ASSEMBLY(fileName, firstRuntimeMajor, compatibleRuntimeMajor) { fileName, firstRuntimeMajor, compatibleRuntimeMajor },
+    constexpr RuntimeAssemblyOverride RuntimeAssemblyOverrides[] = {
+#include "hostruntimeassemblylist.inc"
+    };
+#undef HOST_RUNTIME_ASSEMBLY
 
     constexpr char DotnetRootEnvVar[] = "DOTNET_ROOT";
 
@@ -146,7 +160,7 @@ private:
 
 public:
     bool Open(const char* directory)
-    { 
+    {
         m_directory = directory;
         m_dir = opendir(directory);
         if (m_dir == nullptr) {
@@ -184,7 +198,7 @@ public:
                     fullFilename.append(m_entry->d_name);
 
                     struct stat sb;
-                    if (stat(fullFilename.c_str(), &sb) == 0) 
+                    if (stat(fullFilename.c_str(), &sb) == 0)
                     {
                         if (S_ISREG(sb.st_mode) || S_ISDIR(sb.st_mode)) {
                             return true;
@@ -205,7 +219,7 @@ public:
         }
     }
 
-    bool IsDirectory() 
+    bool IsDirectory()
     {
         return m_entry->d_type == DT_DIR;
     }
@@ -246,7 +260,7 @@ public:
         }
     }
 
-    bool IsDirectory() 
+    bool IsDirectory()
     {
         return (m_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
@@ -322,15 +336,13 @@ static std::string GetTpaListForRuntimeVersion(
     std::string tpaList;
     const char* directory = sosModuleDirectory.c_str();
 
-    // TODO: This is a little brittle. At the very least we should make sure that versions
-    //       of managed assemblies used by SOS other than the framework ones aren't of a greater
-    //       assembly version than the ones in the ones in the framework. The test could just
-    //       have a list of assemblies we pack with the versions, and if we end up using a newer assembly
-    //       fail the test and point to update this list.
-
-    if (hostRuntimeVersion.Major > 0 && hostRuntimeVersion.Major < 9)
+    for (const RuntimeHostingConstants::RuntimeAssemblyOverride& assembly : RuntimeHostingConstants::RuntimeAssemblyOverrides)
     {
-        AddFileToTpaList(directory, "System.Collections.Immutable.dll", tpaList);
+        if (hostRuntimeVersion.Major >= assembly.FirstRuntimeMajor &&
+            hostRuntimeVersion.Major < assembly.CompatibleRuntimeMajor)
+        {
+            AddFileToTpaList(directory, assembly.FileName, tpaList);
+        }
     }
 
     // Trust the runtime assemblies that are newer than the ones needed and provided by SOS's managed
@@ -369,7 +381,7 @@ static bool FindDotNetVersion(const RuntimeVersion& runtimeVersion, std::string&
                     }
                 }
             }
-        } 
+        }
         while (find.Next());
     }
 
@@ -457,7 +469,7 @@ struct ProbingStrategy
 
 /**********************************************************************\
  * Returns the path to the coreclr to use for hosting and it's
- * directory. Attempts to use the best installed version of the 
+ * directory. Attempts to use the best installed version of the
  * runtime, otherwise it defaults to the target's runtime version.
 \**********************************************************************/
 static HRESULT GetHostRuntime(std::string& coreClrPath, std::string& hostRuntimeDirectory, RuntimeVersion& hostRuntimeVersion)
@@ -608,11 +620,15 @@ static HRESULT InitializeNetCoreHost()
         }
         sosModuleDirectory.erase(lastSlash);
 
-        // Trust The SOS managed and dependent assemblies from the sos directory
-        std::string tpaList = GetTpaListForRuntimeVersion(sosModuleDirectory, hostRuntimeDirectory, hostRuntimeVersion);
+        std::string managedModuleDirectory = sosModuleDirectory;
+        managedModuleDirectory.append(DIRECTORY_SEPARATOR_STR_A);
+        managedModuleDirectory.append(ExtensionsNetCoreSubdirectory);
+
+        // Trust the SOS managed and dependent assemblies from the CoreCLR payload directory.
+        std::string tpaList = GetTpaListForRuntimeVersion(managedModuleDirectory, hostRuntimeDirectory, hostRuntimeVersion);
 
         std::string appPaths;
-        appPaths.append(sosModuleDirectory);
+        appPaths.append(managedModuleDirectory);
 
         const char* propertyKeys[] = {
             "TRUSTED_PLATFORM_ASSEMBLIES",
@@ -630,7 +646,7 @@ static HRESULT InitializeNetCoreHost()
             // APP_NI_PATHS
             hostRuntimeDirectory.c_str(),
             // NATIVE_DLL_SEARCH_DIRECTORIES
-            appPaths.c_str(),
+            sosModuleDirectory.c_str(),
             // AppDomainCompatSwitch
             "UseLatestBehaviorWhenTFMNotSpecified"
         };
@@ -659,7 +675,7 @@ static HRESULT InitializeNetCoreHost()
             return hr;
         }
     }
-    try 
+    try
     {
         hr = g_extensionsInitializeFunc(sosModulePath.c_str());
     }

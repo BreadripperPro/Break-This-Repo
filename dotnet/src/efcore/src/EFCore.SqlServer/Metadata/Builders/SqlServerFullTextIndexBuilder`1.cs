@@ -46,17 +46,19 @@ public class SqlServerFullTextIndexBuilder<TEntity>(IndexBuilder<TEntity> indexB
     ///     used as the unique key for the full-text index.
     /// </summary>
     /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
+    ///     See
+    ///     <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
     ///         SQL Server documentation for <c>CREATE FULLTEXT INDEX</c>
-    ///     </see>.
+    ///     </see>
+    ///     .
     /// </remarks>
-    /// <param name="keyIndexName">The name of the KEY INDEX.</param>
+    /// <param name="keyIndex">The name of the KEY INDEX.</param>
     /// <returns>A builder to further configure the full-text index.</returns>
-    public virtual SqlServerFullTextIndexBuilder<TEntity> HasKeyIndex(string keyIndexName)
+    public virtual SqlServerFullTextIndexBuilder<TEntity> UseKeyIndex(string keyIndex)
     {
-        Check.NotEmpty(keyIndexName);
+        Check.NotEmpty(keyIndex);
 
-        Metadata.SetFullTextKeyIndex(keyIndexName);
+        Metadata.SetFullTextKeyIndex(keyIndex);
 
         return this;
     }
@@ -65,17 +67,19 @@ public class SqlServerFullTextIndexBuilder<TEntity>(IndexBuilder<TEntity> indexB
     ///     Configures the full-text catalog for the full-text index.
     /// </summary>
     /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
+    ///     See
+    ///     <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
     ///         SQL Server documentation for <c>CREATE FULLTEXT INDEX</c>
-    ///     </see>.
+    ///     </see>
+    ///     .
     /// </remarks>
-    /// <param name="catalogName">The name of the full-text catalog.</param>
+    /// <param name="catalog">The name of the full-text catalog.</param>
     /// <returns>A builder to further configure the full-text index.</returns>
-    public virtual SqlServerFullTextIndexBuilder<TEntity> OnCatalog(string catalogName)
+    public virtual SqlServerFullTextIndexBuilder<TEntity> UseCatalog(string catalog)
     {
-        Check.NotEmpty(catalogName);
+        Check.NotEmpty(catalog);
 
-        Metadata.SetFullTextCatalog(catalogName);
+        Metadata.SetFullTextCatalog(catalog);
 
         return this;
     }
@@ -84,13 +88,15 @@ public class SqlServerFullTextIndexBuilder<TEntity>(IndexBuilder<TEntity> indexB
     ///     Configures the change tracking mode for the full-text index.
     /// </summary>
     /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
+    ///     See
+    ///     <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
     ///         SQL Server documentation for <c>CREATE FULLTEXT INDEX</c>
-    ///     </see>.
+    ///     </see>
+    ///     .
     /// </remarks>
     /// <param name="changeTracking">The change tracking mode.</param>
     /// <returns>A builder to further configure the full-text index.</returns>
-    public virtual SqlServerFullTextIndexBuilder<TEntity> WithChangeTracking(FullTextChangeTracking changeTracking)
+    public virtual SqlServerFullTextIndexBuilder<TEntity> HasChangeTracking(FullTextChangeTracking changeTracking)
     {
         Metadata.SetFullTextChangeTracking(changeTracking);
 
@@ -101,14 +107,16 @@ public class SqlServerFullTextIndexBuilder<TEntity>(IndexBuilder<TEntity> indexB
     ///     Configures the language for a specific property in the full-text index.
     /// </summary>
     /// <remarks>
-    ///     See <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
+    ///     See
+    ///     <see href="https://learn.microsoft.com/sql/t-sql/statements/create-fulltext-index-transact-sql">
     ///         SQL Server documentation for <c>CREATE FULLTEXT INDEX</c>
-    ///     </see>.
+    ///     </see>
+    ///     .
     /// </remarks>
     /// <param name="propertyName">The name of the property.</param>
     /// <param name="language">The language term (e.g. "English", "1033").</param>
     /// <returns>A builder to further configure the full-text index.</returns>
-    public virtual SqlServerFullTextIndexBuilder<TEntity> HasLanguage(string propertyName, string language)
+    public virtual SqlServerFullTextIndexBuilder<TEntity> UseLanguage(string propertyName, string language)
     {
         Check.NotEmpty(propertyName);
         Check.NotEmpty(language);

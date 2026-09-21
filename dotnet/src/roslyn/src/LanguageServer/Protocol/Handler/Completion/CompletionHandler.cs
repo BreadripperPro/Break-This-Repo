@@ -45,10 +45,7 @@ internal sealed partial class CompletionHandler : ILspServiceDocumentRequestHand
     public async Task<LSP.CompletionList?> HandleRequestAsync(
         LSP.CompletionParams request, RequestContext context, CancellationToken cancellationToken)
     {
-        Contract.ThrowIfNull(context.Document);
-        Contract.ThrowIfNull(context.Solution);
-
-        var document = context.Document;
+        var document = await context.GetRequiredDocumentAsync(cancellationToken).ConfigureAwait(false);
         var position = await document
             .GetPositionFromLinePositionAsync(ProtocolConversions.PositionToLinePosition(request.Position), cancellationToken)
             .ConfigureAwait(false);
@@ -94,7 +91,7 @@ internal sealed partial class CompletionHandler : ILspServiceDocumentRequestHand
         }
 
         var completionListResult = await GetFilteredCompletionListAsync(
-            completionContext, document, documentText, position, completionOptions, capabilityHelper, completionService, completionListCache, completionListMaxSize, cancellationToken).ConfigureAwait(false);
+            completionContext, document, documentText, position, completionTrigger, completionOptions, capabilityHelper, completionService, completionListCache, completionListMaxSize, cancellationToken).ConfigureAwait(false);
 
         if (completionListResult == null)
             return null;
@@ -113,6 +110,7 @@ internal sealed partial class CompletionHandler : ILspServiceDocumentRequestHand
         Document document,
         SourceText sourceText,
         int position,
+        CompletionTrigger completionTrigger,
         CompletionOptions completionOptions,
         CompletionCapabilityHelper capabilityHelper,
         CompletionService completionService,
@@ -120,7 +118,6 @@ internal sealed partial class CompletionHandler : ILspServiceDocumentRequestHand
         int completionListMaxSize,
         CancellationToken cancellationToken)
     {
-        var completionTrigger = await ProtocolConversions.LSPToRoslynCompletionTriggerAsync(context, document, position, cancellationToken).ConfigureAwait(false);
         var isTriggerForIncompleteCompletions = context?.TriggerKind == LSP.CompletionTriggerKind.TriggerForIncompleteCompletions;
 
         (CompletionList List, long ResultId)? result;
@@ -195,7 +192,11 @@ internal sealed partial class CompletionHandler : ILspServiceDocumentRequestHand
         var filterReason = GetFilterReason(completionTrigger);
 
         // Determine if the list should be hard selected or soft selected.
-        var isFilterTextAllPunctuation = CompletionService.IsAllPunctuation(filterText);
+        // Guard against empty filter text: IsAllPunctuation returns true for empty strings (vacuously true),
+        // but empty text is not "all punctuation". The in-process equivalent in ItemManager.CompletionListUpdater.IsHardSelectionAsync
+        // has the same guard (_filterText.Length > 0) before calling IsAllPunctuation, and handles the empty
+        // filter text case separately with its own preselection/MRU logic.
+        var isFilterTextAllPunctuation = filterText.Length > 0 && CompletionService.IsAllPunctuation(filterText);
 
         // If we only had punctuation - we set soft selection and the list to be incomplete so we get called back when the user continues typing.
         // If they type something that is not punctuation, we may need to update the hard vs soft selection.

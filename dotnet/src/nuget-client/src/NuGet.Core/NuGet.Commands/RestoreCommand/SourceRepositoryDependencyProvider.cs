@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,13 +36,20 @@ namespace NuGet.Commands
         private bool _ignoreFailedSources;
         private bool _ignoreWarning;
         private bool _isFallbackFolderSource;
+        private bool _isGlobalPackagesFolder;
         private bool _useLegacyAssetTargetFallbackBehavior;
 
         private readonly TaskResultCache<LibraryRangeCacheKey, LibraryDependencyInfo> _dependencyInfoCache = new();
         private readonly TaskResultCache<LibraryRange, LibraryIdentity> _libraryMatchCache = new();
 
         // Limiting concurrent requests to limit the amount of files open at a time.
-        private readonly static SemaphoreSlim _throttle = GetThrottleSemaphoreSlim(EnvironmentVariableWrapper.Instance);
+        // Deliberately readonly: this gate is only meaningful if it is the same instance for the lifetime of every
+        // operation it gates. Swapping it - even without disposing the previous one - lets requests already holding a
+        // permit on the old semaphore run alongside requests acquiring on the new one, so the limit is not enforced
+        // across the swap. NUGET_CONCURRENCY_LIMIT is therefore fixed for the process; making it per-build means
+        // scoping the throttle to the restore rather than sharing one static (NuGet/Home#15045).
+        private static readonly SemaphoreSlim _throttle = GetThrottleSemaphoreSlim(EnvironmentVariableWrapper.Instance);
+
         internal static SemaphoreSlim GetThrottleSemaphoreSlim(IEnvironmentVariableReader env)
         {
             // Determine default concurrency limit based on operating system constraints.
@@ -115,6 +123,7 @@ namespace NuGet.Commands
                 ignoreFailedSources,
                 ignoreWarning,
                 fileCache,
+                isGlobalPackagesFolder: false,
                 isFallbackFolderSource,
                 environmentVariableReader: EnvironmentVariableWrapper.Instance)
         {
@@ -127,6 +136,7 @@ namespace NuGet.Commands
             bool ignoreFailedSources,
             bool ignoreWarning,
             LocalPackageFileCache fileCache,
+            bool isGlobalPackagesFolder,
             bool isFallbackFolderSource,
             IEnvironmentVariableReader environmentVariableReader)
         {
@@ -137,6 +147,7 @@ namespace NuGet.Commands
             _ignoreWarning = ignoreWarning;
             _packageFileCache = fileCache;
             _isFallbackFolderSource = isFallbackFolderSource;
+            _isGlobalPackagesFolder = isGlobalPackagesFolder;
             _useLegacyAssetTargetFallbackBehavior = MSBuildStringUtility.IsTrue(environmentVariableReader.GetEnvironmentVariable("NUGET_USE_LEGACY_ASSET_TARGET_FALLBACK_DEPENDENCY_RESOLUTION"));
         }
 
@@ -272,6 +283,22 @@ namespace NuGet.Commands
                 }
             }
 
+            if (_isGlobalPackagesFolder || _isFallbackFolderSource)
+            {
+                if (_isFallbackFolderSource)
+                {
+                    var sourceRoot = LocalFolderUtility.GetAndVerifyRootDirectory(Source.Source);
+                    if (!sourceRoot.Exists)
+                    {
+                        var message = string.Format(CultureInfo.CurrentCulture, Strings.Error_UnavailableSource, Source.Source);
+
+                        throw new FatalProtocolException(message);
+                    }
+                }
+
+                return null;
+            }
+
             // Discover all versions from the feed
             var packageVersions = await GetAllVersionsInternalAsync(libraryRange.Name, cacheContext, logger, false, cancellationToken);
 
@@ -361,12 +388,12 @@ namespace NuGet.Commands
             FindPackageByIdDependencyInfo packageInfo = null;
             try
             {
-                await EnsureResource(cancellationToken);
-
                 if (_throttle != null)
                 {
                     await _throttle.WaitAsync(cancellationToken);
                 }
+
+                await EnsureResource(cancellationToken);
 
                 // Read package info, this will download the package if needed.
                 packageInfo = await _findPackagesByIdResource.GetDependencyInfoAsync(
@@ -459,12 +486,12 @@ namespace NuGet.Commands
 
             try
             {
-                await EnsureResource(cancellationToken);
-
                 if (_throttle != null)
                 {
                     await _throttle.WaitAsync(cancellationToken);
                 }
+
+                await EnsureResource(cancellationToken);
 
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -634,10 +661,9 @@ namespace NuGet.Commands
                 {
                     await _throttle.WaitAsync(cancellationToken);
                 }
-                if (_findPackagesByIdResource == null)
-                {
-                    return null;
-                }
+
+                await EnsureResource(cancellationToken);
+
                 return await _findPackagesByIdResource.GetAllVersionsAsync(
                     id,
                     cacheContext,

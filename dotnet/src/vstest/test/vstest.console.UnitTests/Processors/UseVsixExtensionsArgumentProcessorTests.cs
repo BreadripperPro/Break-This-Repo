@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Generic;
@@ -17,6 +17,7 @@ namespace vstest.console.UnitTests.Processors;
 [TestClass]
 public class UseVsixExtensionsArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private const string DeprecationMessage = @"/UseVsixExtensions is getting deprecated. Please use /TestAdapterPath instead.";
     private readonly Mock<ITestRequestManager> _testRequestManager;
     private readonly Mock<IVSExtensionManager> _extensionManager;
@@ -28,20 +29,20 @@ public class UseVsixExtensionsArgumentProcessorTests
         _testRequestManager = new Mock<ITestRequestManager>();
         _extensionManager = new Mock<IVSExtensionManager>();
         _output = new Mock<IOutput>();
-        _executor = new UseVsixExtensionsArgumentExecutor(CommandLineOptions.Instance, _testRequestManager.Object, _extensionManager.Object, _output.Object);
+        _executor = new UseVsixExtensionsArgumentExecutor(_commandLineOptions, _testRequestManager.Object, _extensionManager.Object, _output.Object);
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnUseVsixExtensionsArgumentProcessorCapabilities()
     {
-        var processor = new UseVsixExtensionsArgumentProcessor();
+        var processor = new UseVsixExtensionsArgumentProcessor(_commandLineOptions, _testRequestManager.Object);
         Assert.IsTrue(processor.Metadata.Value is UseVsixExtensionsArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnUseVsixExtensionsArgumentProcessorCapabilities()
     {
-        var processor = new UseVsixExtensionsArgumentProcessor();
+        var processor = new UseVsixExtensionsArgumentProcessor(_commandLineOptions, _testRequestManager.Object);
         Assert.IsTrue(processor.Executor!.Value is UseVsixExtensionsArgumentExecutor);
     }
 
@@ -70,7 +71,7 @@ public class UseVsixExtensionsArgumentProcessorTests
     [TestMethod]
     public void InitializeShouldThrowExceptionIfArgumentIsNull()
     {
-        var message = Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(null)).Message;
+        var message = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(null)).Message;
         Assert.AreEqual(@"The /UseVsixExtensions parameter requires a value. If 'true', the installed VSIX extensions (if any) will be used in the test run. If false, they will be ignored.   Example:  /UseVsixExtensions:true", message);
     }
 
@@ -79,7 +80,7 @@ public class UseVsixExtensionsArgumentProcessorTests
     {
         var invalidArg = "Foo";
 
-        var message = Assert.ThrowsException<CommandLineException>(() => _executor.Initialize(invalidArg)).Message;
+        var message = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(invalidArg)).Message;
         Assert.AreEqual(@"Argument Foo is not expected in the 'UseVsixExtensions' command. Specify the command indicating whether the vsix extensions should be used or skipped (Example: vstest.console.exe myTests.dll /UseVsixExtensions:true) and try again.", message);
     }
 

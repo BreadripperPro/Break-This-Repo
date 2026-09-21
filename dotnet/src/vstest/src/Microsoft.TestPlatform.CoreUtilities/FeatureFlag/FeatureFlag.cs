@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace Microsoft.VisualStudio.TestPlatform.Utilities;
 
@@ -23,14 +24,20 @@ namespace Microsoft.VisualStudio.TestPlatform.Utilities;
 // !!! SDK USED FEATURE NAMES MUST BE KEPT IN SYNC IN https://github.com/dotnet/sdk/blob/main/src/Cli/dotnet/commands/dotnet-test/VSTestFeatureFlag.cs !!!
 internal partial class FeatureFlag : IFeatureFlag
 {
+    private static readonly IReadOnlyDictionary<string, bool> DefaultValues = new Dictionary<string, bool>
+    {
+        [VSTEST_DISABLE_MTP_TESTHOST] = true,
+        [VSTEST_DISABLE_XXHASH128_TESTCASE_ID] = true,
+    };
+
     private readonly ConcurrentDictionary<string, bool> _cache = new();
 
     public static IFeatureFlag Instance { get; private set; } = new FeatureFlag();
 
     private FeatureFlag() { }
 
-    // Only check the env variable once, when it is not set or is set to 0, consider it unset. When it is anything else, consider it set.
-    public bool IsSet(string featureFlag) => _cache.GetOrAdd(featureFlag, f => (Environment.GetEnvironmentVariable(f)?.Trim() ?? "0") != "0");
+    // Only check the env variable once. The environment value takes precedence over the default value.
+    public bool IsSet(string featureFlag) => _cache.GetOrAdd(featureFlag, GetValue);
 
     // Added for artifact post-processing, it enable/disable the post processing.
     // Added in 17.2-preview 7.0-preview
@@ -44,7 +51,7 @@ internal partial class FeatureFlag : IFeatureFlag
     // Faster JSON serialization relies on less internals of NewtonsoftJson, and on some additional caching.
     public const string VSTEST_DISABLE_FASTER_JSON_SERIALIZATION = nameof(VSTEST_DISABLE_FASTER_JSON_SERIALIZATION);
 
-    // Forces vstest.console to run all sources using the same target framework (TFM) and architecture, instead of allowing
+    // Forces vstest.consoleto run all sources using the same target framework (TFM) and architecture, instead of allowing
     // multiple different tfms and architectures to run at the same time.
     public const string VSTEST_DISABLE_MULTI_TFM_RUN = nameof(VSTEST_DISABLE_MULTI_TFM_RUN);
 
@@ -72,13 +79,40 @@ internal partial class FeatureFlag : IFeatureFlag
     // Disable not sharing .NET Framework testhosts. Which will return behavior to sharing testhosts when they are running .NET Framework dlls, and are not disabling appdomains or running in parallel.
     public const string VSTEST_DISABLE_SHARING_NETFRAMEWORK_TESTHOST = nameof(VSTEST_DISABLE_SHARING_NETFRAMEWORK_TESTHOST);
 
+    // Disable forwarding multiple test case events for executions that share the same test case ID.
+    public const string VSTEST_DISABLE_MULTIPLE_TESTCASE_EVENTS = nameof(VSTEST_DISABLE_MULTIPLE_TESTCASE_EVENTS);
+
     // Disable setting DOTNET_ROOT environment variable on non-Windows platforms. We used to set it only only on Windows when we found testhost.exe, now we set it always to allow xunit v3 to run tests in child process.
     public const string VSTEST_DISABLE_DOTNET_ROOT_ON_NONWINDOWS = nameof(VSTEST_DISABLE_DOTNET_ROOT_ON_NONWINDOWS);
 
     // Disable turning dynamic code coverage for native code to OFF by default. Setting this to 1 will skip adding the setting.
     public const string VSTEST_DISABLE_DYNAMICNATIVE_CODECOVERAGE_DEFAULT_SETTING = nameof(VSTEST_DISABLE_DYNAMICNATIVE_CODECOVERAGE_DEFAULT_SETTING);
 
+    // Disable running Microsoft.Testing.Platform applications under vstest while the integration is experimental.
+    // This defaults to true. Set it to 0 to opt in to the feature.
+    public const string VSTEST_DISABLE_MTP_TESTHOST = nameof(VSTEST_DISABLE_MTP_TESTHOST);
 
+    // Disable computing test case ids with xxHash128, falling back to the SHA1 ids the platform has
+    // always produced. Moving to xxHash128 changes the id of every test whose id the platform
+    // computes, which is a breaking change for anything that stored those ids - most notably Azure
+    // DevOps Test Case work item association. It therefore ships available but not default: this
+    // defaults to true, so this release changes no id at all, and set it to 0 to opt in early.
+    //
+    // Deleting the DefaultValues entry above is the entire behavioural change of the release that
+    // makes xxHash128 the default. The polarity survives that flip - 1 selects SHA1 and 0 selects
+    // xxHash128 both before and after - so a value written down today keeps meaning the same thing.
+    public const string VSTEST_DISABLE_XXHASH128_TESTCASE_ID = nameof(VSTEST_DISABLE_XXHASH128_TESTCASE_ID);
+
+    private static bool GetValue(string featureFlag)
+    {
+        var environmentValue = Environment.GetEnvironmentVariable(featureFlag)?.Trim();
+        if (environmentValue is not null)
+        {
+            return environmentValue != "0";
+        }
+
+        return DefaultValues.TryGetValue(featureFlag, out var defaultValue) && defaultValue;
+    }
 
     [Obsolete("Only use this in tests.")]
     internal static void Reset()

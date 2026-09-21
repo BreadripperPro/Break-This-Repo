@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.TestPlatform.TestUtilities;
@@ -11,9 +11,10 @@ public class RecursiveResourcesLookupTests : AcceptanceTestBase
 {
     [TestMethod]
     // This only fails on .NET Framework, and it fails in testhost, so no need to double check with
-    // two different runners.
+    // two different runners. The NetFull data source is empty on Linux/macOS.
+    [TestCategory("Windows-Review")]
     [Ignore("Temporarily ignore until solving https://github.com/microsoft/testfx/issues/2692")]
-    [NetFullTargetFrameworkDataSource(useCoreRunner: false)]
+    [TestMatrix(console: NetFx, testHost: NetFx)]
     public void RunsToCompletionWhenJapaneseResourcesAreLookedUpForMSCorLib(RunnerInfo runnerInfo)
     {
         SetTestEnvironment(_testEnvironment, runnerInfo);

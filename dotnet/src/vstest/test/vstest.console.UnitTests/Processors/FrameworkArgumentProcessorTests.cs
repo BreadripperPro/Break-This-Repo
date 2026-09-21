@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
+
 using Microsoft.VisualStudio.TestPlatform.CommandLine.Processors;
 using Microsoft.VisualStudio.TestPlatform.Common.Utilities;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
@@ -13,31 +15,31 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class FrameworkArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private readonly FrameworkArgumentExecutor _executor;
     private readonly TestableRunSettingsProvider _runSettingsProvider;
 
     public FrameworkArgumentProcessorTests()
     {
         _runSettingsProvider = new TestableRunSettingsProvider();
-        _executor = new FrameworkArgumentExecutor(CommandLineOptions.Instance, _runSettingsProvider);
+        _executor = new FrameworkArgumentExecutor(_commandLineOptions, _runSettingsProvider);
     }
     [TestCleanup]
     public void TestCleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnFrameworkArgumentProcessorCapabilities()
     {
-        var processor = new FrameworkArgumentProcessor();
+        var processor = new FrameworkArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Metadata.Value is FrameworkArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnFrameworkArgumentExecutor()
     {
-        var processor = new FrameworkArgumentProcessor();
+        var processor = new FrameworkArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Executor!.Value is FrameworkArgumentExecutor);
     }
 
@@ -48,7 +50,7 @@ public class FrameworkArgumentProcessorTests
     {
         var capabilities = new FrameworkArgumentProcessorCapabilities();
         Assert.AreEqual("/Framework", capabilities.CommandName);
-        StringAssert.Contains(capabilities.HelpContentResourceName, "Valid values are \".NETFramework,Version=v4.5.1\", \".NETCoreApp,Version=v1.0\"");
+        Assert.Contains("Valid values are short names such as net48 and net10.0, or long names such as \".NETFramework,Version=v4.8\" and \".NETCoreApp,Version=v10.0\"", capabilities.HelpContentResourceName);
 
         Assert.AreEqual(HelpContentPriority.FrameworkArgumentProcessorHelpPriority, capabilities.HelpPriority);
         Assert.IsFalse(capabilities.IsAction);
@@ -67,33 +69,29 @@ public class FrameworkArgumentProcessorTests
     public void InitializeShouldThrowIfArgumentIsNull()
     {
 
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            () => _executor.Initialize(null),
-            "The /Framework argument requires the target .Net Framework version for the test run.   Example:  /Framework:\".NETFramework,Version=v4.5.1\"");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize(null));
+        Assert.Contains("The /Framework argument requires the target .Net Framework version for the test run.   Example:  /Framework:\".NETFramework,Version=v4.5.1\"", ex.Message);
     }
 
     [TestMethod]
     public void InitializeShouldThrowIfArgumentIsEmpty()
     {
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            () => _executor.Initialize("  "),
-            "The /Framework argument requires the target .Net Framework version for the test run.   Example:  /Framework:\".NETFramework,Version=v4.5.1\"");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize("  "));
+        Assert.Contains("The /Framework argument requires the target .Net Framework version for the test run.   Example:  /Framework:\".NETFramework,Version=v4.5.1\"", ex.Message);
     }
 
     [TestMethod]
     public void InitializeShouldThrowIfArgumentIsInvalid()
     {
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            () => _executor.Initialize("foo"),
-            "Invalid .Net Framework version:{0}. Please give the fullname of the TargetFramework(Example: .NETCoreApp,Version=v2.0). Other supported .Net Framework versions are Framework40, Framework45, FrameworkCore10 and FrameworkUap10.",
-            "foo");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize("foo"));
+        Assert.Contains(string.Format(CultureInfo.CurrentCulture, "Invalid .Net Framework version:{0}. Please give the fullname of the TargetFramework(Example: .NETCoreApp,Version=v2.0). Other supported .Net Framework versions are Framework40, Framework45, FrameworkCore10 and FrameworkUap10.", "foo"), ex.Message);
     }
 
     [TestMethod]
     public void InitializeShouldSetCommandLineOptionsAndRunSettingsFramework()
     {
         _executor.Initialize(".NETCoreApp,Version=v1.0");
-        Assert.AreEqual(".NETCoreApp,Version=v1.0", CommandLineOptions.Instance.TargetFrameworkVersion!.Name);
+        Assert.AreEqual(".NETCoreApp,Version=v1.0", _commandLineOptions.TargetFrameworkVersion!.Name);
         Assert.AreEqual(".NETCoreApp,Version=v1.0", _runSettingsProvider.QueryRunSettingsNode(FrameworkArgumentExecutor.RunSettingsPath));
     }
 
@@ -101,7 +99,7 @@ public class FrameworkArgumentProcessorTests
     public void InitializeShouldSetCommandLineOptionsFrameworkForOlderFrameworks()
     {
         _executor.Initialize("Framework35");
-        Assert.AreEqual(".NETFramework,Version=v3.5", CommandLineOptions.Instance.TargetFrameworkVersion!.Name);
+        Assert.AreEqual(".NETFramework,Version=v3.5", _commandLineOptions.TargetFrameworkVersion!.Name);
         Assert.AreEqual(".NETFramework,Version=v3.5", _runSettingsProvider.QueryRunSettingsNode(FrameworkArgumentExecutor.RunSettingsPath));
     }
 
@@ -109,7 +107,7 @@ public class FrameworkArgumentProcessorTests
     public void InitializeShouldSetCommandLineOptionsFrameworkForCaseInsensitiveFramework()
     {
         _executor.Initialize(".netcoreApp,Version=v1.0");
-        Assert.AreEqual(".NETCoreApp,Version=v1.0", CommandLineOptions.Instance.TargetFrameworkVersion!.Name);
+        Assert.AreEqual(".NETCoreApp,Version=v1.0", _commandLineOptions.TargetFrameworkVersion!.Name);
         Assert.AreEqual(".NETCoreApp,Version=v1.0", _runSettingsProvider.QueryRunSettingsNode(FrameworkArgumentExecutor.RunSettingsPath));
     }
 
@@ -117,9 +115,9 @@ public class FrameworkArgumentProcessorTests
     public void InitializeShouldNotSetFrameworkIfSettingsFileIsLegacy()
     {
         _runSettingsProvider.UpdateRunSettingsNode(FrameworkArgumentExecutor.RunSettingsPath, nameof(FrameworkVersion.Framework45));
-        CommandLineOptions.Instance.SettingsFile = @"c:\tmp\settings.testsettings";
+        _commandLineOptions.SettingsFile = @"c:\tmp\settings.testsettings";
         _executor.Initialize(".NETFramework,Version=v3.5");
-        Assert.AreEqual(".NETFramework,Version=v3.5", CommandLineOptions.Instance.TargetFrameworkVersion!.Name);
+        Assert.AreEqual(".NETFramework,Version=v3.5", _commandLineOptions.TargetFrameworkVersion!.Name);
         Assert.AreEqual(nameof(FrameworkVersion.Framework45), _runSettingsProvider.QueryRunSettingsNode(FrameworkArgumentExecutor.RunSettingsPath));
     }
 

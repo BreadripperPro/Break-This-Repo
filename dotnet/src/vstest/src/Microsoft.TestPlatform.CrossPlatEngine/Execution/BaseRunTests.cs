@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 using Microsoft.VisualStudio.TestPlatform.Common.ExtensionDecorators;
@@ -201,7 +202,6 @@ internal abstract class BaseRunTests
             TimeSpan? elapsedTime = null;
             Exception? exception = null;
             bool isAborted = false;
-            bool shutdownAfterRun = false;
 
             try
             {
@@ -214,17 +214,21 @@ internal abstract class BaseRunTests
                     EqtTrace.Error("BaseRunTests.RunTests: Failed to run the tests. Reason: GetExecutorUriExtensionMap returned null.");
                     isAborted = true;
                 }
-                else
-                {
-                    // Check the adapter setting for shutting down this process after run
-                    shutdownAfterRun = FrameworkHandle.EnableShutdownAfterTestRun;
-                }
             }
             catch (Exception ex)
             {
                 EqtTrace.Error("BaseRunTests.RunTests: Failed to run the tests. Reason: {0}.", ex);
 
-                exception = new Exception(ex.Message, ex.InnerException);
+                // RunTestsInternal can surface a TargetInvocationException when a test extension is
+                // instantiated via reflection and its constructor throws. Unwrap that wrapper to the
+                // real exception so callers don't see the reflection noise. Any other exception is
+                // preserved as-is so its concrete type and stack trace are not lost on the way out.
+                Exception realException = ex switch
+                {
+                    TargetInvocationException { InnerException: { } inner } => inner,
+                    _ => ex,
+                };
+                exception = new Exception(realException.Message, realException);
                 isAborted = true;
             }
             finally
@@ -407,21 +411,33 @@ internal abstract class BaseRunTests
             // host by default.
             // Same goes if all adapters implement the new test executor interface but at
             // least one of them needs the test platform to attach to the default test host.
-            if (executor.Value is not ITestExecutor2
-                || ShouldAttachDebuggerToTestHost(executor, executorUriExtensionTuple, RunContext))
+            try
             {
-                EqtTrace.Verbose("Attaching to default test host.");
-
-                attachedToTestHost = true;
-#if NET5_0_OR_GREATER
-                var pid = Environment.ProcessId;
-#else
-                var pid = Process.GetCurrentProcess().Id;
-#endif
-                if (!FrameworkHandle.AttachDebuggerToProcess(pid))
+                if (executor.Value is not ITestExecutor2
+                    || ShouldAttachDebuggerToTestHost(executor, executorUriExtensionTuple, RunContext))
                 {
-                    EqtTrace.Warning(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.AttachDebuggerToDefaultTestHostFailure, pid));
+                    EqtTrace.Verbose("Attaching to default test host.");
+
+                    attachedToTestHost = true;
+#if NET
+                    var pid = Environment.ProcessId;
+#else
+                    var pid = Process.GetCurrentProcess().Id;
+#endif
+                    if (!FrameworkHandle.AttachDebuggerToProcess(pid))
+                    {
+                        EqtTrace.Warning(string.Format(CultureInfo.CurrentCulture, CrossPlatEngineResources.AttachDebuggerToDefaultTestHostFailure, pid));
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                // Accessing executor.Value instantiates the executor, which can throw for a rogue
+                // extension (for example one without a parameterless constructor). A failure to
+                // evaluate the debugger-attach condition for one executor must not abort processing
+                // of the remaining executors; the failure is surfaced per-executor in the execution
+                // loop below.
+                EqtTrace.Error("BaseRunTests.RunTestInternalWithExecutors: Failed to evaluate debugger attach for executor {0}: {1}", executorUriExtensionTuple.Item1.AbsoluteUri, ex);
             }
         }
 
@@ -482,7 +498,7 @@ internal abstract class BaseRunTests
                     // Only enable this for MSTestV1 telemetry for now, this might become more generic later.
                     if (MsTestV1TelemetryHelper.IsMsTestV1Adapter(executorUri))
                     {
-                        foreach (var adapterMetrics in TestRunCache.AdapterTelemetry.Keys.Where(k => k.StartsWith(executorUri)))
+                        foreach (var adapterMetrics in TestRunCache.AdapterTelemetry.Keys.Where(k => k.StartsWith(executorUri, StringComparison.Ordinal)))
                         {
                             var value = TestRunCache.AdapterTelemetry[adapterMetrics];
 

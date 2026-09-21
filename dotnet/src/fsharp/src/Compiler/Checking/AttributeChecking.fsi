@@ -55,33 +55,67 @@ val TryBindMethInfoAttribute:
         'a option
 #endif
 
+val TryGetMethodObsoleteInfo: minfo: MethInfo -> ObsoleteDiagnosticInfo option
+
 val TryFindMethInfoStringAttribute:
     g: TcGlobals -> m: range -> attribSpec: BuiltinAttribInfo -> minfo: MethInfo -> string option
 
 val MethInfoHasAttribute: g: TcGlobals -> m: range -> attribSpec: BuiltinAttribInfo -> minfo: MethInfo -> bool
 
+[<Struct; NoEquality; NoComparison>]
+type WellKnownMethAttribute =
+    { ILFlag: WellKnownILAttributes
+      ValFlag: WellKnownValAttributes
+      AttributeName: string }
+
+val MethInfoHasWellKnownAttribute:
+    g: TcGlobals ->
+    m: range ->
+    ilFlag: WellKnownILAttributes ->
+    valFlag: WellKnownValAttributes ->
+    attribName: string ->
+    minfo: MethInfo ->
+        bool
+
+val MethInfoHasWellKnownAttributeSpec:
+    g: TcGlobals -> m: range -> spec: WellKnownMethAttribute -> minfo: MethInfo -> bool
+
 val CheckFSharpAttributes: g: TcGlobals -> attribs: Attrib list -> m: range -> OperationResult<unit>
 
-val CheckILAttributesForUnseen: g: TcGlobals -> cattrs: ILAttributes -> _m: 'a -> bool
+val CheckILAttributesForUnseen: cattrs: ILAttributes -> bool
+
+val CheckILAttributesForUnseenStored: g: TcGlobals -> cattrsStored: ILAttributesStored -> bool
 
 val CheckFSharpAttributesForHidden: g: TcGlobals -> attribs: Attrib list -> bool
 
-val CheckFSharpAttributesForObsolete: g: TcGlobals -> attribs: Attrib list -> bool
+val TryGetFSharpObsoleteInfo: g: TcGlobals -> attribs: Attrib list -> ObsoleteDiagnosticInfo option
 
-val CheckFSharpAttributesForUnseen: g: TcGlobals -> attribs: Attrib list -> _m: 'a -> allowObsolete: bool -> bool
+val CheckFSharpAttributesForObsolete: g: TcGlobals -> attribs: Attribs -> bool
+
+val CheckFSharpAttributesForUnseen: g: TcGlobals -> attribs: Attrib list -> allowObsolete: bool -> bool
 
 val CheckPropInfoAttributes: pinfo: PropInfo -> m: range -> OperationResult<unit>
 
+val TryGetPropObsoleteInfo: pinfo: PropInfo -> ObsoleteDiagnosticInfo option
+
 val CheckILFieldAttributes: g: TcGlobals -> finfo: ILFieldInfo -> m: range -> unit
+
+val TryGetILFieldObsoleteInfo: g: TcGlobals -> finfo: ILFieldInfo -> ObsoleteDiagnosticInfo option
 
 val CheckMethInfoAttributes:
     g: TcGlobals -> m: range -> tyargsOpt: 'a option -> minfo: MethInfo -> OperationResult<unit>
 
 val MethInfoIsUnseen: g: TcGlobals -> m: range -> ty: TType -> minfo: MethInfo -> allowObsolete: bool -> bool
 
-val PropInfoIsUnseen: m: 'a -> allowObsolete: bool -> pinfo: PropInfo -> bool
+val PropInfoIsUnseen: _m: 'a -> allowObsolete: bool -> pinfo: PropInfo -> bool
+
+val ILFieldInfoIsUnseen: finfo: ILFieldInfo -> bool
+
+val EventInfoIsUnseen: allowObsolete: bool -> einfo: EventInfo -> bool
 
 val CheckEntityAttributes: g: TcGlobals -> tcref: TyconRef -> m: range -> OperationResult<unit>
+
+val TryGetEntityObsoleteInfo: g: TcGlobals -> tcref: TyconRef -> ObsoleteDiagnosticInfo option
 
 val CheckUnionCaseAttributes: g: TcGlobals -> x: UnionCaseRef -> m: range -> OperationResult<unit>
 
@@ -101,3 +135,5 @@ val IsSecurityCriticalAttribute: g: TcGlobals -> Attrib -> bool
 val IsAssemblyVersionAttribute: g: TcGlobals -> Attrib -> bool
 
 val CheckILEventAttributes: g: TcGlobals -> tcref: TyconRef -> cattrs: ILAttributes -> m: range -> OperationResult<unit>
+
+val TryGetEventObsoleteInfo: einfo: EventInfo -> ObsoleteDiagnosticInfo option

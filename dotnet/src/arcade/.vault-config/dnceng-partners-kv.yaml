@@ -42,16 +42,6 @@ secrets:
       permissions: rl
       service: blob|file
 
-  dn-dependabot-dnceng-package-rw-pat:
-    type: azure-devops-access-token
-    parameters:
-      organizations: dnceng
-      scopes: packaging_write
-      domainAccountName: dn-dependabot
-      domainAccountSecret:
-        name: dn-dependabot-account-redmond
-        location: helixkv
-
   BotAccount-dotnet-bot-content-rw-grained-pat:
     type: github-access-token
     parameters:
@@ -61,15 +51,6 @@ secrets:
       gitHubBotAccountName: BotAccount-dotnet-bot
       requiredScopes: content
       description: "This pat is under the beta fine-grained tokens using dotnet as owner and repository specific for vscode-csharp and roslyn. The permissions are: Content - Read and write."
-      
-  # Fine grained for docs, docs-desktop, docs-maui, docs-desktop, aspnetcore, scoped to issues r/w prs r/w
-  BotAccount-dotnet-bot-repoman-PAT:
-    type: github-access-token
-    parameters:
-      gitHubBotAccountSecret:
-        name: BotAccount-dotnet-bot
-        location: EngKeyVault
-      gitHubBotAccountName: dotnet-bot
 
   # repo, workflow scopes (classic token)
   BotAccount-dotnet-renovate-bot-PAT:
@@ -79,28 +60,6 @@ secrets:
         name: BotAccount-dotnet-renovate-bot
         location: EngKeyVault
       gitHubBotAccountName: dotnet-renovate-bot
-
-  roslyn-dn-bot-devdiv-build-r-release-r-code-r:
-    type: azure-devops-access-token
-    parameters:
-      description: Created for roslyn-tools pr-tagger
-      organizations: devdiv
-      scopes: build release code
-      domainAccountName: dn-bot
-      domainAccountSecret:
-        name: dn-bot-account-redmond
-        location: helixkv
-
-  roslyn-dn-bot-dnceng-build-r:
-    type: azure-devops-access-token
-    parameters:
-      description: Created for roslyn-tools pr-tagger
-      organizations: dnceng
-      scopes: build 
-      domainAccountName: dn-bot
-      domainAccountSecret:
-        name: dn-bot-account-redmond
-        location: helixkv
 
   # Fine-grained pat with "issue read and write" permission
   # Restricted to the following repositories:

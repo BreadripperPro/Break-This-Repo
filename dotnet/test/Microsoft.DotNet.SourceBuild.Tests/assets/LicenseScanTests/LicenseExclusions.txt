@@ -1,6 +1,6 @@
 # Contains the list of files to be excluded from license scanning.
 #
-# This list is processed using FileSystemName.MatchesSimpleExpression
+# This list is processed using Microsoft.Extensions.FileSystemGlobbing.Matcher
 #
 # Format:
 #   Exclude the file entirely from license scanning:
@@ -18,7 +18,6 @@ src/arcade/src/Microsoft.DotNet.Build.Tasks.Installers/build/deb-package-tool/te
 src/arcade/src/Microsoft.DotNet.Build.Tasks.Installers/build/rpm_templates/copyright|unknown-license-reference
 
 # Doesn't apply to code
-src/arcade/eng/xcopy-msbuild/msbuild.nuspec|ms-visual-2015-sdk
 src/arcade/src/Microsoft.DotNet.Arcade.Sdk/tools/Licenses/*
 
 # Applies to installer, not source
@@ -37,15 +36,8 @@ src/aspnetcore/src/Framework/App.Runtime/bundle/theme/**/*.wxl|unknown-license-r
 src/aspnetcore/src/Installers/Windows/**/*.wxl|unknown-license-reference
 src/aspnetcore/src/Installers/Windows/**/*.wxs|unknown-license-reference
 
-# License reference used in configuration, but not applying to code
-src/aspnetcore/src/Mvc/Settings.StyleCop|unknown-license-reference
-
-#
-# command-line-api
-#
-
-# False positive
-src/command-line-api/System.CommandLine.sln|json
+# Package license metadata does not license the lockfile source
+src/aspnetcore/eng/skill-evals/evaluation-tools/package-lock.json|unknown-license-reference
 
 #
 # deployment-tools
@@ -123,8 +115,15 @@ src/roslyn/src/Analyzers/VisualBasic/Tests/FileHeaders/FileHeaderTests.vb|unknow
 src/roslyn/src/EditorFeatures/CSharpTest2/EmbeddedLanguages/RegularExpressions/Regex_RealWorldPatterns.json
 src/roslyn/src/VisualStudio/IntegrationTest/Harness/IntegrationTestServiceDev18/source.extension.vsixmanifest|unknown-license-reference
 
+# Package template placeholders, not actual license references
+src/roslyn/src/RoslynSdk/Samples/VisualBasic/Analyzers/Analyzers.Implementation/Analyzers.VisualBasic.vbproj|unknown-license-reference
+src/roslyn/src/RoslynSdk/Samples/VisualBasic/MakeConst/MakeConst/MakeConst.VisualBasic.vbproj|unknown-license-reference
+src/roslyn/src/RoslynSdk/VisualStudio.Roslyn.SDK/Roslyn.SDK/ProjectTemplates/CSharp/Diagnostic/Package/Package.csproj|unknown-license-reference
+src/roslyn/src/RoslynSdk/VisualStudio.Roslyn.SDK/Roslyn.SDK/ProjectTemplates/VisualBasic/Diagnostic/Package/Package.vbproj|unknown-license-reference
+
 # Applicable to installer, not source
 src/roslyn/src/RoslynAnalyzers/Assets/EULA.txt|ms-net-library
+src/roslyn/src/RoslynSdk/VisualStudio.Roslyn.SDK/EULA.rtf
 src/roslyn/src/Setup/Roslyn.ThirdPartyNotices/ThirdPartyNotices.rtf
 src/roslyn/src/Setup/Roslyn.VsixLicense/EULA.rtf
 
@@ -134,6 +133,9 @@ src/roslyn/src/Setup/Roslyn.VsixLicense/EULA.rtf
 
 # Installer asset, not applicable to source
 src/runtime/src/installer/pkg/LICENSE-MSFT.TXT
+
+# Package license metadata does not license the lockfile source
+src/runtime/.github/workflows/evals/package-lock.json|unknown-license-reference
 
 # False positive
 src/runtime/THIRD-PARTY-NOTICES.TXT|clear-bsd
@@ -174,23 +176,26 @@ src/sdk/template_feed/Microsoft.DotNet.Common.ProjectTemplates.11.0/content/*/.t
 src/sdk/src/Microsoft.CodeAnalysis.NetAnalyzers/src/assets/EULA.txt|ms-net-library
 
 #
-# source-build-reference-packages
+# source-build-assets
 #
 
+# Contributor agreement (DCO), not a software license
+src/source-build-assets/src/externalPackages/src/antlr4/developer-cert-of-origin.txt|dco-1.1
+
 # False positive
-src/source-build-reference-packages/src/externalPackages/src/application-insights/NETCORE/ThirdPartyNotices.txt|unknown-license-reference
-src/source-build-reference-packages/src/externalPackages/src/application-insights/WEB/ThirdPartyNotices.txt|unknown-license-reference
-src/source-build-reference-packages/src/externalPackages/src/azure-activedirectory-identitymodel-extensions-for-dotnet/src/Microsoft.IdentityModel.Validators/AadIssuerValidator/AadIssuerValidatorConstants.cs|cpl-1.0
-src/source-build-reference-packages/src/externalPackages/src/humanizer/NuSpecs/*.nuspec*
-src/source-build-reference-packages/src/externalPackages/src/spectre-console/README.md|unknown-license-reference
-src/source-build-reference-packages/src/targetPacks/ILsrc/netstandard.library/2.0.*/THIRD-PARTY-NOTICES.TXT|unknown-license-reference
-src/source-build-reference-packages/src/targetPacks/ILsrc/netstandard.library.ref/2.1.0/THIRD-PARTY-NOTICES.TXT|codesourcery-2004
-src/source-build-reference-packages/src/textOnlyPackages/src/microsoft.netcore.*/1.*/ThirdPartyNotices.txt|unknown-license-reference
-src/source-build-reference-packages/src/textOnlyPackages/src/microsoft.private.intellisense/*/IntellisenseFiles/*/1033/System.Security.Permissions.xml|unknown-license-reference
+src/source-build-assets/Directory.Build.props|unknown-license-reference
+src/source-build-assets/src/externalPackages/src/azure-activedirectory-identitymodel-extensions-for-dotnet/src/Microsoft.IdentityModel.Validators/AadIssuerValidator/AadIssuerValidatorConstants.cs|cpl-1.0
+src/source-build-assets/src/externalPackages/src/humanizer/NuSpecs/*.nuspec*
+src/source-build-assets/src/externalPackages/src/spectre-console/README.md|unknown-license-reference
+src/source-build-assets/src/targetPacks/ILsrc/netstandard.library/2.0.*/THIRD-PARTY-NOTICES.TXT|unknown-license-reference
+src/source-build-assets/src/targetPacks/ILsrc/netstandard.library.ref/2.1.0/THIRD-PARTY-NOTICES.TXT|codesourcery-2004
+src/source-build-assets/src/textOnlyPackages/src/microsoft.netcore.*/1.*/ThirdPartyNotices.txt|unknown-license-reference
+src/source-build-assets/src/textOnlyPackages/src/microsoft.private.intellisense/*/IntellisenseFiles/*/1033/System.Security.Permissions.xml|unknown-license-reference
 
 # Contains references to licenses which are not applicable to the source
-src/source-build-reference-packages/src/packageSourceGenerator/PackageSourceGeneratorTask/RewriteNuspec.cs|unknown-license-reference,ms-net-library-2018-11
-src/source-build-reference-packages/src/textOnlyPackages/src/microsoft.private.intellisense/*/IntellisenseFiles/windowsdesktop/1033/PresentationCore.xml|proprietary-license
+src/source-build-assets/src/packageSourceGenerator/PackageSourceGeneratorTask/GenerateProject.cs
+src/source-build-assets/src/textOnlyPackages/src/microsoft.private.intellisense/*/IntellisenseFiles/windowsdesktop/1033/PresentationCore.xml|proprietary-license
+src/source-build-assets/src/textOnlyPackages/src/microsoft.netcore.platforms/1.1.0/dotnet_library_license.txt|ms-net-library
 
 #
 # sourcelink

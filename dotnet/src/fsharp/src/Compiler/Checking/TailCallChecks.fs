@@ -15,6 +15,14 @@ open FSharp.Compiler.TypedTreeBasics
 open FSharp.Compiler.TypedTreeOps
 open FSharp.Compiler.TypeRelations
 
+/// Check for TailCallAttribute via O(1) flag lookup, with fallback for user-defined shadow types.
+let private hasTailCallAttrib (g: TcGlobals) (attribs: Attribs) =
+    attribsHaveValFlag g WellKnownValAttributes.TailCallAttribute attribs
+    || attribs
+       |> List.exists (fun (Attrib(tcref, _, _, _, _, _, _)) ->
+           tcref.IsLocalRef
+           && tcref.CompiledRepresentationForNamedType.FullName = "Microsoft.FSharp.Core.TailCallAttribute")
+
 [<return: Struct>]
 let (|ValUseAtApp|_|) e =
     match e with
@@ -63,7 +71,7 @@ type TailCall =
         | TailCall.No -> TailCall.No
 
 let IsValRefIsDllImport g (vref: ValRef) =
-    vref.Attribs |> HasFSharpAttributeOpt g g.attrib_DllImportAttribute
+    ValHasWellKnownAttribute g WellKnownValAttributes.DllImportAttribute vref.Deref
 
 type cenv =
     {
@@ -212,7 +220,7 @@ let CheckForNonTailRecCall (cenv: cenv) expr (tailCall: TailCall) =
             // ``Warn successfully in match clause``
             // ``Warn for byref parameters``
             if not canTailCall then
-                warning (Error(FSComp.SR.chkNotTailRecursive vref.DisplayName, m))
+                warning (Error(FSComp.SR.chkNotTailRecursive (richTextOfValName g vref.Deref), m))
         | _ -> ()
     | _ -> ()
 
@@ -309,8 +317,7 @@ and CheckExprLinear (cenv: cenv) expr (ctxt: PermitByRefExpr) (tailCall: TailCal
 and CheckExpr (cenv: cenv) origExpr (ctxt: PermitByRefExpr) (tailCall: TailCall) : unit =
 
     // Guard the stack for deeply nested expressions
-    cenv.stackGuard.Guard
-    <| fun () ->
+    cenv.stackGuard.Guard(fun () ->
 
         let g = cenv.g
 
@@ -400,7 +407,7 @@ and CheckExpr (cenv: cenv) origExpr (ctxt: PermitByRefExpr) (tailCall: TailCall)
 
         | Expr.WitnessArg _ -> ()
 
-        | Expr.Link _ -> failwith "Unexpected reclink"
+        | Expr.Link _ -> failwith "Unexpected reclink")
 
 and CheckStructStateMachineExpr cenv info =
 
@@ -756,7 +763,7 @@ let CheckModuleBinding cenv (isRec: bool) (TBind _ as bind) =
 
     // warn for non-rec functions which have the attribute
     if cenv.g.langVersion.SupportsFeature LanguageFeature.WarningWhenTailCallAttrOnNonRec then
-        if not isRec && cenv.g.HasTailCallAttrib bind.Var.Attribs then
+        if not isRec && hasTailCallAttrib cenv.g bind.Var.Attribs then
             warning (Error(FSComp.SR.chkTailCallAttrOnNonRec (), bind.Var.Range))
 
     // Check if a let binding to the result of a rec expression is not inside the rec expression
@@ -772,7 +779,7 @@ let CheckModuleBinding cenv (isRec: bool) (TBind _ as bind) =
                 match expr with
                 | Expr.Val(valRef = valRef; range = m) ->
                     if isRec && insideSubBindingOrTry && cenv.mustTailCall.Contains valRef.Deref then
-                        warning (Error(FSComp.SR.chkNotTailRecursive valRef.DisplayName, m))
+                        warning (Error(FSComp.SR.chkNotTailRecursive (richTextOfValName cenv.g valRef.Deref), m))
                 | Expr.App(funcExpr = funcExpr; args = argExprs) ->
                     checkTailCall insideSubBindingOrTry funcExpr
                     argExprs |> List.iter (checkTailCall insideSubBindingOrTry)
@@ -839,7 +846,7 @@ and CheckDefnInModule cenv mdef =
                 let mustTailCall =
                     Seq.fold
                         (fun mustTailCall (v: Val) ->
-                            if cenv.g.HasTailCallAttrib v.Attribs then
+                            if hasTailCallAttrib cenv.g v.Attribs then
                                 let newSet = Zset.add v mustTailCall
                                 newSet
                             else

@@ -64,14 +64,15 @@ public class ChangeDetector : IChangeDetector
             case IComplexProperty { IsCollection: false } complexProperty:
                 // TODO: This requires notification change tracking for complex types
                 // Issue #36175
-                if (entry.EntityState is not EntityState.Deleted 
-                    && setModified 
+                if (entry.EntityState is not EntityState.Deleted
+                    && setModified
                     && entry is InternalEntryBase entryBase
-                    && complexProperty.IsNullable 
+                    && complexProperty.IsNullable
                     && complexProperty.GetOriginalValueIndex() >= 0)
                 {
                     DetectComplexPropertyChange(entryBase, complexProperty);
                 }
+
                 break;
 
             case INavigationBase navigation when propertyBase.GetRelationshipIndex() != -1:
@@ -281,6 +282,17 @@ public class ChangeDetector : IChangeDetector
         var changesFound = false;
         foreach (var property in entry.StructuralType.GetFlattenedProperties())
         {
+            if (!entry.IsLoaded(property))
+            {
+                if (!property.GetValueComparer().Equals(entry[property], property.Sentinel))
+                {
+                    entry.SetPropertyModified(property);
+                    changesFound = true;
+                }
+
+                continue;
+            }
+
             if (property.GetOriginalValueIndex() >= 0
                 && !entry.IsModified(property)
                 && !entry.IsConceptualNull(property))
@@ -333,18 +345,31 @@ public class ChangeDetector : IChangeDetector
 
         if ((currentValue is null) != (originalValue is null))
         {
-            // If it changed from null to non-null, mark all inner properties as modified
-            // to ensure the entity is detected as modified and the complex type properties are persisted
-            if (currentValue is not null)
+            // Set the discriminator value for the complex type when transitioning from null to non-null or vice versa.
+            // The discriminator is a shadow property whose value needs to be updated to reflect the new state.
+            var discriminatorProperty = complexProperty.ComplexType.FindDiscriminatorProperty();
+            if (discriminatorProperty != null)
             {
-                foreach (var innerProperty in complexProperty.ComplexType.GetFlattenedProperties())
+                if (currentValue is not null)
                 {
-                    // Only mark properties that are tracked and can be modified
-                    if (innerProperty.GetOriginalValueIndex() >= 0
-                        && innerProperty.GetAfterSaveBehavior() == PropertySaveBehavior.Save)
-                    {
-                        entry.SetPropertyModified(innerProperty);
-                    }
+                    entry[discriminatorProperty] = complexProperty.ComplexType.GetDiscriminatorValue();
+                }
+                else if (discriminatorProperty.IsShadowProperty())
+                {
+                    entry[discriminatorProperty] = discriminatorProperty.ClrType.GetDefaultValue();
+                }
+            }
+
+            // If it changed from null to non-null or from non-null to null, mark all inner properties as modified
+            // to ensure the entity is detected as modified and the complex type properties are persisted
+            foreach (var innerProperty in complexProperty.ComplexType.GetFlattenedProperties())
+            {
+                // Only mark properties that are tracked, can be modified, and are loaded
+                if (innerProperty.GetOriginalValueIndex() >= 0
+                    && innerProperty.GetAfterSaveBehavior() == PropertySaveBehavior.Save
+                    && entry.IsLoaded(innerProperty))
+                {
+                    entry.SetPropertyModified(innerProperty);
                 }
             }
 
@@ -384,7 +409,7 @@ public class ChangeDetector : IChangeDetector
         var currentCollection = (IList?)entry[complexProperty];
         // The elements in the original collection might be the same instances as in the current collection, so their properties shouldn't be used for comparison.
         var originalCollection = (IList?)entry.GetOriginalValue(complexProperty);
-        var changesFound = (currentCollection == null) != (originalCollection == null);
+        var changesFound = currentCollection == null != (originalCollection == null);
 
         entry.EnsureComplexCollectionEntriesCapacity(
             complexProperty, currentCollection?.Count ?? 0, originalCollection?.Count ?? 0, trim: false);
@@ -516,7 +541,7 @@ public class ChangeDetector : IChangeDetector
                             // If the element was newly added then there should be a null entry at some ordinal,
                             // otherwise it will be treated as a replacement.
                             var nullEntryOrdinal = -1;
-                            for (var j = originalCollection?.Count ?? i + 1; j < currentEntries.Count; j++)
+                            for (var j = originalCollection?.Count ?? (i + 1); j < currentEntries.Count; j++)
                             {
                                 var newEntry = currentEntries[j];
                                 if (newEntry == null)
@@ -792,6 +817,11 @@ public class ChangeDetector : IChangeDetector
     /// </summary>
     public bool DetectValueChange(IInternalEntry entry, IProperty property)
     {
+        if (!entry.IsLoaded(property))
+        {
+            return false;
+        }
+
         var current = entry[property];
         var original = entry.GetOriginalValue(property);
 

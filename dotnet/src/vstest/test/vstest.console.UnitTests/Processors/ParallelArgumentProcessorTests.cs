@@ -12,31 +12,31 @@ namespace Microsoft.VisualStudio.TestPlatform.CommandLine.UnitTests.Processors;
 [TestClass]
 public class ParallelArgumentProcessorTests
 {
+    private readonly CommandLineOptions _commandLineOptions = new();
     private readonly ParallelArgumentExecutor _executor;
     private readonly TestableRunSettingsProvider _runSettingsProvider;
 
     public ParallelArgumentProcessorTests()
     {
         _runSettingsProvider = new TestableRunSettingsProvider();
-        _executor = new ParallelArgumentExecutor(CommandLineOptions.Instance, _runSettingsProvider);
+        _executor = new ParallelArgumentExecutor(_commandLineOptions, _runSettingsProvider);
     }
     [TestCleanup]
     public void TestCleanup()
     {
-        CommandLineOptions.Reset();
     }
 
     [TestMethod]
     public void GetMetadataShouldReturnParallelArgumentProcessorCapabilities()
     {
-        var processor = new ParallelArgumentProcessor();
+        var processor = new ParallelArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Metadata.Value is ParallelArgumentProcessorCapabilities);
     }
 
     [TestMethod]
     public void GetExecuterShouldReturnParallelArgumentExecutor()
     {
-        var processor = new ParallelArgumentProcessor();
+        var processor = new ParallelArgumentProcessor(_commandLineOptions, new TestableRunSettingsProvider());
         Assert.IsTrue(processor.Executor!.Value is ParallelArgumentExecutor);
     }
 
@@ -68,16 +68,15 @@ public class ParallelArgumentProcessorTests
     {
 
         // Parallel should not have any values or arguments
-        ExceptionUtilities.ThrowsException<CommandLineException>(
-            () => _executor.Initialize("123"),
-            "Argument " + 123 + " is not expected in the 'Parallel' command. Specify the command without the argument (Example: vstest.console.exe myTests.dll /Parallel) and try again.");
+        var ex = Assert.ThrowsExactly<CommandLineException>(() => _executor.Initialize("123"));
+        Assert.Contains("Argument " + 123 + " is not expected in the 'Parallel' command. Specify the command without the argument (Example: vstest.console.exe myTests.dll /Parallel) and try again.", ex.Message);
     }
 
     [TestMethod]
     public void InitializeShouldSetParallelValue()
     {
         _executor.Initialize(null);
-        Assert.IsTrue(CommandLineOptions.Instance.Parallel, "Parallel option must be set to true.");
+        Assert.IsTrue(_commandLineOptions.Parallel, "Parallel option must be set to true.");
         Assert.AreEqual("0", _runSettingsProvider.QueryRunSettingsNode(ParallelArgumentExecutor.RunSettingsPath));
     }
 

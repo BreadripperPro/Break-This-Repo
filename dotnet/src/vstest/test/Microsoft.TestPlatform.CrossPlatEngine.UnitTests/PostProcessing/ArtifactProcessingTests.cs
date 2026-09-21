@@ -97,7 +97,7 @@ public class ArtifactProcessingTests
         _artifactProcessingManager.CollectArtifacts(testRunCompleteEventArgs, string.Empty);
 
         // assert
-        _fileHelperMock.Verify(x => x.CreateDirectory(It.IsAny<string>()), Times.Once);
+        _fileHelperMock.Verify(x => x.CreateDirectory(It.IsAny<string>()), Times.Exactly(2));
         _fileHelperMock.Verify(x => x.WriteAllTextToFile(It.IsAny<string>(), It.IsAny<string>()), Times.Exactly(2));
         _dataSerializer.Verify(x => x.SerializePayload(It.IsAny<string>(), It.IsAny<TestRunCompleteEventArgs>()), Times.Once);
     }
@@ -144,12 +144,12 @@ public class ArtifactProcessingTests
         _fileHelperMock.Setup(x => x.GetStream(It.IsAny<string>(), It.IsAny<FileMode>(), It.IsAny<FileAccess>()))
             .Returns((string path, FileMode mode, FileAccess access) =>
             {
-                if (path.EndsWith("runsettings.xml"))
+                if (path.EndsWith("runsettings.xml", StringComparison.Ordinal))
                 {
                     return new MemoryStream(Encoding.UTF8.GetBytes(RunSettingsProviderExtensions.EmptyRunSettings));
                 }
 
-                if (path.EndsWith("executionComplete.json"))
+                if (path.EndsWith("executionComplete.json", StringComparison.Ordinal))
                 {
                     var testRunCompleteEventArgs = new TestRunCompleteEventArgs(null,
                     false,
@@ -192,7 +192,7 @@ public class ArtifactProcessingTests
         _fileHelperMock.Setup(x => x.GetStream(It.IsAny<string>(), It.IsAny<FileMode>(), It.IsAny<FileAccess>()))
             .Returns((string path, FileMode mode, FileAccess access) =>
             {
-                if (path.EndsWith("executionComplete.json"))
+                if (path.EndsWith("executionComplete.json", StringComparison.Ordinal))
                 {
                     var testRunCompleteEventArgs = new TestRunCompleteEventArgs(null,
                     false,
@@ -235,7 +235,7 @@ public class ArtifactProcessingTests
         _fileHelperMock.Setup(x => x.GetStream(It.IsAny<string>(), It.IsAny<FileMode>(), It.IsAny<FileAccess>()))
             .Returns((string path, FileMode mode, FileAccess access) =>
             {
-                if (path.EndsWith("runsettings.xml"))
+                if (path.EndsWith("runsettings.xml", StringComparison.Ordinal))
                 {
                     return new MemoryStream(Encoding.UTF8.GetBytes(RunSettingsProviderExtensions.EmptyRunSettings));
                 }
@@ -270,7 +270,7 @@ public class ArtifactProcessingTests
         _fileHelperMock.Setup(x => x.GetStream(It.IsAny<string>(), It.IsAny<FileMode>(), It.IsAny<FileAccess>()))
             .Returns((string path, FileMode mode, FileAccess access) =>
             {
-                if (path.EndsWith("executionComplete.json"))
+                if (path.EndsWith("executionComplete.json", StringComparison.Ordinal))
                 {
                     var testRunCompleteEventArgs = new TestRunCompleteEventArgs(null,
                     false,
@@ -291,7 +291,7 @@ public class ArtifactProcessingTests
         _dataSerializer.Setup(x => x.DeserializeMessage(It.IsAny<string>())).Returns((string rawMessage) => throw new Exception("Malformed json"));
 
         // act
-        await Assert.ThrowsExceptionAsync<Exception>(() => _artifactProcessingManager.PostProcessArtifactsAsync());
+        await Assert.ThrowsExactlyAsync<Exception>(() => _artifactProcessingManager.PostProcessArtifactsAsync());
 
         // assert
         _fileHelperMock.Verify(x => x.DeleteDirectory(It.IsAny<string>(), It.IsAny<bool>()), Times.Once);

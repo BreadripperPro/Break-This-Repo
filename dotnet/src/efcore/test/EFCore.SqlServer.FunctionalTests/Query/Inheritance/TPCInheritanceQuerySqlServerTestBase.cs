@@ -1,17 +1,15 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 namespace Microsoft.EntityFrameworkCore.Query.Inheritance;
-
-#nullable disable
 
 public abstract class TPCInheritanceQuerySqlServerTestBase<TFixture>(TFixture fixture, ITestOutputHelper testOutputHelper)
     : TPCInheritanceQueryTestBase<TFixture>(fixture, testOutputHelper)
     where TFixture : TPCInheritanceQuerySqlServerFixtureBase, new()
 {
-    [ConditionalFact]
+    [Fact]
     public virtual void Check_all_tests_overridden()
-        => TestHelpers.AssertAllMethodsOverridden(GetType().BaseType);
+        => TestHelpers.AssertAllMethodsOverridden(GetType().BaseType!);
 
     public override async Task Byte_enum_value_constant_used_in_projection(bool async)
     {

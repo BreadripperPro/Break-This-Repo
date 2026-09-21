@@ -48,7 +48,7 @@ public class SqlServerSqlNullabilityProcessor(
             parametersDecorator,
             CollectionParameterTranslationMode,
 #pragma warning disable EF1001
-            (count, elementTypeMapping) => CalculatePadding(count, CalculateParameterBucketSize(count, elementTypeMapping)));
+            CalculateBucketPadding);
 #pragma warning restore EF1001
         parametersCounter.Visit(queryExpression);
         _totalParameterCount = parametersCounter.Count;
@@ -72,6 +72,9 @@ public class SqlServerSqlNullabilityProcessor(
         {
             SqlServerAggregateFunctionExpression aggregateFunctionExpression
                 => VisitSqlServerAggregateFunction(aggregateFunctionExpression, allowOptimizedExpansion, out nullable),
+
+            WithApproximateExpression withApproximate
+                => withApproximate.Update(Visit(withApproximate.Operand, allowOptimizedExpansion, out nullable)),
 
             _ => base.VisitCustomSqlExpression(sqlExpression, allowOptimizedExpansion, out nullable)
         };
@@ -103,10 +106,7 @@ public class SqlServerSqlNullabilityProcessor(
                 }
             }
 
-            if (arguments is not null)
-            {
-                arguments[i] = visitedArgument;
-            }
+            arguments?[i] = visitedArgument;
         }
 
         OrderingExpression[]? orderings = null;
@@ -124,10 +124,7 @@ public class SqlServerSqlNullabilityProcessor(
                 }
             }
 
-            if (orderings is not null)
-            {
-                orderings[i] = visitedOrdering;
-            }
+            orderings?[i] = visitedOrdering;
         }
 
         return arguments is not null || orderings is not null
@@ -453,26 +450,34 @@ public class ParametersCounter(
     public virtual int Count { get; private set; }
 
     private readonly HashSet<SqlParameterExpression> _visitedSqlParameters =
-        new(EqualityComparer<SqlParameterExpression>.Create(
-            (lhs, rhs) =>
-                ReferenceEquals(lhs, rhs)
-                || (lhs is not null && rhs is not null
-                    && lhs.InvariantName == rhs.InvariantName
-                    && lhs.Type == rhs.Type
-                    && lhs.TypeMapping == rhs.TypeMapping
-                    && lhs.TranslationMode == rhs.TranslationMode),
-            x => HashCode.Combine(x.InvariantName, x.Type, x.TypeMapping, x.TranslationMode)));
+    [
+        with(
+            EqualityComparer<SqlParameterExpression>.Create(
+                (lhs, rhs) =>
+                    ReferenceEquals(lhs, rhs)
+                    || (lhs is not null
+                        && rhs is not null
+                        && lhs.InvariantName == rhs.InvariantName
+                        && lhs.Type == rhs.Type
+                        && lhs.TypeMapping == rhs.TypeMapping
+                        && lhs.TranslationMode == rhs.TranslationMode),
+                x => HashCode.Combine(x.InvariantName, x.Type, x.TypeMapping, x.TranslationMode)))
+    ];
 
     private readonly HashSet<QueryParameterExpression> _visitedQueryParameters =
-        new(EqualityComparer<QueryParameterExpression>.Create(
-            (lhs, rhs) =>
-                ReferenceEquals(lhs, rhs)
-                || (lhs is not null && rhs is not null
-                    && lhs.Name == rhs.Name
-                    && lhs.TranslationMode == rhs.TranslationMode),
-            x => HashCode.Combine(x.Name, x.TranslationMode)));
+    [
+        with(
+            EqualityComparer<QueryParameterExpression>.Create(
+                (lhs, rhs) =>
+                    ReferenceEquals(lhs, rhs)
+                    || (lhs is not null
+                        && rhs is not null
+                        && lhs.Name == rhs.Name
+                        && lhs.TranslationMode == rhs.TranslationMode),
+                x => HashCode.Combine(x.Name, x.TranslationMode)))
+    ];
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     protected override Expression VisitExtension(Expression node)
     {
         switch (node)
@@ -491,6 +496,7 @@ public class ParametersCounter(
                     var parameters = parametersDecorator.GetAndDisableCaching();
                     Count += ((object?[])parameters[queryParameter.Name]!).Length;
                 }
+
                 break;
 
             case SqlParameterExpression sqlParameterExpression:
@@ -498,6 +504,7 @@ public class ParametersCounter(
                 {
                     Count++;
                 }
+
                 break;
         }
 
@@ -506,14 +513,19 @@ public class ParametersCounter(
 
     private void ProcessCollectionParameter(SqlParameterExpression sqlParameterExpression, bool bucketization)
     {
-        if (!_visitedSqlParameters.Add(sqlParameterExpression))
+        // Mark the parameter as visited so the subsequent child visit on this SqlParameterExpression (which would
+        // hit the generic SqlParameterExpression branch and add 1 to Count) is suppressed.
+        var translationMode = sqlParameterExpression.TranslationMode ?? collectionParameterTranslationMode;
+        if (!_visitedSqlParameters.Add(sqlParameterExpression)
+            && translationMode != ParameterTranslationMode.MultipleParameters)
         {
             return;
         }
 
-        switch (sqlParameterExpression.TranslationMode ?? collectionParameterTranslationMode)
+        switch (translationMode)
         {
             case ParameterTranslationMode.MultipleParameters:
+                // Count expansion size per occurrence.
                 var parameters = parametersDecorator.GetAndDisableCaching();
                 var count = ((IEnumerable?)parameters[sqlParameterExpression.Name])?.Cast<object?>().Count() ?? 0;
                 Count += count;

@@ -18,13 +18,12 @@ public static class LaunchSettings
         { ExecutableLaunchProfileParser.CommandName, ExecutableLaunchProfileParser.Instance }
     };
 
-    public static IEnumerable<string> SupportedProfileTypes => s_providers.Keys;
+    internal static IEnumerable<string> SupportedProfileTypes => s_providers.Keys;
 
-
-    public static string GetPropertiesLaunchSettingsPath(string directoryPath, string propertiesDirectoryName)
+    internal static string GetPropertiesLaunchSettingsPath(string directoryPath, string propertiesDirectoryName)
         => Path.Combine(directoryPath, propertiesDirectoryName, "launchSettings.json");
 
-    public static string GetFlatLaunchSettingsPath(string directoryPath, string projectNameWithoutExtension)
+    internal static string GetFlatLaunchSettingsPath(string directoryPath, string projectNameWithoutExtension)
         => Path.Join(directoryPath, $"{projectNameWithoutExtension}.run.json");
 
     public static string? TryFindLaunchSettingsFile(string projectOrEntryPointFilePath, string? launchProfile, Action<string, bool> report)
@@ -72,7 +71,10 @@ public static class LaunchSettings
         return null;
     }
 
-    public static LaunchProfileParseResult ReadProfileSettingsFromFile(string launchSettingsPath, string? profileName = null)
+    internal static LaunchProfileParseResult ReadProfileSettingsFromFile(
+        string launchSettingsPath,
+        string? profileName,
+        LaunchProfileParserOptions parserOptions)
     {
         try
         {
@@ -161,7 +163,19 @@ public static class LaunchSettings
                     return LaunchProfileParseResult.Failure(string.Format(Resources.LaunchProfileHandlerCannotBeLocated, commandName));
                 }
 
-                return provider.ParseProfile(launchSettingsPath, selectedProfileName, profileObject.GetRawText());
+                Func<string, string>? evaluateExpression = provider switch
+                {
+                    ProjectLaunchProfileParser when parserOptions.ExpandProjectProfile => parserOptions.EvaluateExpression,
+                    ExecutableLaunchProfileParser when parserOptions.ExpandExecutableProfile => parserOptions.EvaluateExpression,
+                    _ => null,
+                };
+
+                return provider.ParseProfile(
+                    launchSettingsPath,
+                    selectedProfileName,
+                    profileObject.GetRawText(),
+                    evaluateExpression,
+                    parserOptions.ExpandCommandLineArgs);
             }
         }
         catch (Exception ex) when (ex is JsonException or IOException)
