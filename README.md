@@ -11,6 +11,11 @@
 
 ---
 
+> [!NOTE]
+> read [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before using
+
+---
+
 ## 警告!
 > [!CAUTION]
 > To [@mpmp666](https://github.com/mpmp666), if you posting shit ads again, i'll report ur fking shit github account for abusing this repo
