@@ -1,0 +1,151 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using System;
+using Microsoft.Build.Construction;
+
+#nullable disable
+
+namespace Microsoft.Build.Evaluation
+{
+    internal abstract class ProjectRootElementCacheBase
+    {
+        public bool LoadProjectsReadOnly { get; protected set; }
+
+        public ParserIgnoreConfiguration ParserIgnoreConfiguration { get; protected set; }
+
+        /// <summary>
+        /// Whether <see cref="SetParserIgnoreConfiguration"/> has already been applied to this cache. A null
+        /// <see cref="ParserIgnoreConfiguration"/> is a legitimate configuration - it is what the escape hatch
+        /// produces - so it cannot itself stand for "never set".
+        /// </summary>
+        private bool _parserIgnoreConfigurationInitialized;
+
+        /// <summary>
+        /// Handler for which project root element just got added to the cache
+        /// </summary>
+        internal delegate void ProjectRootElementCacheAddEntryHandler(object sender, ProjectRootElementCacheAddEntryEventArgs e);
+
+        /// <summary>
+        /// Delegate for StrongCacheEntryRemoved event
+        /// </summary>
+        internal delegate void StrongCacheEntryRemovedDelegate(object sender, ProjectRootElement projectRootElement);
+
+        /// <summary>
+        /// Callback to create a ProjectRootElement if need be
+        /// </summary>
+        internal delegate ProjectRootElement OpenProjectRootElement(string path, ProjectRootElementCacheBase cache);
+
+        /// <summary>
+        /// Event which is fired when a project root element is added to this cache.
+        /// </summary>
+        internal event ProjectRootElementCacheAddEntryHandler ProjectRootElementAddedHandler;
+
+        /// <summary>
+        /// Event which is fired when a project root element in this cache is dirtied.
+        /// </summary>
+        internal event EventHandler<ProjectXmlChangedEventArgs> ProjectRootElementDirtied;
+
+        /// <summary>
+        /// Event which is fired when a project is marked dirty.
+        /// </summary>
+        internal event EventHandler<ProjectChangedEventArgs> ProjectDirtied;
+
+        internal abstract ProjectRootElement Get(string projectFile, OpenProjectRootElement loadProjectRootElement,
+            bool isExplicitlyLoaded,
+            bool? preserveFormatting);
+
+        internal abstract void AddEntry(ProjectRootElement projectRootElement);
+
+        internal abstract void RenameEntry(string oldFullPath, ProjectRootElement projectRootElement);
+
+        internal abstract ProjectRootElement TryGet(string projectFile);
+
+        internal abstract ProjectRootElement TryGet(string projectFile, bool? preserveFormatting);
+
+        internal abstract void DiscardStrongReferences();
+
+        internal abstract void Clear();
+
+        /// <summary>
+        /// Called when the host has determined that something outside the build - typically restore - may have
+        /// rewritten part of the import graph, and the cache must not go on serving what it read before that.
+        /// Discarding everything always satisfies that; a cache that can tell on its own which of its entries a
+        /// rewrite invalidated may override this to discard only those.
+        /// </summary>
+        internal virtual void ClearCachesAfterBuildIfNeeded() => Clear();
+
+        internal abstract void DiscardImplicitReferences();
+
+        internal abstract void DiscardAnyWeakReference(ProjectRootElement projectRootElement);
+
+        internal void SetParserIgnoreConfiguration(ParserIgnoreConfiguration configuration)
+        {
+            if (ParserIgnoreConfiguration.Equals(ParserIgnoreConfiguration, configuration))
+            {
+                return;
+            }
+
+            // Entries parsed under the previous configuration may have skipped - or refused to skip - unknown
+            // attributes and elements that the new one treats differently, so they must be reparsed. A cache that
+            // has not had a configuration applied yet holds nothing parsed under a different one, so on that first
+            // initialization - which happens once per newly created cache - there is nothing to invalidate.
+            if (_parserIgnoreConfigurationInitialized)
+            {
+                DiscardImplicitReferences();
+            }
+
+            _parserIgnoreConfigurationInitialized = true;
+            ParserIgnoreConfiguration = configuration;
+        }
+
+        /// <summary>
+        /// Raises the <see cref="ProjectRootElementDirtied"/> event.
+        /// </summary>
+        /// <param name="sender">The dirtied project root element.</param>
+        /// <param name="e">Details on the PRE and the nature of the change.</param>
+        internal virtual void OnProjectRootElementDirtied(ProjectRootElement sender, ProjectXmlChangedEventArgs e)
+        {
+            var cacheDirtied = ProjectRootElementDirtied;
+            cacheDirtied?.Invoke(sender, e);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="ProjectDirtied"/> event.
+        /// </summary>
+        /// <param name="sender">The dirtied project.</param>
+        /// <param name="e">Details on the Project and the change.</param>
+        internal virtual void OnProjectDirtied(Project sender, ProjectChangedEventArgs e)
+        {
+            var projectDirtied = ProjectDirtied;
+            projectDirtied?.Invoke(sender, e);
+        }
+
+        /// <summary>
+        /// Raises an event which is raised when a project root element is added to the cache.
+        /// </summary>
+        protected void RaiseProjectRootElementAddedToCacheEvent(ProjectRootElement rootElement)
+        {
+            ProjectRootElementAddedHandler?.Invoke(this, new ProjectRootElementCacheAddEntryEventArgs(rootElement));
+        }
+    }
+
+    /// <summary>
+    /// This class is an event that holds which ProjectRootElement was added to the root element cache.
+    /// </summary>
+    internal class ProjectRootElementCacheAddEntryEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Takes the root element which was added to the results cache.
+        /// </summary>
+        internal ProjectRootElementCacheAddEntryEventArgs(ProjectRootElement element)
+        {
+            RootElement = element;
+        }
+
+        /// <summary>
+        /// Root element which was just added to the cache.
+        /// </summary>
+        internal readonly ProjectRootElement RootElement;
+    }
+}

@@ -1,0 +1,38 @@
+### This stage compares VMR build assets with constituent repository build assets.
+
+parameters:
+- name: unifiedBuildRunId
+  displayName: 'Specific dotnet-unified-build run ID number (e.g `2108850`)'
+  type: string
+  default: ''
+
+- name: sourceManifestCommit
+  displayName: 'Source Manifest Commit'
+  type: string
+  default: ''
+
+# These are not expected to be passed it but rather just object variables reused below
+- name: pool_Windows
+  type: object
+  default:
+    name: $(defaultPoolName)
+    image: $(poolImage_Windows)
+    demands: ImageOverride -equals $(poolImage_Windows)
+    os: windows
+
+stages:
+- stage: VMR_Comparison
+  displayName: VMR Comparison
+  variables:
+  - group: DotNetBot-GitHub-AllBranches
+  jobs:
+  - job: CompareAssets
+    displayName: Compare Assets
+    pool: ${{ parameters.pool_Windows }}
+    timeoutInMinutes: 180
+    steps:
+    - template: ../steps/vmr-compare.yml
+      parameters:
+        continueOnError: false
+        unifiedBuildRunId: ${{ parameters.unifiedBuildRunId }}
+        sourceManifestCommit: ${{ parameters.sourceManifestCommit }}

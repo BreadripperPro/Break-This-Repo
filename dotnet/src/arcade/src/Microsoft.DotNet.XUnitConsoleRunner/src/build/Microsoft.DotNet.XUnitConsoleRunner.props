@@ -1,0 +1,11 @@
+<!-- Licensed to the .NET Foundation under one or more agreements. The .NET Foundation licenses this file to you under the MIT license. -->
+<Project>
+
+  <PropertyGroup>
+    <!-- Default to the NetCurrent host shipped under 'tools/net'. The consuming project's
+         framework is not reliably known when this props file is imported, so the
+         TFM-specific override lives in the companion .targets file. -->
+    <XunitConsoleNetCoreAppPath>$(MSBuildThisFileDirectory)..\tools\net\xunit.console.dll</XunitConsoleNetCoreAppPath>
+  </PropertyGroup>
+
+</Project>

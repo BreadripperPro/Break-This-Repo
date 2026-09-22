@@ -1,0 +1,22 @@
+﻿<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+    <MSTestParallelizeScope>MethodLevel</MSTestParallelizeScope>
+    <ExcludeFromSourceOnlyBuild>true</ExcludeFromSourceOnlyBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Cli\dotnet\dotnet.csproj" />
+    <ProjectReference Include="..\Microsoft.NET.TestFramework.MSTest\Microsoft.NET.TestFramework.MSTest.csproj" />
+
+    <ProjectReference Include="..\ArgumentsReflector\ArgumentsReflector.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="reflector_cmd.cmd"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

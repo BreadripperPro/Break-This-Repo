@@ -1,0 +1,379 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+#include "sos.h"
+#include "datatarget.h"
+#include "corhdr.h"
+#include "cor.h"
+#include "dacprivate.h"
+#include "sospriv.h"
+#include "corerror.h"
+#include "remotememoryservice.h"
+
+#define IMAGE_FILE_MACHINE_AMD64             0x8664  // AMD64 (K8)
+
+DataTarget::DataTarget(ULONG64 baseAddress, ULONG64 contractDescriptorAddress) :
+    m_ref(0),
+    m_baseAddress(baseAddress),
+    m_contractDescriptorAddress(contractDescriptorAddress),
+    m_debuggerServices(GetDebuggerServices())
+{
+    if (m_debuggerServices != nullptr)
+    {
+        m_debuggerServices->AddRef();
+    }
+}
+
+DataTarget::~DataTarget()
+{
+    if (m_debuggerServices != nullptr)
+    {
+        m_debuggerServices->Release();
+    }
+}
+
+STDMETHODIMP
+DataTarget::QueryInterface(
+    THIS_
+    ___in REFIID InterfaceId,
+    ___out PVOID* Interface
+    )
+{
+    if (InterfaceId == IID_IUnknown ||
+        InterfaceId == IID_ICLRDataTarget)
+    {
+        *Interface = (ICLRDataTarget*)this;
+        AddRef();
+        return S_OK;
+    }
+    else if (InterfaceId == IID_ICLRDataTarget2)
+    {
+        *Interface = (ICLRDataTarget2*)this;
+        AddRef();
+        return S_OK;
+    }
+    else if (InterfaceId == IID_ICorDebugDataTarget4)
+    {
+        *Interface = (ICorDebugDataTarget4*)this;
+        AddRef();
+        return S_OK;
+    }
+    else if (InterfaceId == IID_ICLRMetadataLocator)
+    {
+        *Interface = (ICLRMetadataLocator*)this;
+        AddRef();
+        return S_OK;
+    }
+    else if (InterfaceId == IID_ICLRRuntimeLocator)
+    {
+        *Interface = (ICLRRuntimeLocator*)this;
+        AddRef();
+        return S_OK;
+    }
+    else if (InterfaceId == IID_ICLRContractLocator)
+    {
+        *Interface = (ICLRContractLocator*)this;
+        AddRef();
+        return S_OK;
+    }
+    else
+    {
+        *Interface = NULL;
+        return E_NOINTERFACE;
+    }
+}
+
+STDMETHODIMP_(ULONG)
+DataTarget::AddRef(
+    THIS
+    )
+{
+    LONG ref = InterlockedIncrement(&m_ref);    
+    return ref;
+}
+
+STDMETHODIMP_(ULONG)
+DataTarget::Release(
+    THIS
+    )
+{
+    LONG ref = InterlockedDecrement(&m_ref);
+    if (ref == 0)
+    {
+        delete this;
+    }
+    return ref;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetMachineType(
+    /* [out] */ ULONG32 *machine)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    return m_debuggerServices->GetProcessorType((PULONG)machine);
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetPointerSize(
+    /* [out] */ ULONG32 *size)
+{
+#if defined(SOS_TARGET_AMD64) || defined(SOS_TARGET_ARM64) || defined(SOS_TARGET_MIPS64) || defined(SOS_TARGET_RISCV64) || defined(SOS_TARGET_LOONGARCH64)
+    *size = 8;
+#elif defined(SOS_TARGET_ARM) || defined(SOS_TARGET_X86)
+    *size = 4;
+#else
+  #error Unsupported architecture
+#endif
+
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetImageBase(
+    /* [string][in] */ LPCWSTR name,
+    /* [out] */ CLRDATA_ADDRESS *base)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    CHAR lpstr[MAX_LONGPATH];
+    int name_length = WideCharToMultiByte(CP_ACP, 0, name, -1, lpstr, MAX_LONGPATH, NULL, NULL);
+    if (name_length == 0)
+    {
+        return E_FAIL;
+    }
+#ifndef FEATURE_PAL
+    // Remove the extension on Windows/dbgeng.
+    CHAR *lp = strrchr(lpstr, '.');
+    if (lp != nullptr)
+    {
+        *lp = '\0';
+    }
+#endif
+    return m_debuggerServices->GetModuleByModuleName(lpstr, 0, NULL, base);
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::ReadVirtual(
+    /* [in] */ CLRDATA_ADDRESS address,
+    /* [length_is][size_is][out] */ PBYTE buffer,
+    /* [in] */ ULONG32 request,
+    /* [optional][out] */ ULONG32 *done)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    address = CONVERT_FROM_SIGN_EXTENDED(address);
+#ifdef FEATURE_PAL
+    if (g_sos != nullptr)
+    {
+        // LLDB synthesizes memory (returns 0's) for missing pages (in this case the missing metadata  pages) 
+        // in core dumps. This functions creates a list of the metadata regions and caches the metadata if 
+        // available from the local or downloaded assembly. If the read would be in the metadata of a loaded 
+        // assembly, the metadata from the this cache will be returned.
+        HRESULT hr = GetMetadataMemory(address, request, buffer);
+        if (SUCCEEDED(hr)) {
+            if (done != nullptr) {
+                *done = request;
+            }
+            return hr;
+        }
+    }
+#endif
+    HRESULT hr = m_debuggerServices->ReadVirtual(address, (PVOID)buffer, request, (PULONG)done);
+    if (FAILED(hr)) 
+    {
+        ExtDbgOut("DataTarget::ReadVirtual FAILED %08x address %08llx size %08x\n", hr, address, request);
+    }
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::WriteVirtual(
+    /* [in] */ CLRDATA_ADDRESS address,
+    /* [size_is][in] */ PBYTE buffer,
+    /* [in] */ ULONG32 request,
+    /* [optional][out] */ ULONG32 *done)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    return m_debuggerServices->WriteVirtual(address, (PVOID)buffer, request, (PULONG)done);
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetTLSValue(
+    /* [in] */ ULONG32 threadID,
+    /* [in] */ ULONG32 index,
+    /* [out] */ CLRDATA_ADDRESS* value)
+{
+    return E_NOTIMPL;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::SetTLSValue(
+    /* [in] */ ULONG32 threadID,
+    /* [in] */ ULONG32 index,
+    /* [in] */ CLRDATA_ADDRESS value)
+{
+    return E_NOTIMPL;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetCurrentThreadID(
+    /* [out] */ ULONG32 *threadID)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    return m_debuggerServices->GetCurrentThreadSystemId((PULONG)threadID);
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetThreadContext(
+    /* [in] */ ULONG32 threadID,
+    /* [in] */ ULONG32 contextFlags,
+    /* [in] */ ULONG32 contextSize,
+    /* [out, size_is(contextSize)] */ PBYTE context)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    return m_debuggerServices->GetThreadContextBySystemId(threadID, contextFlags, contextSize, context);
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::SetThreadContext(
+    /* [in] */ ULONG32 threadID,
+    /* [in] */ ULONG32 contextSize,
+    /* [out, size_is(contextSize)] */ PBYTE context)
+{
+    return E_NOTIMPL;
+}
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::Request(
+    /* [in] */ ULONG32 reqCode,
+    /* [in] */ ULONG32 inBufferSize,
+    /* [size_is][in] */ BYTE *inBuffer,
+    /* [in] */ ULONG32 outBufferSize,
+    /* [size_is][out] */ BYTE *outBuffer)
+{
+    return E_NOTIMPL;
+}
+
+// ICLRDataTarget2
+
+HRESULT STDMETHODCALLTYPE 
+DataTarget::AllocVirtual(
+    /* [in] */ CLRDATA_ADDRESS addr,
+    /* [in] */ ULONG32 size,
+    /* [in] */ ULONG32 typeFlags,
+    /* [in] */ ULONG32 protectFlags,
+    /* [out] */ CLRDATA_ADDRESS* virt)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    ReleaseHolder<IRemoteMemoryService> remoteMemoryService;
+    HRESULT hr = m_debuggerServices->QueryInterface(__uuidof(IRemoteMemoryService), (void**)&remoteMemoryService);
+    if (FAILED(hr)) {
+        return E_NOTIMPL;
+    }
+    return remoteMemoryService->AllocVirtual(addr, size, typeFlags, protectFlags, virt);
+}
+        
+HRESULT STDMETHODCALLTYPE 
+DataTarget::FreeVirtual(
+    /* [in] */ CLRDATA_ADDRESS addr,
+    /* [in] */ ULONG32 size,
+    /* [in] */ ULONG32 typeFlags)
+{
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    ReleaseHolder<IRemoteMemoryService> remoteMemoryService;
+    HRESULT hr = m_debuggerServices->QueryInterface(__uuidof(IRemoteMemoryService), (void**)&remoteMemoryService);
+    if (FAILED(hr)) {
+        return E_NOTIMPL;
+    }
+    return remoteMemoryService->FreeVirtual(addr, size, typeFlags);
+}
+
+// ICorDebugDataTarget4
+
+HRESULT STDMETHODCALLTYPE 
+DataTarget::VirtualUnwind(
+    /* [in] */ DWORD threadId,
+    /* [in] */ ULONG32 contextSize,
+    /* [in, out, size_is(contextSize)] */ PBYTE context)
+{
+#ifdef FEATURE_PAL
+    if (m_debuggerServices == nullptr)
+    {
+        return E_UNEXPECTED;
+    }
+    return m_debuggerServices->VirtualUnwind(threadId, contextSize, context);
+#else
+    return E_NOTIMPL;
+#endif
+}
+
+// ICLRMetadataLocator
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetMetadata(
+    /* [in] */ LPCWSTR imagePath,
+    /* [in] */ ULONG32 imageTimestamp,
+    /* [in] */ ULONG32 imageSize,
+    /* [in] */ GUID* mvid,
+    /* [in] */ ULONG32 mdRva,
+    /* [in] */ ULONG32 flags,
+    /* [in] */ ULONG32 bufferSize,
+    /* [out, size_is(bufferSize), length_is(*dataSize)] */
+    BYTE* buffer,
+    /* [out] */ ULONG32* dataSize)
+{
+    return ::GetMetadataLocator(imagePath, imageTimestamp, imageSize, mvid, mdRva, flags, bufferSize, buffer, dataSize);
+}
+
+// ICLRRuntimeLocator
+
+HRESULT STDMETHODCALLTYPE 
+DataTarget::GetRuntimeBase(
+    /* [out] */ CLRDATA_ADDRESS* baseAddress)
+{
+    *baseAddress = m_baseAddress;
+    return S_OK;
+}
+
+// ICLRContractLocator
+
+HRESULT STDMETHODCALLTYPE
+DataTarget::GetContractDescriptor(
+    /* [out] */ CLRDATA_ADDRESS* contractAddress)
+{
+    if (contractAddress == nullptr)
+    {
+        return E_INVALIDARG;
+    }
+    // The contract descriptor address is resolved by the runtime (which knows the target OS, the
+    // runtime module index, and has a memory-reading callback) and handed to us at construction.
+    // The cDAC requires it via ICLRContractLocator; the legacy DAC never queries this interface.
+    if (m_contractDescriptorAddress == 0)
+    {
+        return E_FAIL;
+    }
+    *contractAddress = m_contractDescriptorAddress;
+    return S_OK;
+}

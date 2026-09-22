@@ -1,0 +1,34 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <OutDirName>Tests\$(MSBuildProjectName)</OutDirName>
+    <MSTestParallelizeScope>MethodLevel</MSTestParallelizeScope>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>testSdkPack</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Microsoft.NET.TestFramework.MSTest\Microsoft.NET.TestFramework.MSTest.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="$(GlobalExclude)" />
+    <Compile Include="$(RepoRoot)src\Common\EnvironmentVariableNames.cs" LinkBase="Common"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="**\*.resx" Exclude="$(GlobalExclude)" />
+
+    <!-- Use string resources from tasks in order to validate test output. -->
+    <EmbeddedResource Include="..\..\src\Tasks\Common\Resources\Strings.resx" LinkBase="Resources" GenerateSource="True" Namespace="Microsoft.NET.Build.Tasks" />
+    <EmbeddedResource Include="..\..\src\Cli\dotnet\CliStrings.resx" LinkBase="Resources" GenerateSource="True" Namespace="Microsoft.DotNet.Cli" />
+  </ItemGroup>
+
+</Project>

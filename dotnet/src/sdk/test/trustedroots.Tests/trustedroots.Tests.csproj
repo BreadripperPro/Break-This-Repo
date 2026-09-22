@@ -1,0 +1,15 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+    <CanRunTestAsTool>false</CanRunTestAsTool>
+    <OutputPath>$(TestHostFolder)</OutputPath>
+    <!-- Tests only read immutable SDK files; shared certificate sets use thread-safe lazy initialization. -->
+    <MSTestParallelizeScope>MethodLevel</MSTestParallelizeScope>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Microsoft.NET.TestFramework.MSTest\Microsoft.NET.TestFramework.MSTest.csproj" />
+  </ItemGroup>
+
+</Project>

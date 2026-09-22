@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CommonLanguageServerProtocol.Framework" PrivateAssets="all" />
+		<!-- Pin the transitive MessagePack (via Microsoft.CommonLanguageServerProtocol.Framework) to a patched version. Older versions (< 2.5.301) have known vulnerabilities (NU1902/NU1903). -->
+		<PackageReference Include="MessagePack" PrivateAssets="all" />
+		<!-- Pinned below the central version to match the LSP framework's VS 17.x baseline. -->
+		<PackageReference Include="Microsoft.VisualStudio.Threading" VersionOverride="17.12.21" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="FSharp.Compiler.LanguageServer" />
+		<InternalsVisibleTo Include="FSharp.VisualStudio.Extension" />
+	</ItemGroup>
+
+</Project>

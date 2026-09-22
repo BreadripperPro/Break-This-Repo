@@ -1,0 +1,168 @@
+# What are Change Waves?
+A Change Wave is a set of risky features developed under the same opt-out flag. The purpose of this is to warn developers of "risky" changes that will become standard functionality down the line. If there's something we think is worth the risk, we found that Change Waves were a good middle ground between making necessary changes and warning customers of what will soon be permanent.
+
+## Why Opt-Out vs. Opt-In?
+Opt-out is a better approach for us because we'd likely get limited feedback when a feature impacts customer builds. When a feature does impact a customer negatively, it's a quick switch to disable and allows time to adapt. The key aspect to Change Waves is that it smooths the transition for customers adapting to risky changes that the MSBuild team feels strongly enough to take.
+
+## How do they work?
+
+The opt-out comes in the form of setting the environment variable `MSBUILDDISABLEFEATURESFROMVERSION` to the Change Wave (or version) that contains the feature you want **disabled**. This version happens to be the version of MSBuild that the features were developed for. See the mapping of change waves to features below.
+
+The opt-out should be just a *temporary* workaround for a problem - as the feature will anyways become permanent eventually. For this reason - **please make sure to create or upvote a bug describing the issue making you opt-out**.
+
+### Change waves and reused processes
+
+`MSBUILDDISABLEFEATURESFROMVERSION` is read once per process, so a process that outlives a single build - a reused worker node or an MSBuild Server node - keeps the change wave it started with. To make sure every process taking part in a build agrees on the change wave, the resolved change wave is part of the node handshake: a node that resolved a different change wave refuses the connection and MSBuild starts a fresh one instead. Changing `MSBUILDDISABLEFEATURESFROMVERSION` between builds therefore starts new nodes rather than reusing the existing ones. Values that resolve to the same change wave (for example an unset variable and a value in an invalid format) still allow node reuse.
+
+Task hosts are deliberately left out of this. A task host connection can span two different MSBuild versions - most notably the .NET task host, where a .NET Framework parent such as Visual Studio talks to a child taken from the installed .NET SDK - and the resolved change wave is version-relative, because the environment variable is clamped and rounded into the wave list of whichever binary reads it. Two versions can therefore resolve the same variable to different waves. Unlike a worker node, a task host that fails the handshake cannot be replaced by a compatible one, since the parent can only relaunch the very same executable, so the build would fail with MSB4216. A task host consequently keeps the change wave it started with even across builds.
+
+## When do they become permanent?
+
+A wave of features is eligible to "rotate out" (i.e. become standard functionality) six months after its release. For example, wave 16.8 stayed opt-out through wave 16.10, becoming standard functionality when wave 17.0 is introduced.
+
+Change wave checks around features will be removed in the release that accompanies a new major version of .NET (for example, .NET 11, .NET 12).
+
+## MSBUILDDISABLEFEATURESFROMVERSION Values & Outcomes
+| `MSBUILDDISABLEFEATURESFROMVERSION` Value                         | Result        | Receive Warning? |
+| :-------------                                                    | :----------   | :----------: |
+| Unset                                                             | All Change Waves will be enabled, meaning all features behind each Change Wave will be enabled.               | No   |
+| Any valid & current Change Wave (Ex: `16.8`)                      | All features behind Change Wave `16.8` and higher will be disabled.                                           | No   |
+| Invalid Value (Ex: `16.9` when valid waves are `16.8` and `16.10`)| Default to the closest valid value (ascending). Ex: Setting `16.9` will default you to `16.10`.               | No   |
+| Out of Rotation (Ex: `17.1` when the highest wave is `17.0`)      | Clamp to the closest valid value. Ex: `17.1` clamps to `17.0`, and `16.5` clamps to `16.8`                    | Yes  |
+| Invalid Format (Ex: `16x8`, `17_0`, `garbage`)                    | All Change Waves will be enabled, meaning all features behind each Change Wave will be enabled.               | Yes  |
+
+# Change Waves & Associated Features
+
+## Current Rotation of Change Waves
+
+### 18.12
+- [TaskHosts used to run a task out of process under `-mt` stay connected to the process that launched them and exit with it, instead of remaining available for any other process to reuse. TaskHosts of a different runtime or architecture are unaffected.](https://github.com/dotnet/msbuild/pull/14584)
+- [Events that a task logs from a TaskHost - extended errors, warnings and messages, critical messages, telemetry, and any other event kind the router did not enumerate - reach the parent process instead of being dropped.](https://github.com/dotnet/msbuild/pull/14876)
+- [RAR writes one structured search event for each reference instead of one message for each rejected assembly candidate.](https://github.com/dotnet/msbuild/pull/14599) This change reduces binary-log size. The event's default message uses the invariant culture, while the console and terminal loggers render it using the current UI culture. Set `MSBUILDDISABLEFEATURESFROMVERSION=18.12` to retain individual candidate messages.
+- RAR now logs structured events for version-conflict dependency details. These events replace large text messages for MSB3277 warnings and low-importance diagnostics.
+  - The events contain victor and victim identities, dependency chains, and source items.
+  - Events render invariant English messages from their structured data without transmitting localized format strings. Built-in user-facing loggers re-render them in the active UI culture; other consumers can use the structured fields to do the same.
+  - Strict readers older than binary-log format 28 reject the newer format. Forward-compatible readers skip the structured conflict records.
+  - Set `MSBUILDDISABLEFEATURESFROMVERSION=18.12` to restore the legacy localized plain-text events.
+
+### 18.11
+- [XmlPeek, XmlPoke, and XslTransformation default to prohibiting embedded DTDs](https://github.com/dotnet/msbuild/pull/14285)
+- [Out-of-proc communication uses larger read-ahead buffers and pre-buffers TaskHost packet bodies to reduce pipe reads.](https://github.com/dotnet/msbuild/pull/14505)
+- [Restore no longer discards a ProjectRootElementCache that reloads changed files from disk, so the build that follows an implicit restore does not re-parse the import closure.](https://github.com/dotnet/msbuild/pull/14558)
+- [Use optimized MSBuild file specification matching and enumeration](https://github.com/dotnet/msbuild/pull/14663). Regex-backed file globs use culture-invariant case folding; set `MSBUILDUSELEGACYCULTURESENSITIVEFILEGLOBS=1` to preserve legacy current-culture folding without disabling other Wave 18.11 features.
+- [Isolated (`-graph -isolate`) builds fail deterministically with MSB4252 on a cross-project reference to a target that is not declared via `ProjectReferenceTargets`, instead of passing if the referenced project happened to build on that node previously.](https://github.com/dotnet/msbuild/pull/14280)
+
+### 18.10
+- [Resolve relative project paths against the Unix logical current directory from `PWD`, so builds under symlinked directories produce stable project full paths and related output paths.](https://github.com/dotnet/msbuild/pull/13752)
+- [Restore passes ExcludeRestorePackageImports=true as a global property so NuGet's restore no longer triggers a second evaluation of every project.](https://github.com/dotnet/msbuild/issues/14273)
+- [`-getProperty`/`-getItem` (without a target) stop evaluation after the pass that produces the requested data instead of running a full evaluation, avoiding later passes such as target registration.](https://github.com/dotnet/msbuild/pull/14290)
+
+
+### 18.9
+- [GenerateResource: typed ResX data/metadata entries in Mark-of-the-Web files are now treated as untrusted and blocked with MSB3821; unblock the file (or set MSBUILDDISABLEFEATURESFROMVERSION=18.9) to restore prior behavior. ResXFileRef entries are always blocked regardless of this wave.](https://github.com/dotnet/msbuild/pull/14015)
+- [TaskHost named-pipe buffers default to 1 MB (was 128 KB), reducing send backpressure for large TaskHostConfiguration packets. Tunable via MSBUILDNODECONNECTIONBUFFERSIZE](https://github.com/dotnet/msbuild/pull/14094)
+
+### 18.8
+- [RAR task: across multiple input properties, resolve relative paths against the project directory (not the process current directory)](https://github.com/dotnet/msbuild/pull/13319)
+- [Console, parallel console, and terminal loggers print the paths of log files written by registered loggers (e.g. file logger and binary logger) as part of the end-of-build summary.](https://github.com/dotnet/msbuild/pull/13577)
+
+### 18.7
+- [Copy task retries on ERROR_ACCESS_DENIED on non-Windows platforms to handle transient lock conflicts (e.g. macOS CoW filesystems)](https://github.com/dotnet/msbuild/issues/13463)
+- [Fix ASP.NET WebSite projects to resolve netstandard2.0 dependencies](https://github.com/dotnet/msbuild/pull/13058) - Pass TargetFrameworkVersion to RAR task and copy netstandard.dll facade for .NET Framework 4.7.1+ web projects.
+
+### 18.6
+- [AbsolutePath.GetCanonicalForm optimization - avoid expensive Path.GetFullPath calls when paths don't need canonicalization](https://github.com/dotnet/msbuild/pull/13369)
+- [TaskHostTask forwards request-level global properties (e.g. MSBuildRestoreSessionId) to out-of-proc TaskHost in -mt mode](https://github.com/dotnet/msbuild/pull/13443)
+- [Fix ShouldTreatWarningAsError in OOP TaskHost checking wrong collection (WarningsAsMessages instead of WarningsAsErrors)](https://github.com/dotnet/msbuild/issues/11952)
+- [Fix ToolTask hang when tool spawns grandchild processes that inherit stdout/stderr pipe handles](https://github.com/dotnet/msbuild/issues/2981)
+
+### 18.5
+- [FindUnderPath and AssignTargetPath tasks no longer throw on invalid path characters when using TaskEnvironment.GetAbsolutePath](https://github.com/dotnet/msbuild/pull/13069)
+- [AssignTargetPath on Linux respects case sensitivity of the file system instead of always ignoring case](https://github.com/dotnet/msbuild/pull/13069)
+
+### 18.4
+- [Start throwing on null or empty paths in MultiProcess and MultiThreaded Task Environment Drivers.](https://github.com/dotnet/msbuild/pull/12914)
+
+## Change Waves No Longer In Rotation
+
+### 16.8
+- [Enable NoWarn](https://github.com/dotnet/msbuild/pull/5671)
+- [Truncate Target/Task skipped log messages to 1024 chars](https://github.com/dotnet/msbuild/pull/5553)
+- [Don't expand full drive globs with false condition](https://github.com/dotnet/msbuild/pull/5669)
+
+### 16.10
+- [Error when a property expansion in a condition has whitespace](https://github.com/dotnet/msbuild/pull/5672)
+- [Allow Custom CopyToOutputDirectory Location With TargetPath](https://github.com/dotnet/msbuild/pull/6237)
+- [Allow users that have certain special characters in their username to build successfully when using exec](https://github.com/dotnet/msbuild/pull/6223)
+- [Fail restore operations when an SDK is unresolveable](https://github.com/dotnet/msbuild/pull/6430)
+- [Optimize glob evaluation](https://github.com/dotnet/msbuild/pull/6151)
+
+### 17.0
+- [Scheduler should honor BuildParameters.DisableInprocNode](https://github.com/dotnet/msbuild/pull/6400)
+- [Don't compile globbing regexes on .NET Framework](https://github.com/dotnet/msbuild/pull/6632)
+- [Default to transitively copying content items](https://github.com/dotnet/msbuild/pull/6622)
+- [Reference assemblies are now no longer placed in the `bin` directory by default](https://github.com/dotnet/msbuild/pull/6560) (reverted [here](https://github.com/dotnet/msbuild/pull/6718) and brought back [here](https://github.com/dotnet/msbuild/pull/7075))
+- [Improve debugging experience: add global switch MSBuildDebugEngine; Inject binary logger from BuildManager; print static graph as .dot file](https://github.com/dotnet/msbuild/pull/6639)
+- [Fix deadlock in BuildManager vs LoggingService](https://github.com/dotnet/msbuild/pull/6837)
+- [Optimize diag level for file logger and console logger](https://github.com/dotnet/msbuild/pull/7026)
+- [Optimized immutable files up to date checks](https://github.com/dotnet/msbuild/pull/6974)
+- [Add Microsoft.IO.Redist for directory enumeration](https://github.com/dotnet/msbuild/pull/6771)
+- [Process-wide caching of ToolsetConfigurationSection](https://github.com/dotnet/msbuild/pull/6832)
+- [Normalize RAR output paths](https://github.com/dotnet/msbuild/pull/6533)
+
+### 17.4
+
+- [Respect deps.json when loading assemblies](https://github.com/dotnet/msbuild/pull/7520)
+- [Consider `Platform` as default during Platform Negotiation](https://github.com/dotnet/msbuild/pull/7511)
+- [Adding accepted SDK name match pattern to SDK manifests](https://github.com/dotnet/msbuild/pull/7597)
+- [Throw warning indicating invalid project types](https://github.com/dotnet/msbuild/pull/7708)
+- [MSBuild server](https://github.com/dotnet/msbuild/pull/7634)
+
+### 17.6
+
+- [Parse invalid property under target](https://github.com/dotnet/msbuild/pull/8190)
+- [Eliminate project string cache](https://github.com/dotnet/msbuild/pull/7965)
+- [Log an error when no provided search path for an import exists](https://github.com/dotnet/msbuild/pull/8095)
+- [Log assembly loads](https://github.com/dotnet/msbuild/pull/8316)
+- [AnyHaveMetadataValue returns false when passed an empty list](https://github.com/dotnet/msbuild/pull/8603)
+- [Log item self-expansion](https://github.com/dotnet/msbuild/pull/8581)
+
+### 17.8
+
+- [[RAR] Don't do I/O on SDK-provided references](https://github.com/dotnet/msbuild/pull/8688)
+- [Delete destination file before copy](https://github.com/dotnet/msbuild/pull/8685)
+- [Moving from SHA1 to SHA256 for Hash task](https://github.com/dotnet/msbuild/pull/8812)
+- [Deprecating custom derived BuildEventArgs](https://github.com/dotnet/msbuild/pull/8917) - feature can be opted out only if [BinaryFormatter](https://learn.microsoft.com/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter) is allowed at runtime by editing `MSBuild.runtimeconfig.json`
+
+### 17.10
+
+- [AppDomain configuration is serialized without using BinFmt](https://github.com/dotnet/msbuild/pull/9320) - feature can be opted out only if [BinaryFormatter](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.serialization.formatters.binary.binaryformatter) is allowed at runtime by editing `MSBuild.runtimeconfig.json`. **Please note that [any usage of BinaryFormatter is insecure](https://learn.microsoft.com/dotnet/standard/serialization/binaryformatter-security-guide).**
+- [Warning on serialization custom events by default in .NET framework](https://github.com/dotnet/msbuild/pull/9318)
+- [Cache SDK resolver data process-wide](https://github.com/dotnet/msbuild/pull/9335)
+- [Target parameters will be unquoted](https://github.com/dotnet/msbuild/pull/9452), meaning  the ';' symbol in the parameter target name will always be treated as separator
+- [Add Link metadata to Resources in AssignLinkMetadata target](https://github.com/dotnet/msbuild/pull/9464)
+- [Change Version switch output to finish with a newline](https://github.com/dotnet/msbuild/pull/9485)
+- [Load NuGet.Frameworks into secondary AppDomain (MSBuild.exe only)](https://github.com/dotnet/msbuild/pull/9446)
+- [Update Traits when environment has been changed](https://github.com/dotnet/msbuild/pull/9655)
+- [Exec task does not trim leading whitespaces for ConsoleOutput](https://github.com/dotnet/msbuild/pull/9722)
+- [Introduce [MSBuild]::StableStringHash overloads](https://github.com/dotnet/msbuild/issues/9519)
+- [Keep the encoding of standard output & error consistent with the console code page for ToolTask](https://github.com/dotnet/msbuild/pull/9539)
+
+### 17.12
+
+- [Log TaskParameterEvent for scalar parameters](https://github.com/dotnet/msbuild/pull/9908)
+- [Convert.ToString during a property evaluation uses the InvariantCulture for all types](https://github.com/dotnet/msbuild/pull/9874)
+- [Fix oversharing of build results in ResultsCache](https://github.com/dotnet/msbuild/pull/9987)
+- [Add ParameterName and PropertyName to TaskParameterEventArgs](https://github.com/dotnet/msbuild/pull/10130)
+- [Emit eval props if requested by any sink](https://github.com/dotnet/msbuild/pull/10243)
+- [Load Microsoft.DotNet.MSBuildSdkResolver into default load context (MSBuild.exe only)](https://github.com/dotnet/msbuild/pull/10603)
+
+### 17.14
+
+- ~[.SLNX support - use the new parser for .sln and .slnx](https://github.com/dotnet/msbuild/pull/10836)~ reverted after compat problems discovered
+- ~~[Support custom culture in RAR](https://github.com/dotnet/msbuild/pull/11000)~~ - see [11607](https://github.com/dotnet/msbuild/pull/11607) for details
+- [VS Telemetry](https://github.com/dotnet/msbuild/pull/11255)
+
+### 18.3
+
+- [Replace Transactional property with ChangeWave control, implement atomic file replacement with retry logic, and update tests.](https://github.com/dotnet/msbuild/pull/12627)

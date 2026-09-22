@@ -1,0 +1,48 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+namespace Microsoft.NET.Build.Tests
+{
+    [TestClass]
+    public class GivenThatWeWantToBuildAUnitTestProject : SdkTest
+    {
+
+        [TestMethod]
+        public void It_generates_runtime_config()
+        {
+            var testAsset = TestAssetsManager
+                .CopyTestAsset("XUnitTestProject")
+                .WithSource();
+
+            var buildCommand = new BuildCommand(testAsset);
+            buildCommand
+                .Execute()
+                .Should()
+                .Pass();
+
+            var outputDirectory = buildCommand.GetOutputDirectory(ToolsetInfo.CurrentTargetFramework);
+            outputDirectory.Should().HaveFile(@"XUnitTestProject.runtimeconfig.json");
+        }
+
+        [TestMethod]
+        public void It_builds_when_has_runtime_output_is_true()
+        {
+            const string targetFramework = "netcoreapp2.1";
+
+            var testAsset = TestAssetsManager
+                .CopyTestAsset("XUnitTestProject")
+                .WithSource();
+
+            var buildCommand = new BuildCommand(testAsset);
+            buildCommand
+                .Execute(new string[] {
+                    "/restore",
+                    $"/p:TargetFramework={targetFramework}",
+                    $"/p:HasRuntimeOutput=true",
+                    $"/p:NETCoreSdkRuntimeIdentifier={EnvironmentInfo.GetCompatibleRid(targetFramework)}"
+                })
+                .Should()
+                .Pass();
+        }
+    }
+}

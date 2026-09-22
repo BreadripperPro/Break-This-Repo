@@ -1,0 +1,18 @@
+<Project Sdk="MSTest.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SdkTargetFramework)</TargetFramework>
+    <MSTestParallelizeScope>ClassLevel</MSTestParallelizeScope>
+    <RootNamespace>Microsoft.Extensions.DotNetDeltaApplier</RootNamespace>
+    <StrongNameKeyId>MicrosoftAspNetCore</StrongNameKeyId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\Dotnet.Watch\DotNetDeltaApplier\Microsoft.Extensions.DotNetDeltaApplier.csproj" />
+    <ProjectReference Include="..\Microsoft.DotNet.Test.MSTest.Utilities\Microsoft.DotNet.Test.MSTest.Utilities.csproj" />
+    <PackageReference Include="Moq" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Dotnet.Watch\HotReloadClient\Microsoft.DotNet.HotReload.Client.projitems" Label="Shared" />
+</Project>

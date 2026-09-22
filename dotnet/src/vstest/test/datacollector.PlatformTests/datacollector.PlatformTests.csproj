@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TestProject>true</TestProject>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Configuration">
+    <RootNamespace>Microsoft.VisualStudio.TestPlatform.DataCollector.PlatformTests</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFrameworks>net11.0;net481</TargetFrameworks>
+    <OutputType Condition=" $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', '$(NetCoreAppMinimum)')) ">Exe</OutputType>
+    <AssemblyName>datacollector.PlatformTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\datacollector\datacollector.csproj" />
+    <ProjectReference Include="..\TestAssets\OutOfProcDataCollector\OutOfProcDataCollector.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="_OutOfProcDataCollector" />
+
+    <Content Include="$(RepoRoot)src\datacollector\bin\$(Configuration)\$(TargetFramework)\datacollector*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="CopyOutOfProcDataCollector" AfterTargets="ResolveProjectReferences">
+    <Copy SourceFiles="@(_OutOfProcDataCollector)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true">
+      <Output TaskParameter="CopiedFiles"
+              ItemName="FileWrites" />
+    </Copy>
+  </Target>
+</Project>

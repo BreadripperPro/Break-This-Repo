@@ -1,0 +1,37 @@
+{
+  "sdk": {
+    "version": "11.0.100-rc.1.26420.103",
+    "allowPrerelease": true,
+    "rollForward": "latestFeature",
+    "paths": [
+      ".dotnet",
+      "$host$"
+    ],
+    "errorMessage": "The .NET SDK is not installed or is not configured correctly. Please run ./build to install the correct SDK version locally."
+  },
+  "tools": {
+    "dotnet": "11.0.100-rc.1.26420.103",
+    "runtimes": {
+      "dotnet": [
+        "$(MicrosoftNETCorePlatformsPackageVersion)"
+      ],
+      "aspnetcore": [
+        "$(MicrosoftAspNetCoreComponentsSdkAnalyzersPackageVersion)"
+      ]
+    },
+    "vs-opt": {
+      "version": "16.8"
+    }
+  },
+  "msbuild-sdks": {
+    "Microsoft.DotNet.Arcade.Sdk": "11.0.0-beta.26453.118",
+    "Microsoft.DotNet.Helix.Sdk": "11.0.0-beta.26453.118",
+    "Microsoft.Build.NoTargets": "3.7.134",
+    "Microsoft.Build.Traversal": "4.1.82",
+    "Microsoft.WixToolset.Sdk": "6.0.3-dotnet.14",
+    "MSTest.Sdk": "4.5.0-preview.26466.4"
+  },
+  "test": {
+    "runner": "Microsoft.Testing.Platform"
+  }
+}

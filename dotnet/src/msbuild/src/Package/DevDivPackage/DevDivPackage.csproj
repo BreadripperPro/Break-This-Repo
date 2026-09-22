@@ -1,0 +1,28 @@
+﻿<Project>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <TargetFramework>$(FullFrameworkTFM)</TargetFramework>
+    <UseFrozenMaintenancePackageVersions>false</UseFrozenMaintenancePackageVersions>
+    <NuspecFile>VS.ExternalAPIs.MSBuild.nuspec</NuspecFile>
+    <IsShipping>false</IsShipping>
+    <PlatformTarget>x86</PlatformTarget>
+    <IsVisualStudioInsertionPackage>true</IsVisualStudioInsertionPackage>
+    <ExcludeFromBuild Condition="'$(MSBuildRuntimeType)' != 'Full'">true</ExcludeFromBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\MSBuild\MSBuild.csproj" />
+    <ProjectReference Include="..\..\Framework\Microsoft.Build.Framework.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\NuspecProject.targets" />
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <AllowedReferenceRelatedFileExtensions>$(AllowedReferenceRelatedFileExtensions);.tlb</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+
+</Project>

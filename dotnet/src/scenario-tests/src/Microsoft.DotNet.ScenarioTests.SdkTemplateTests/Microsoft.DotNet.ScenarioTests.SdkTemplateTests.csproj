@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(BundledNETCoreAppTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\test\resources\**"
+          CopyToOutputDirectory="Always" />
+    <None Update="assets\**"
+          CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,106 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+#nullable disable
+
+using System.Diagnostics;
+using System.Globalization;
+using Microsoft.CodeAnalysis;
+using Microsoft.NET.TestFramework;
+using Moq;
+
+namespace Microsoft.NET.Sdk.Razor.Tool
+{
+    [TestClass]
+    public class ServerCommandTest
+    {
+        [TestMethod]
+        public void WritePidFile_WorksAsExpected()
+        {
+            // Arrange
+            var expectedProcessId = Process.GetCurrentProcess().Id;
+            var expectedRzcPath = typeof(ServerCommand).Assembly.Location;
+            var expectedFileName = $"rzc-{expectedProcessId}";
+            var directoryPath = Path.Combine(Path.GetTempPath(), "RazorTest", Guid.NewGuid().ToString());
+            var path = Path.Combine(directoryPath, expectedFileName);
+
+            var pipeName = Guid.NewGuid().ToString();
+            var server = GetServerCommand(pipeName);
+
+            // Act & Assert
+            try
+            {
+                using (var _ = server.WritePidFile(directoryPath))
+                {
+                    Assert.IsTrue(File.Exists(path));
+
+                    // Make sure another stream can be opened while the write stream is still open.
+                    using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Write | FileShare.Delete))
+                    using (var reader = new StreamReader(fileStream, Encoding.UTF8))
+                    {
+                        var lines = reader.ReadToEnd().Split(Environment.NewLine);
+                        Assert.AreSequenceEqual(new[] { expectedProcessId.ToString(CultureInfo.InvariantCulture), "rzc", expectedRzcPath, pipeName }, lines);
+                    }
+                }
+
+                // Make sure the file is deleted on dispose.
+                Assert.IsFalse(File.Exists(path));
+            }
+            finally
+            {
+                // Cleanup after the test.
+                if (Directory.Exists(directoryPath))
+                {
+                    Directory.Delete(directoryPath, recursive: true);
+                }
+            }
+        }
+
+        [TestMethod]
+        [ResourceLock(WellKnownResources.EnvironmentVariables)]
+        public void GetPidFilePath_ReturnsCorrectDefaultPath()
+        {
+            // Arrange
+            var expectedPath = Path.Combine(".dotnet", "pids", "build");
+
+            // Act
+            var directoryPath = ServerCommand.GetPidFilePath();
+
+            // Assert
+            Assert.EndsWith(expectedPath, directoryPath);
+        }
+
+        [TestMethod]
+        [ResourceLock(WellKnownResources.EnvironmentVariables)]
+        public void GetPidFilePath_UsesEnvironmentVariablePathIfSpecified()
+        {
+            // Arrange
+            var expectedPath = "/Some/directory/path/";
+            var previousPath = Environment.GetEnvironmentVariable("DOTNET_BUILD_PIDFILE_DIRECTORY");
+            Environment.SetEnvironmentVariable("DOTNET_BUILD_PIDFILE_DIRECTORY", expectedPath);
+            try
+            {
+                // Act
+                var directoryPath = ServerCommand.GetPidFilePath();
+
+                // Assert
+                Assert.AreEqual(expectedPath, directoryPath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("DOTNET_BUILD_PIDFILE_DIRECTORY", previousPath);
+            }
+        }
+
+        private ServerCommand GetServerCommand(string pipeName = null)
+        {
+            var application = new Application(
+                CancellationToken.None,
+                Mock.Of<ExtensionAssemblyLoader>(),
+                Mock.Of<ExtensionDependencyChecker>(),
+                (path, properties) => MetadataReference.CreateFromFile(path, properties));
+
+            return new ServerCommand(application, pipeName);
+        }
+    }
+}

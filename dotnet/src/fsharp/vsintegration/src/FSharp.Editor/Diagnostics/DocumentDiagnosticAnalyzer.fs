@@ -1,0 +1,220 @@
+﻿// Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
+
+namespace Microsoft.VisualStudio.FSharp.Editor
+
+open System
+open System.Composition
+open System.Collections.Immutable
+open System.Collections.Generic
+open System.Runtime.CompilerServices
+open System.Threading
+open System.Threading.Tasks
+
+open Microsoft.CodeAnalysis
+open Microsoft.CodeAnalysis.Text
+open Microsoft.CodeAnalysis.ExternalAccess.FSharp.Diagnostics
+
+open FSharp.Compiler.Diagnostics
+open CancellableTasks
+open Microsoft.VisualStudio.FSharp.Editor.Telemetry
+
+[<Struct; NoComparison; NoEquality; RequireQualifiedAccess>]
+type internal DiagnosticsType =
+    | Syntax
+    | Semantic
+
+[<NoComparison; NoEquality>]
+type private CachedDiagnostics =
+    {
+        /// Diagnostic locations embed it, so a rename that keeps the DocumentId must still invalidate.
+        FilePath: string
+        TextVersion: VersionStamp
+        ProjectVersion: VersionStamp
+        IsRemoveParensEnabled: bool
+        Diagnostics: ImmutableArray<Diagnostic>
+    }
+
+[<Export(typeof<IFSharpDocumentDiagnosticAnalyzer>); Shared>]
+type internal FSharpDocumentDiagnosticAnalyzer [<ImportingConstructor>] () =
+
+    let shouldProduceDiagnostics (document: Document) =
+        document.Project.Solution.GetFSharpExtensionConfig().ShouldProduceDiagnostics()
+
+    // DocumentId keys survive solution snapshots, and holding them weakly means a document dropped from the
+    // solution takes its cached diagnostics with it, so no eviction pass is needed on the request path.
+    static let syntaxCache = ConditionalWeakTable<DocumentId, CachedDiagnostics>()
+    static let semanticCache = ConditionalWeakTable<DocumentId, CachedDiagnostics>()
+
+    static let diagnosticEqualityComparer =
+        { new IEqualityComparer<FSharpDiagnostic> with
+
+            member _.Equals(x, y) =
+                x.FileName = y.FileName
+                && x.StartLine = y.StartLine
+                && x.EndLine = y.EndLine
+                && x.StartColumn = y.StartColumn
+                && x.EndColumn = y.EndColumn
+                && x.Severity = y.Severity
+                && x.Message = y.Message
+                && x.Subcategory = y.Subcategory
+                && x.ErrorNumber = y.ErrorNumber
+
+            member _.GetHashCode x =
+                let mutable hash = 17
+                hash <- hash * 23 + x.StartLine.GetHashCode()
+                hash <- hash * 23 + x.EndLine.GetHashCode()
+                hash <- hash * 23 + x.StartColumn.GetHashCode()
+                hash <- hash * 23 + x.EndColumn.GetHashCode()
+                hash <- hash * 23 + x.Severity.GetHashCode()
+                hash <- hash * 23 + x.Message.GetHashCode()
+                hash <- hash * 23 + x.Subcategory.GetHashCode()
+                hash <- hash * 23 + x.ErrorNumber.GetHashCode()
+                hash
+        }
+
+    static member GetDiagnostics(document: Document, diagnosticType: DiagnosticsType) =
+        cancellableTask {
+
+            let eventProps: (string * obj) array =
+                [|
+                    "context.document.project.id", document.Project.Id.Id.ToString()
+                    "context.document.id", document.Id.Id.ToString()
+                    "context.diagnostics.type",
+                    match diagnosticType with
+                    | DiagnosticsType.Syntax -> "syntax"
+                    | DiagnosticsType.Semantic -> "semantic"
+                |]
+
+            use _eventDuration =
+                TelemetryReporter.ReportSingleEventWithDuration(TelemetryEvents.GetDiagnosticsForDocument, eventProps)
+
+            let! ct = CancellableTask.getCancellationToken ()
+
+            let! projectVersion =
+                match diagnosticType with
+                // Syntax diagnostics depend on the parsing options (defines, langversion), which the project version covers.
+                | DiagnosticsType.Syntax -> CancellableTask.singleton document.Project.Version
+                | DiagnosticsType.Semantic -> (fun ct -> document.Project.GetDependentVersionAsync(ct))
+
+            let! textVersion = document.GetTextVersionAsync(ct)
+
+            let filePath = document.FilePath
+
+            let isRemoveParensEnabled =
+                match diagnosticType with
+                | DiagnosticsType.Syntax -> document.Project.IsFsharpRemoveParensEnabled
+                | DiagnosticsType.Semantic -> false
+
+            let cache =
+                match diagnosticType with
+                | DiagnosticsType.Syntax -> syntaxCache
+                | DiagnosticsType.Semantic -> semanticCache
+
+            let cached =
+                match cache.TryGetValue document.Id with
+                | true, cachedEntry when
+                    String.Equals(cachedEntry.FilePath, filePath, StringComparison.Ordinal)
+                    && cachedEntry.TextVersion = textVersion
+                    && cachedEntry.ProjectVersion = projectVersion
+                    && cachedEntry.IsRemoveParensEnabled = isRemoveParensEnabled
+                    ->
+                    ValueSome cachedEntry.Diagnostics
+                | _ -> ValueNone
+
+            match cached with
+            | ValueSome cachedDiagnostics -> return cachedDiagnostics
+            | ValueNone ->
+
+                let! sourceText = document.GetTextAsync(ct)
+
+                let errors = HashSet<FSharpDiagnostic>(diagnosticEqualityComparer)
+
+                match diagnosticType with
+                | DiagnosticsType.Syntax ->
+                    let! parseResults = document.GetFSharpParseResultsAsync("GetDiagnostics")
+
+                    for diagnostic in parseResults.Diagnostics do
+                        errors.Add(diagnostic) |> ignore
+
+                | DiagnosticsType.Semantic ->
+                    let! parseResults, checkResults = document.GetFSharpParseAndCheckResultsAsync("GetDiagnostics")
+
+                    for diagnostic in checkResults.Diagnostics do
+                        errors.Add(diagnostic) |> ignore
+
+                    errors.ExceptWith(parseResults.Diagnostics)
+
+                let! unnecessaryParentheses =
+                    match diagnosticType with
+                    | DiagnosticsType.Syntax when isRemoveParensEnabled -> UnnecessaryParenthesesDiagnosticAnalyzer.GetDiagnostics document
+                    | _ -> CancellableTask.singleton ImmutableArray.Empty
+
+                let result =
+                    if errors.Count = 0 && unnecessaryParentheses.IsEmpty then
+                        ImmutableArray.Empty
+                    else
+                        let iab = ImmutableArray.CreateBuilder(errors.Count + unnecessaryParentheses.Length)
+
+                        for diagnostic in errors do
+                            if diagnostic.StartLine <> 0 && diagnostic.EndLine <> 0 then
+                                let linePositionSpan =
+                                    LinePositionSpan(
+                                        LinePosition(diagnostic.StartLine - 1, diagnostic.StartColumn),
+                                        LinePosition(diagnostic.EndLine - 1, diagnostic.EndColumn)
+                                    )
+
+                                let textSpan = sourceText.Lines.GetTextSpan(linePositionSpan)
+
+                                // F# compiler report errors at end of file if parsing fails. It should be corrected to match Roslyn boundaries
+                                let correctedTextSpan =
+                                    if textSpan.End <= sourceText.Length then
+                                        textSpan
+                                    else
+                                        let start = min textSpan.Start (sourceText.Length - 1) |> max 0
+
+                                        TextSpan.FromBounds(start, sourceText.Length)
+
+                                let location = Location.Create(filePath, correctedTextSpan, linePositionSpan)
+                                iab.Add(RoslynHelpers.ConvertError(diagnostic, location))
+
+                        iab.AddRange unnecessaryParentheses
+                        iab.ToImmutable()
+
+                let entry =
+                    {
+                        FilePath = filePath
+                        TextVersion = textVersion
+                        ProjectVersion = projectVersion
+                        IsRemoveParensEnabled = isRemoveParensEnabled
+                        Diagnostics = result
+                    }
+
+                // net472 has no ConditionalWeakTable.AddOrUpdate, and Remove + Add races with a concurrent pass.
+                lock cache (fun () ->
+                    cache.Remove document.Id |> ignore
+                    cache.Add(document.Id, entry))
+
+                return result
+        }
+
+    interface IFSharpDocumentDiagnosticAnalyzer with
+
+        member _.AnalyzeSyntaxAsync(document: Document, cancellationToken: CancellationToken) : Task<ImmutableArray<Diagnostic>> =
+            if
+                document.Project.IsFSharpMetadata
+                || (not (document |> shouldProduceDiagnostics))
+            then
+                Task.FromResult ImmutableArray.Empty
+            else
+                FSharpDocumentDiagnosticAnalyzer.GetDiagnostics(document, DiagnosticsType.Syntax)
+                |> CancellableTask.start cancellationToken
+
+        member _.AnalyzeSemanticsAsync(document: Document, cancellationToken: CancellationToken) : Task<ImmutableArray<Diagnostic>> =
+            if
+                document.Project.IsFSharpMiscellaneousOrMetadata && not document.IsFSharpScript
+                || (not (document |> shouldProduceDiagnostics))
+            then
+                Task.FromResult ImmutableArray.Empty
+            else
+                FSharpDocumentDiagnosticAnalyzer.GetDiagnostics(document, DiagnosticsType.Semantic)
+                |> CancellableTask.start cancellationToken
