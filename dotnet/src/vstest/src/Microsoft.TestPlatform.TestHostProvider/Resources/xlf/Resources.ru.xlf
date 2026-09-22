@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2-transitional.xsd">
+  <file datatype="xml" source-language="en" original="../Resources.resx" target-language="ru">
+    <body>
+      <trans-unit id="CouldNotFindTesthost">
+        <source>Could not find testhost for test source '{0}'.
+
+Verify that:
+  - The test project references the 'Microsoft.NET.Test.Sdk' NuGet package.
+  - The project has been built and the output is in '{1}'.
+  - The project's target framework matches the installed .NET runtime.
+</source>
+        <target state="translated">Не удалось найти testhost для источника теста "{0}".
+
+Убедитесь, что:
+  – Тестовый проект ссылается на пакет NuGet Microsoft.NET.Test.Sdk.
+  – Сборка проекта выполнена, и выходные файлы находятся в "{1}".
+  – Целевая платформа проекта соответствует установленной среде выполнения .NET.
+</target>
+        <note>'{0}' is the path to the test source (DLL/EXE), '{1}' is the directory where testhost was searched.</note>
+      </trans-unit>
+      <trans-unit id="MultipleFileVersions">
+        <source>Multiple versions of same extension found. Selecting the highest version.
+{0}</source>
+        <target state="translated">Обнаружено несколько версий одного расширения. Выбрана самая поздняя версия.
+{0}</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="NetFrameworkTestsNotSupportedOnNonWindows">
+        <source>Running .NET Framework tests is supported on Windows only.
+
+Running .NET Framework tests on this operating system relied on Mono, which is no longer supported. To run these tests, run them on Windows, or change the test project to target .NET instead of .NET Framework.</source>
+        <target state="translated">Запуск тестов .NET Framework поддерживается только в Windows.
+
+Для запуска тестов .NET Framework в этой операционной системе использовался Mono, который больше не поддерживается. Чтобы запустить эти тесты, выполняйте их в Windows или измените тестовый проект, чтобы он использовал .NET вместо .NET Framework.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="UnableToFindDepsFile">
+        <source>Unable to find {0}. Make sure test project has a nuget reference of package "Microsoft.NET.Test.Sdk".</source>
+        <target state="translated">Не удается найти {0}. Убедитесь, что в тестовом проекте есть ссылка NuGet на пакет "Microsoft.NET.Test.Sdk".</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="SuggestPublishTestProject">
+        <source>Unable to find {0}. Please publish your test project and retry.</source>
+        <target state="translated">Не удалось найти {0}. Опубликуйте тестовый проект и повторите попытку.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="NoDotnetMuxerFoundForArchitecture">
+        <source>Could not find '{0}' host for the '{1}' architecture.
+
+You can resolve the problem by installing the '{1}' .NET.
+
+The specified framework can be found at:
+  - https://aka.ms/dotnet-download
+</source>
+        <target state="translated">Не удалось найти узел "{0}" для архитектуры "{1}".
+
+Чтобы устранить проблему, установите .NET "{1}".
+
+Указанную платформу можно найти по адресу:
+  https://aka.ms/dotnet-download
+</target>
+        <note>'{0}' is the placeholder for 'dotnet.exe' or 'dotnet' value and depends on platform Windows/Unix, '{1}' is the placeholder for the architeture name like ARM64, X64 etc...</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.Build.NoTargets">
+
+  <PropertyGroup>
+    <DisallowDotNetFinalVersionKindOverride>true</DisallowDotNetFinalVersionKindOverride>
+
+    <!-- Use the repo root build script -->
+    <BuildScript>$(ProjectDirectory)build$(ShellExtension)</BuildScript>
+
+    <!-- Restore and Build actions are already passed in by the root script. -->
+    <BuildActions>$(FlagParameterPrefix)pack $(FlagParameterPrefix)publish</BuildActions>
+    <BuildActions Condition="'$(DotNetBuildSign)' == 'true'">$(BuildActions) $(FlagParameterPrefix)sign</BuildActions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RepositoryReference Include="arcade" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
+    <RepositoryReference Include="roslyn" />
+    <RepositoryReference Include="runtime" />
+    <RepositoryReference Include="source-build-assets" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DotNetBuildSourceOnly)' == 'true'">
+    <!-- Use Roslyn from the previously source-built SDK instead of live Roslyn. -->
+    <ExtraPackageVersionPropsPackageInfo Include="Analyzer_MicrosoftCodeAnalysisCSharpVersion" Version="%24(MicrosoftCodeAnalysisCSharpPreviousVersion)" />
+    <ExtraPackageVersionPropsPackageInfo Include="Analyzer_MicrosoftCodeAnalysisCSharpWorkspacesVersion" Version="%24(MicrosoftCodeAnalysisCSharpWorkspacesPreviousVersion)" />
+    <ExtraPackageVersionPropsPackageInfo Include="Analyzer_MicrosoftCodeAnalysisAnalyzersVersion" Version="%24(MicrosoftCodeAnalysisAnalyzersPreviousVersion)" />
+  </ItemGroup>
+
+</Project>

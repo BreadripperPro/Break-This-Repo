@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <OutputArchitecture>neutral</OutputArchitecture>
+    <OutputLocalized>false</OutputLocalized>
+    <OutputType>manifest</OutputType>
+    <OutputPath>$(ManifestOutputPath)</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackagePreprocessorDefinitions>$(PackagePreprocessorDefinitions)</PackagePreprocessorDefinitions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Package Include="component.swr" />
+    <Package Include="component.res.swr" />
+  </ItemGroup>
+  
+  <Import Project="$(SwixBuildTargets)"/>
+</Project>

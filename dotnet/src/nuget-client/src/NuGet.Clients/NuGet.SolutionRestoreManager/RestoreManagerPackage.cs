@@ -1,0 +1,70 @@
+// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
+#nullable disable
+
+using System;
+using System.Runtime.InteropServices;
+using System.Threading;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.Shell;
+using NuGet.VisualStudio.Telemetry;
+using Task = System.Threading.Tasks.Task;
+
+namespace NuGet.SolutionRestoreManager
+{
+    /// <summary>
+    /// Visual Studio extension package designed to bootstrap solution restore components.
+    /// Loads on solution open to attach to build events.
+    /// </summary>
+    // Flag AllowsBackgroundLoading is set to True and Flag PackageAutoLoadFlags is set to BackgroundLoad
+    // which will allow this package to be loaded asynchronously
+    [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
+    // BackgroundLoad this package as soon as a Solution exists.
+    [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
+    // Ensure that this package is loaded in time to listen to solution build events, in order to always be able to restore before build.
+    [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionBuilding_string)]
+    [Guid(PackageGuidString)]
+    public sealed class RestoreManagerPackage : AsyncPackage
+    {
+        /// <summary>
+        /// RestoreManagerPackage GUID string.
+        /// </summary>
+        public const string PackageGuidString = "2b52ac92-4551-426d-bd34-c6d7d9fdd1c5";
+
+        private IDisposable _handler;
+
+        protected override async Task InitializeAsync(
+            CancellationToken cancellationToken,
+            IProgress<ServiceProgressData> progress)
+        {
+            NuGetVSTelemetryService.Initialize();
+
+            IComponentModel componentModel = await this.GetServiceAsync<SComponentModel, IComponentModel>();
+
+            SolutionRestoreBuildHandler restoreHandler = componentModel.GetService<SolutionRestoreBuildHandler>();
+            await restoreHandler.InitializeAsync(this, componentModel);
+            _handler = restoreHandler;
+
+            await SolutionRestoreCommand.InitializeAsync(this);
+
+            await base.InitializeAsync(cancellationToken, progress);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            // disposing is true when called from IDispose.Dispose; false when called from Finalizer.
+            if (disposing)
+            {
+                // Guarantees thread-safe execution of this method.
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                _handler?.Dispose();
+                _handler = null;
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+}

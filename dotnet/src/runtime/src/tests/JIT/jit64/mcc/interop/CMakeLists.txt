@@ -1,0 +1,17 @@
+project(mcc_native)
+
+add_library(native_i0c ${TEST_LIB_TYPE} native_i0c.cpp)
+add_library(native_i1c ${TEST_LIB_TYPE} native_i1c.cpp)
+add_library(native_i3c ${TEST_LIB_TYPE} native_i3c.cpp)
+add_library(native_i5c ${TEST_LIB_TYPE} native_i5c.cpp)
+add_library(native_i6c ${TEST_LIB_TYPE} native_i6c.cpp)
+add_library(native_i7c ${TEST_LIB_TYPE} native_i7c.cpp)
+add_library(native_i8c ${TEST_LIB_TYPE} native_i8c.cpp)
+
+add_library(native_i0s ${TEST_LIB_TYPE} native_i0s.cpp)
+add_library(native_i1s ${TEST_LIB_TYPE} native_i1s.cpp)
+add_library(native_i3s ${TEST_LIB_TYPE} native_i3s.cpp)
+add_library(native_i5s ${TEST_LIB_TYPE} native_i5s.cpp)
+add_library(native_i6s ${TEST_LIB_TYPE} native_i6s.cpp)
+add_library(native_i7s ${TEST_LIB_TYPE} native_i7s.cpp)
+add_library(native_i8s ${TEST_LIB_TYPE} native_i8s.cpp)

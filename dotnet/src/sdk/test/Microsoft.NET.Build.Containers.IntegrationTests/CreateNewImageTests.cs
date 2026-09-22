@@ -1,0 +1,383 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Runtime.CompilerServices;
+using FakeItEasy;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+using Microsoft.NET.Build.Containers.IntegrationTests;
+
+namespace Microsoft.NET.Build.Containers.Tasks.IntegrationTests;
+
+[TestClass]
+[ResourceLock(TestSettings.DockerDaemonResource)]
+public class CreateNewImageTests : SdkTest
+{
+    [TestMethod]
+    [Ignore("https://github.com/dotnet/sdk/issues/49300")]
+    public void CreateNewImage_Baseline()
+    {
+        DirectoryInfo newProjectDir = new(GetTestDirectoryName());
+        if (newProjectDir.Exists)
+        {
+            newProjectDir.Delete(recursive: true);
+        }
+
+        newProjectDir.Create();
+
+        new DotnetNewCommand(Log, "console", "-f", ToolsetInfo.CurrentTargetFramework)
+            .WithVirtualHive()
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        new DotnetCommand(Log, "publish", "-c", "Release", "-r", "linux-arm64", "--no-self-contained")
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        CreateNewImage task = new();
+
+        (IBuildEngine buildEngine, List<string?> errors) = SetupBuildEngine();
+        task.BuildEngine = buildEngine;
+
+        task.BaseRegistry = "mcr.microsoft.com";
+        task.BaseImageName = "dotnet/runtime";
+        task.BaseImageTag = "7.0";
+
+        task.OutputRegistry = "localhost:5010";
+        task.LocalRegistry = DockerUnavailableCondition.LocalRegistry;
+        task.PublishDirectory = Path.Combine(newProjectDir.FullName, "bin", "Release", ToolsetInfo.CurrentTargetFramework, "linux-arm64", "publish");
+        task.Repository = $"dotnet/create-new-image-baseline-{TestSettings.TestRunId}";
+        task.ImageTags = new[] { "latest" };
+        task.WorkingDirectory = "app/";
+        task.ContainerRuntimeIdentifier = "linux-arm64";
+        task.Entrypoint = new TaskItem[] { new("dotnet"), new("build") };
+        task.RuntimeIdentifierGraphPath = ToolsetUtils.GetRuntimeGraphFilePath();
+
+        Assert.IsTrue(task.Execute(), FormatBuildMessages(errors));
+        newProjectDir.Delete(true);
+    }
+
+    private static ImageConfig GetImageConfigFromTask(CreateNewImage task)
+    {
+        return new(task.GeneratedContainerConfiguration);
+    }
+
+    [TestMethod]
+    [Ignore("https://github.com/dotnet/sdk/issues/49300")]
+    public void ParseContainerProperties_EndToEnd()
+    {
+        DirectoryInfo newProjectDir = new(GetTestDirectoryName());
+
+        if (newProjectDir.Exists)
+        {
+            newProjectDir.Delete(recursive: true);
+        }
+
+        newProjectDir.Create();
+
+        new DotnetNewCommand(Log, "console", "-f", ToolsetInfo.CurrentTargetFramework)
+            .WithVirtualHive()
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        new DotnetCommand(Log, "build", "--configuration", "release")
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        ParseContainerProperties pcp = new();
+        (IBuildEngine buildEngine, List<string?> errors) = SetupBuildEngine();
+        pcp.BuildEngine = buildEngine;
+        string repository = $"dotnet/testimage-{TestSettings.TestRunId}";
+
+        pcp.FullyQualifiedBaseImageName = "mcr.microsoft.com/dotnet/runtime:7.0";
+        pcp.ContainerRegistry = "localhost:5010";
+        pcp.ContainerRepository = repository;
+        pcp.ContainerImageTags = new[] { "5.0", "latest" };
+
+        Assert.IsTrue(pcp.Execute(), FormatBuildMessages(errors));
+        Assert.AreEqual("mcr.microsoft.com", pcp.ParsedContainerRegistry);
+        Assert.AreEqual("dotnet/runtime", pcp.ParsedContainerImage);
+        Assert.AreEqual("7.0", pcp.ParsedContainerTag);
+
+        Assert.AreEqual(repository, pcp.NewContainerRepository);
+        pcp.NewContainerTags.Should().BeEquivalentTo(new[] { "5.0", "latest" });
+
+        CreateNewImage cni = new();
+        (buildEngine, errors) = SetupBuildEngine();
+        cni.BuildEngine = buildEngine;
+
+        cni.BaseRegistry = pcp.ParsedContainerRegistry;
+        cni.BaseImageName = pcp.ParsedContainerImage;
+        cni.BaseImageTag = pcp.ParsedContainerTag;
+        cni.Repository = pcp.NewContainerRepository;
+        cni.OutputRegistry = "localhost:5010";
+        cni.PublishDirectory = Path.Combine(newProjectDir.FullName, "bin", "release", ToolsetInfo.CurrentTargetFramework);
+        cni.WorkingDirectory = "app/";
+        cni.Entrypoint = new TaskItem[] { new(newProjectDir.Name) };
+        cni.ImageTags = pcp.NewContainerTags;
+        cni.ContainerRuntimeIdentifier = "linux-x64";
+        cni.RuntimeIdentifierGraphPath = ToolsetUtils.GetRuntimeGraphFilePath();
+
+        Assert.IsTrue(cni.Execute(), FormatBuildMessages(errors));
+        newProjectDir.Delete(true);
+    }
+
+    /// <summary>
+    /// Creates a console app that outputs the environment variable added to the image.
+    /// </summary>
+
+    [TestMethod]
+    [Ignore("https://github.com/dotnet/sdk/issues/49300")]
+    public void Tasks_EndToEnd_With_EnvironmentVariable_Validation()
+    {
+        DirectoryInfo newProjectDir = new(GetTestDirectoryName());
+
+        if (newProjectDir.Exists)
+        {
+            newProjectDir.Delete(recursive: true);
+        }
+
+        newProjectDir.Create();
+
+        new DotnetNewCommand(Log, "console", "-f", ToolsetInfo.CurrentTargetFramework)
+            .WithVirtualHive()
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        EndToEndTests.ChangeTargetFrameworkAfterAppCreation(newProjectDir.FullName);
+
+        File.WriteAllText(Path.Combine(newProjectDir.FullName, "Program.cs"), $"Console.Write(Environment.GetEnvironmentVariable(\"GoodEnvVar\"));");
+
+        new DotnetCommand(Log, "build", "--configuration", "release", "/p:runtimeidentifier=linux-x64")
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        ParseContainerProperties pcp = new();
+        (IBuildEngine buildEngine, List<string?> errors) = SetupBuildEngine();
+        pcp.BuildEngine = buildEngine;
+        string repository = $"dotnet/envvarvalidation-{TestSettings.TestRunId}";
+
+        pcp.FullyQualifiedBaseImageName = $"mcr.microsoft.com/{DockerRegistryManager.RuntimeBaseImage}:{DockerRegistryManager.Net9ImageTag}";
+        pcp.ContainerRegistry = "";
+        pcp.ContainerRepository = repository;
+        pcp.ContainerImageTag = "latest";
+
+        Dictionary<string, string> dict = new();
+        dict.Add("Value", "Foo");
+
+        pcp.ContainerEnvironmentVariables = new[] { new TaskItem("B@dEnv.Var", dict), new TaskItem("GoodEnvVar", dict) };
+
+        Assert.IsTrue(pcp.Execute(), FormatBuildMessages(errors));
+        Assert.AreEqual("mcr.microsoft.com", pcp.ParsedContainerRegistry);
+        Assert.AreEqual("dotnet/runtime", pcp.ParsedContainerImage);
+        Assert.AreEqual(DockerRegistryManager.Net9ImageTag, pcp.ParsedContainerTag);
+        Assert.ContainsSingle(pcp.NewContainerEnvironmentVariables);
+        Assert.AreEqual("Foo", pcp.NewContainerEnvironmentVariables[0].GetMetadata("Value"));
+
+        Assert.AreEqual(repository, pcp.NewContainerRepository);
+        Assert.AreEqual("latest", pcp.NewContainerTags[0]);
+
+        CreateNewImage cni = new();
+        (buildEngine, errors) = SetupBuildEngine();
+        cni.BuildEngine = buildEngine;
+
+        cni.BaseRegistry = pcp.ParsedContainerRegistry;
+        cni.BaseImageName = pcp.ParsedContainerImage;
+        cni.BaseImageTag = pcp.ParsedContainerTag;
+        cni.Repository = pcp.NewContainerRepository;
+        cni.OutputRegistry = pcp.NewContainerRegistry;
+        cni.PublishDirectory = Path.Combine(newProjectDir.FullName, "bin", "release", EndToEndTests._oldFramework, "linux-x64");
+        cni.WorkingDirectory = "/app";
+        cni.Entrypoint = new TaskItem[] { new($"/app/{newProjectDir.Name}") };
+        cni.ImageTags = pcp.NewContainerTags;
+        cni.ContainerEnvironmentVariables = pcp.NewContainerEnvironmentVariables;
+        cni.ContainerRuntimeIdentifier = "linux-x64";
+        cni.RuntimeIdentifierGraphPath = ToolsetUtils.GetRuntimeGraphFilePath();
+        cni.LocalRegistry = DockerUnavailableCondition.LocalRegistry;
+
+        Assert.IsTrue(cni.Execute(), FormatBuildMessages(errors));
+
+        var config = GetImageConfigFromTask(cni);
+        // because we're building off of .net 8 images for this test, we can validate the user id and aspnet https urls
+        Assert.AreEqual("1654", config.GetUser());
+
+        var ports = config.Ports;
+        Assert.ContainsSingle(ports);
+        Assert.AreEqual(new(8080, PortType.tcp), ports.First());
+
+        ContainerCli.RunCommand(Log, "--rm", $"{pcp.NewContainerRepository}:latest")
+            .Execute()
+            .Should().Pass()
+            .And.HaveStdOut("Foo");
+    }
+
+    [TestMethod]
+    [Ignore("https://github.com/dotnet/sdk/issues/49300")]
+    public async System.Threading.Tasks.Task CreateNewImage_RootlessBaseImage()
+    {
+        string rootlessBase = $"dotnet/rootlessbase-{TestSettings.TestRunId}";
+        string appImage = $"dotnet/testimagerootless-{TestSettings.TestRunId}";
+        const string RootlessUser = "1654";
+        var loggerFactory = new TestLoggerFactory(Log);
+        var logger = loggerFactory.CreateLogger(nameof(CreateNewImage_RootlessBaseImage));
+
+        // Build a rootless base runtime image.
+        Registry registry = new(DockerRegistryManager.LocalRegistry, logger, RegistryMode.Push);
+
+        ImageBuilder imageBuilder = await registry.GetImageManifestAsync(
+            DockerRegistryManager.RuntimeBaseImage,
+            DockerRegistryManager.Net8ImageTag,
+            "linux-x64",
+            ToolsetUtils.RidGraphManifestPicker,
+            cancellationToken: default).ConfigureAwait(false);
+
+        Assert.IsNotNull(imageBuilder);
+
+
+        BuiltImage builtImage = imageBuilder.Build();
+
+        var sourceReference = new SourceImageReference(registry, DockerRegistryManager.RuntimeBaseImage, DockerRegistryManager.Net8ImageTag, null);
+        var destinationReference = new DestinationImageReference(registry, rootlessBase, new[] { "latest" });
+
+        await registry.PushAsync(builtImage, sourceReference, destinationReference, cancellationToken: default).ConfigureAwait(false);
+
+        // Build an application image on top of the rootless base runtime image.
+        DirectoryInfo newProjectDir = new(Path.Combine(TestSettings.TestArtifactsDirectory, nameof(CreateNewImage_RootlessBaseImage)));
+
+        if (newProjectDir.Exists)
+        {
+            newProjectDir.Delete(recursive: true);
+        }
+
+        newProjectDir.Create();
+
+        new DotnetNewCommand(Log, "console", "-f", ToolsetInfo.CurrentTargetFramework)
+            .WithVirtualHive()
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        new DotnetCommand(Log, "publish", "-c", "Release", "-r", "linux-x64", "--no-self-contained")
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        CreateNewImage task = new();
+        var (buildEngine, errors) = SetupBuildEngine();
+        task.BuildEngine = buildEngine;
+        task.BaseRegistry = "localhost:5010";
+        task.BaseImageName = rootlessBase;
+        task.BaseImageTag = "latest";
+
+        task.OutputRegistry = "localhost:5010";
+        task.PublishDirectory = Path.Combine(newProjectDir.FullName, "bin", "Release", ToolsetInfo.CurrentTargetFramework, "linux-x64", "publish");
+        task.Repository = appImage;
+        task.ImageTags = new[] { "latest" };
+        task.WorkingDirectory = "app/";
+        task.ContainerRuntimeIdentifier = "linux-x64";
+        task.Entrypoint = new TaskItem[] { new("dotnet"), new("build") };
+        task.RuntimeIdentifierGraphPath = ToolsetUtils.GetRuntimeGraphFilePath();
+
+        Assert.IsTrue(task.Execute());
+        newProjectDir.Delete(true);
+
+        // Verify the application image uses the non-root user from the base image.
+        imageBuilder = await registry.GetImageManifestAsync(
+            appImage,
+            "latest",
+            "linux-x64",
+            ToolsetUtils.RidGraphManifestPicker,
+            cancellationToken: default).ConfigureAwait(false);
+
+        Assert.AreEqual(RootlessUser, imageBuilder.BaseImageConfig.GetUser());
+    }
+
+
+    [TestMethod]
+    [Ignore("https://github.com/dotnet/sdk/issues/49502")]
+    public void CanOverrideContainerImageFormat()
+    {
+        DirectoryInfo newProjectDir = new(GetTestDirectoryName());
+
+        if (newProjectDir.Exists)
+        {
+            newProjectDir.Delete(recursive: true);
+        }
+
+        newProjectDir.Create();
+
+        new DotnetNewCommand(Log, "console", "-f", ToolsetInfo.CurrentTargetFramework)
+            .WithVirtualHive()
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        new DotnetCommand(Log, "build", "--configuration", "release")
+            .WithWorkingDirectory(newProjectDir.FullName)
+            .Execute()
+            .Should().Pass();
+
+        ParseContainerProperties pcp = new();
+        (IBuildEngine buildEngine, List<string?> errors) = SetupBuildEngine();
+        pcp.BuildEngine = buildEngine;
+        string repository = $"dotnet/testimage-{TestSettings.TestRunId}";
+
+        pcp.FullyQualifiedBaseImageName = "mcr.microsoft.com/dotnet/runtime:9.0";
+        pcp.ContainerRegistry = "localhost:5010";
+        pcp.ContainerRepository = repository;
+        pcp.ContainerImageTags = new[] { "5.0", "latest" };
+
+        Assert.IsTrue(pcp.Execute(), FormatBuildMessages(errors));
+        Assert.AreEqual("mcr.microsoft.com", pcp.ParsedContainerRegistry);
+        Assert.AreEqual("dotnet/runtime", pcp.ParsedContainerImage);
+        Assert.AreEqual("9.0", pcp.ParsedContainerTag);
+
+        Assert.AreEqual(repository, pcp.NewContainerRepository);
+        pcp.NewContainerTags.Should().BeEquivalentTo(new[] { "5.0", "latest" });
+
+        CreateNewImage cni = new();
+        (buildEngine, errors) = SetupBuildEngine();
+        cni.BuildEngine = buildEngine;
+
+        cni.BaseRegistry = pcp.ParsedContainerRegistry;
+        cni.BaseImageName = pcp.ParsedContainerImage;
+        cni.BaseImageTag = pcp.ParsedContainerTag;
+        cni.Repository = pcp.NewContainerRepository;
+        cni.OutputRegistry = "localhost:5010";
+        cni.PublishDirectory = Path.Combine(newProjectDir.FullName, "bin", "release", ToolsetInfo.CurrentTargetFramework);
+        cni.WorkingDirectory = "app/";
+        cni.Entrypoint = new TaskItem[] { new(newProjectDir.Name) };
+        cni.ImageTags = pcp.NewContainerTags;
+        cni.ContainerRuntimeIdentifier = "linux-x64";
+        cni.RuntimeIdentifierGraphPath = ToolsetUtils.GetRuntimeGraphFilePath();
+
+        cni.ImageFormat = KnownImageFormats.OCI.ToString();
+
+        Assert.IsTrue(cni.Execute(), FormatBuildMessages(errors));
+
+        cni.GeneratedContainerMediaType.Should().Be(SchemaTypes.OciManifestV1);
+        newProjectDir.Delete(true);
+    }
+
+
+    private static (IBuildEngine buildEngine, List<string?> errors) SetupBuildEngine()
+    {
+        List<string?> errors = new();
+        IBuildEngine buildEngine = A.Fake<IBuildEngine>();
+        A.CallTo(() => buildEngine.LogWarningEvent(A<BuildWarningEventArgs>.Ignored)).Invokes((BuildWarningEventArgs e) => errors.Add(e.Message));
+        A.CallTo(() => buildEngine.LogErrorEvent(A<BuildErrorEventArgs>.Ignored)).Invokes((BuildErrorEventArgs e) => errors.Add(e.Message));
+        A.CallTo(() => buildEngine.LogMessageEvent(A<BuildMessageEventArgs>.Ignored)).Invokes((BuildMessageEventArgs e) => errors.Add(e.Message));
+
+        return (buildEngine, errors);
+    }
+
+    private static string GetTestDirectoryName([CallerMemberName] string testName = "DefaultTest") => Path.Combine(TestSettings.TestArtifactsDirectory, testName + "_" + DateTime.Now.ToString("yyyyMMddHHmmss"));
+
+    private static string FormatBuildMessages(List<string?> messages) => string.Join("\r\n", messages);
+}

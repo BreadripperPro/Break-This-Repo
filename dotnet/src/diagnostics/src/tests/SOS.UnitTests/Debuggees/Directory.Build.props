@@ -1,0 +1,28 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)..\..\..\Directory.Build.props"/>
+  <Import Project="$(RepoRoot)/eng/AuxMsbuildFiles/SdkPackOverrides.targets"/>
+
+  <PropertyGroup>
+    <EnableAnalyzers>false</EnableAnalyzers>
+    <DebugType Condition="'$(TargetFramework)' == '$(DesktopTargetFramework)'">full</DebugType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>false</Optimize>
+    <!-- Framework-dependent apphosts default to the build SDK's host platform. Keep their output
+         RID-neutral while selecting an apphost that can execute on cross-target test legs. -->
+    <DefaultAppHostRuntimeIdentifier Condition="'$(TargetRid)' == 'win-x86' or $(TargetRid.EndsWith('-arm64')) or $(TargetRid.StartsWith('linux-musl-'))">$(TargetRid)</DefaultAppHostRuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="@(EditorConfigFiles)" />
+    <EditorConfigFiles Include="$(RepositoryEngineeringDir)CodeAnalysis.test.globalconfig" />
+  </ItemGroup>
+
+  <Target Name="WriteSOSSingleFileRuntimeVersion"
+          AfterTargets="Publish"
+          Condition="'$(SOSSingleFileRuntimeVersion)' != ''">
+    <WriteLinesToFile File="$(PublishDir)runtime.version"
+                      Lines="$(SOSSingleFileRuntimeVersion)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+  </Target>
+</Project>

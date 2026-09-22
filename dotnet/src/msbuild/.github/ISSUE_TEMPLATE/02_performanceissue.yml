@@ -1,0 +1,70 @@
+name: 📉 Performance Issue
+description: Report a performance issue or regression.
+title: "[Performance]: "
+labels: ["performance"]
+type: 'Bug'
+body:
+  - type: textarea
+    attributes:
+      label: Issue Description
+      description: Please include a clear and concise description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to Reproduce
+      description:  |
+        Include as much of the following as possible:
+        * a minimal sample project that reproduces the issue,
+        * your zipped project,
+        * IDE / CLI steps to create the project and reproduce the behaviour,
+        * your command line invocation.
+
+        If providing steps to reproduce the issue proves difficult, consider attaching a binlog:
+        * [Details on sharing binary logs](https://aka.ms/msbuild/binlog)
+        * [More information on binary logs](https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md)
+
+        NOTE: Binary logs capture environment information. Ensure it does not include any information you don't want to be public before you attach one.
+        If you want to share one just with Microsoft, you can [report a problem through Visual Studio](https://developercommunity.visualstudio.com/report) and share it privately with Microsoft.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Data
+      description: |
+        Share any measurements you already have; advanced profiling is not required.
+        For comparisons, include what you know:
+        * Baseline and changed versions/configurations, with the commands used for each.
+        * The project/solution and scenario: clean build, incremental build, no-op build, restore, etc.
+        * Whether package/build caches were warm or cold and whether build servers were already running.
+        * Number of runs and end-to-end timings for each configuration (individual timings, or median and range).
+        * Any other differences between the runs or limits of the comparison.
+        Binlogs, ETW traces, call stacks and dumps are welcome if available; use the sharing guidance above.
+        Prefer text over screenshots so results are searchable.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Analysis
+      description: If you have an idea where the problem might lie, let us know that here. Please include any pointers to code, relevant changes, or related issues you know of.
+  - type: textarea
+    attributes:
+      label: Versions & Configurations
+      description: |
+        Include what you know; "unknown" or "not tested" is fine.
+        * The tool that invokes the build and its version (Visual Studio, dotnet CLI, etc.). Run `dotnet --info` for dotnet builds or `msbuild -version` for MSBuild.exe builds in the same environment as the affected build.
+        * OS, architecture and available CPU/memory.
+        * Relevant settings such as `-m`, `-mt`, `-graphBuild`, node reuse and MSBuild Server use, including response-file or environment overrides if known.
+  - type: dropdown
+    attributes:
+      label: Regression
+      description: Is this a regression from a previous build/release?
+      options:
+        - "Not sure"
+        - "Yes"
+        - "No"
+  - type: textarea
+    attributes:
+      label: Regression Details
+      description: |
+        Please provide details on regression: what version of MSBuild or VS were you using before the regression?

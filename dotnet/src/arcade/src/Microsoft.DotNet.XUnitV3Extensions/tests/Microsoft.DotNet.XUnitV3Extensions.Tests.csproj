@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(BundledNETCoreAppTargetFramework)</TargetFramework>
+    <TestRunnerName>XUnitV3</TestRunnerName>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Belongs to the sibling Microsoft.DotNet.XUnitV3Extensions.AlwaysFalseConditionalAssembly.Tests project. -->
+    <Compile Remove="AlwaysFalseConditionalAssemblyTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Microsoft.DotNet.XUnitV3Extensions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,327 @@
+# VSTest Environment Variables
+
+This document lists environment variables that are currently handled by VSTest source code, plus a few historical variables that are called out as removed or obsolete. It is not an exhaustive list of every variable used by every adapter or hosting environment.
+
+## Connection and Timeout Variables
+
+### VSTEST_CONNECTION_TIMEOUT
+- **Description**: Sets the timeout in seconds for establishing connections between various test platform components (vstest.console, testhost, datacollector).
+- **Default**: 90 seconds
+- **Example**: `VSTEST_CONNECTION_TIMEOUT=120`
+- **Usage**: Useful on slow machines or when network latency causes connection timeouts.
+
+### VSTEST_TESTHOST_SHUTDOWN_TIMEOUT
+- **Description**: Sets the timeout in milliseconds to wait for testhost to safely shut down.
+- **Default**: 100 milliseconds
+- **Example**: `VSTEST_TESTHOST_SHUTDOWN_TIMEOUT=500`
+- **Usage**: Allows testhost more time to clean up resources before forceful termination.
+
+## Diagnostics and Logging Variables
+
+### VSTEST_DIAG
+- **Description**: Enables diagnostic logging and specifies the path to the log file.
+- **Format**: Path to log directory and log file (e.g., "logs\log.txt")
+- **Example**: `VSTEST_DIAG=C:\temp\logs\vstest.log`
+- **Usage**: Equivalent to the `--diag` command line parameter.
+
+### VSTEST_DIAG_VERBOSITY
+- **Description**: Sets the verbosity level for diagnostic logging when VSTEST_DIAG is enabled.
+- **Valid Values**: `Verbose`, `Info`, `Warning`, `Error`
+- **Default**: `Verbose`
+- **Example**: `VSTEST_DIAG_VERBOSITY=Info`
+
+### VSTEST_LOGFOLDER
+- **Status**: Not used by product code under `src/`; referenced only in `test/` assets.
+- **Previous description**: Specified the folder where test logs should be written.
+- **Example**: `VSTEST_LOGFOLDER=C:\TestLogs`
+
+## Debug Variables
+
+### VSTEST_HOST_DEBUG
+- **Description**: Enables debugging of the testhost process.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_HOST_DEBUG=1`
+
+### VSTEST_HOST_DEBUG_ATTACHVS
+- **Description**: Enables debugging of the testhost process and attempts to attach Visual Studio debugger. Requires AttachVS tool (that can be built in this repo) on PATH.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_HOST_DEBUG_ATTACHVS=1`
+
+### VSTEST_HOST_NATIVE_DEBUG
+- **Description**: Enables native debugging of the testhost process.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_HOST_NATIVE_DEBUG=1`
+
+### VSTEST_RUNNER_DEBUG
+- **Description**: Enables debugging of the test runner (vstest.console).
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_RUNNER_DEBUG=1`
+
+### VSTEST_RUNNER_DEBUG_ATTACHVS
+- **Description**: Enables debugging of the test runner and attempts to attach Visual Studio debugger. Requires AttachVS tool (that can be built in this repo) on PATH.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_RUNNER_DEBUG_ATTACHVS=1`
+
+### VSTEST_RUNNER_NATIVE_DEBUG
+- **Description**: Enables native debugging of the test runner.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_RUNNER_NATIVE_DEBUG=1`
+
+### VSTEST_DATACOLLECTOR_DEBUG
+- **Description**: Enables debugging of data collector processes.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_DATACOLLECTOR_DEBUG=1`
+
+### VSTEST_DATACOLLECTOR_DEBUG_ATTACHVS
+- **Description**: Enables debugging of data collector processes and attempts to attach Visual Studio debugger.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_DATACOLLECTOR_DEBUG_ATTACHVS=1`
+
+### VSTEST_BLAMEDATACOLLECTOR_DEBUG
+- **Description**: Enables debugging of the blame data collector.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_BLAMEDATACOLLECTOR_DEBUG=1`
+
+### VSTEST_DUMPTOOL_DEBUG
+- **Description**: Enables debugging of dump collection tools.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_DUMPTOOL_DEBUG=1`
+
+### VSTEST_DEBUG_ATTACHVS_PATH
+- **Description**: Specifies the path for AttachVS tool, when not found on PATH. AttachVS tool can be built from this repo.
+- **Example**: `VSTEST_DEBUG_ATTACHVS_PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\devenv.exe`
+
+### VSTEST_DEBUG_NOBP
+- **Description**: Disables breakpoints on executable entry points for more seamless debugging when using AttachVS.
+- **Values**: Set to "1" to disable breakpoints
+- **Example**: `VSTEST_DEBUG_NOBP=1`
+
+## Crash Dump and Blame Collection Variables
+
+### VSTEST_DUMP_PATH
+- **Description**: Overrides the default directory where crash dumps are stored. This disables automatic dump upload via attachments.
+- **Example**: `VSTEST_DUMP_PATH=C:\CrashDumps`
+
+### VSTEST_DUMP_TEMP_PATH
+- **Description**: Specifies the temporary directory for dump collection operations.
+- **Fallback**: Falls back to AGENT_TEMPDIRECTORY, then system temp directory
+- **Example**: `VSTEST_DUMP_TEMP_PATH=C:\temp\dumps`
+
+### VSTEST_DUMP_FORCEPROCDUMP
+- **Description**: Forces the use of ProcDump for crash dump collection.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_DUMP_FORCEPROCDUMP=1`
+
+### VSTEST_DUMP_FORCENETDUMP (Removed in 18.5, selection of dumper is automatic.)
+- **Description**: Forces the use of dotnet-dump for crash dump collection.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_DUMP_FORCENETDUMP=1`
+
+### VSTEST_DUMP_PROCDUMPARGUMENTS
+- **Description**: Specifies custom arguments for ProcDump when collecting crash dumps.
+- **Example**: `VSTEST_DUMP_PROCDUMPARGUMENTS=-e 1 -g -t -ma`
+
+### VSTEST_DUMP_PROCDUMPADDITIONALARGUMENTS
+- **Description**: Specifies additional arguments to append to ProcDump command line.
+- **Example**: `VSTEST_DUMP_PROCDUMPADDITIONALARGUMENTS=-r`
+
+## Feature Control Variables (Disable Features)
+
+### VSTEST_DISABLE_MTP_TESTHOST
+- **Description**: Disables the experimental capability to discover and run Microsoft.Testing.Platform (MTP) test applications under VSTest.
+- **Default**: `1` (disabled)
+- **Values**: Set to `0` to opt in to the experimental MTP testhost; any other value keeps it disabled
+- **Example**: `VSTEST_DISABLE_MTP_TESTHOST=0`
+
+### VSTEST_DISABLE_XXHASH128_TESTCASE_ID
+- **Description**: Disables computing `TestCase.Id`, the GUID that identifies a test, with xxHash128, falling back to the SHA1 ids vstest has always produced. xxHash128 is a faster non-cryptographic replacement that produces an [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-8) version 8 UUID, and matches the ids MSTest computes for the same input. Only affects tests whose id the platform computes - adapters that assign `TestCase.Id` themselves, such as MSTest v3 and v4, are unaffected.
+- **Default**: `1` (disabled, so ids are unchanged)
+- **Values**: Set to `0` to opt in to the xxHash128 ids; any other value keeps them disabled
+- **Example**: `VSTEST_DISABLE_XXHASH128_TESTCASE_ID=0`
+- **Note**: xxHash128 is intended to become the default in a later release, at which point the default of this variable flips to `0`. The meaning of each value stays the same, so setting `1` pins today's ids across that change.
+- **Migrating stored ids**: To find out which of your stored ids change when you opt in, and which do not, use the temporary [test id report logger](test-ids-logger.md) (`/logger:testids`). It reports every test once with both the SHA1 and the xxHash128 id, and flags the tests whose id an adapter assigned and which therefore do not change at all.
+
+### VSTEST_DISABLE_ARTIFACTS_POSTPROCESSING
+- **Description**: Disables artifact post-processing functionality.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_ARTIFACTS_POSTPROCESSING=1`
+
+### VSTEST_DISABLE_ARTIFACTS_POSTPROCESSING_NEW_SDK_UX
+- **Description**: Disables new SDK UX for artifact post-processing, showing old output format.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_ARTIFACTS_POSTPROCESSING_NEW_SDK_UX=1`
+- **Usage**: Useful when parsing console output and need to maintain compatibility
+
+### VSTEST_DISABLE_FASTER_JSON_SERIALIZATION
+- **Description**: Disables the faster JSON serialization mechanism and falls back to standard serialization.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_FASTER_JSON_SERIALIZATION=1`
+
+### VSTEST_DISABLE_MULTI_TFM_RUN
+- **Description**: Forces vstest.console to run all sources using the same target framework (TFM) and architecture instead of allowing multiple different TFMs and architectures to run simultaneously.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_MULTI_TFM_RUN=1`
+
+### VSTEST_DISABLE_SERIALTESTRUN_DECORATOR
+- **Description**: Disables the SerialTestRun decorator.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_SERIALTESTRUN_DECORATOR=1`
+
+### VSTEST_DISABLE_SHARING_NETFRAMEWORK_TESTHOST
+- **Description**: Disables sharing of .NET Framework testhosts, returning to the behavior of sharing testhosts when they are running .NET Framework DLLs and are not disabling appdomains or running in parallel.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_SHARING_NETFRAMEWORK_TESTHOST=1`
+
+### VSTEST_DISABLE_STANDARD_OUTPUT_CAPTURING
+- **Description**: Disables capturing standard output from testhost processes.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_STANDARD_OUTPUT_CAPTURING=1`
+
+### VSTEST_DISABLE_STANDARD_OUTPUT_FORWARDING
+- **Description**: Disables forwarding standard output from testhost processes.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_STANDARD_OUTPUT_FORWARDING=1`
+
+### VSTEST_DISABLE_THREADPOOL_SIZE_INCREASE
+- **Description**: Disables setting a higher value for ThreadPool.SetMinThreads. The higher value allows testhost to connect back faster by avoiding waits for ThreadPool to start more threads.
+- **Values**: Set to any non-zero value to disable
+- **Example**: `VSTEST_DISABLE_THREADPOOL_SIZE_INCREASE=1`
+
+### VSTEST_DISABLE_UTF8_CONSOLE_ENCODING
+- **Description**: Disables setting UTF-8 encoding in console output.
+- **Values**: Set to "1" to disable
+- **Example**: `VSTEST_DISABLE_UTF8_CONSOLE_ENCODING=1`
+
+### VSTEST_DISABLE_DOTNET_ROOT_ON_NONWINDOWS
+- **Description**: Reverts to the older, more conservative way of pointing the testhost at the correct `dotnet` installation. By default (flag unset), when a dotnet root path is known, vstest sets the architecture-specific `DOTNET_ROOT_<ARCH>` environment variable for the testhost on every run and platform, so it propagates to the testhost and its child processes (needed, for example, when xUnit v3 runs a separate executable under the testhost). The dotnet root path comes from `VSTEST_DOTNET_ROOT_PATH` (typically set by `dotnet test`); when that is not set — a direct `vstest.console` run — vstest can derive it from `DOTNET_ROOT`, but only on Windows, because the derivation probes `dotnet.exe` PE headers to detect the install architecture and that probe returns nothing on Linux/macOS (so `DOTNET_ROOT` is not auto-derived there). Setting this flag restores the previous behavior of setting `DOTNET_ROOT_<ARCH>` only on Windows after `testhost.exe` is located; older (netcoreapp3.1) testhosts that don't understand `DOTNET_ROOT_<ARCH>` fall back to `DOTNET_ROOT(x86)` / `DOTNET_ROOT`.
+- **Values**: Set to any value other than `0` (for example `1`) to enable the flag and revert to the old behavior. Treated as unset only when absent or exactly `0`.
+- **Example**: `VSTEST_DISABLE_DOTNET_ROOT_ON_NONWINDOWS=1`
+
+### VSTEST_DISABLE_DYNAMICNATIVE_CODECOVERAGE_DEFAULT_SETTING
+- **Description**: Disables turning dynamic code coverage for native code OFF by default. When set, the platform skips adding the default setting that disables native dynamic code coverage.
+- **Values**: Set to any value other than `0` (for example `1`) to enable this flag (skip adding the default setting). Treated as unset only when absent or exactly `0`.
+- **Example**: `VSTEST_DISABLE_DYNAMICNATIVE_CODECOVERAGE_DEFAULT_SETTING=1`
+
+## Build and MSBuild Integration Variables
+
+### VSTEST_BUILD_DEBUG
+- **Description**: Enables debug output for VSTest build tasks.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_BUILD_DEBUG=1`
+
+### VSTEST_BUILD_TRACE
+- **Description**: Enables trace output for VSTest build tasks.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_BUILD_TRACE=1`
+
+### VSTEST_MSBUILD_NOLOGO
+- **Description**: Suppresses the display of the copyright banner when running tests via MSBuild.
+- **Values**: Set to "1" to suppress logo
+- **Example**: `VSTEST_MSBUILD_NOLOGO=1`
+
+## Telemetry Variables
+
+### VSTEST_TELEMETRY_OPTEDIN
+- **Description**: Controls whether telemetry data is collected and sent.
+- **Values**: Set to "1" to opt in, any other value opts out
+- **Example**: `VSTEST_TELEMETRY_OPTEDIN=1`
+
+### VSTEST_LOGTELEMETRY
+- **Description**: Enables logging of telemetry data to files.
+- **Values**: Set to any non-empty value to enable
+- **Example**: `VSTEST_LOGTELEMETRY=1`
+
+### VSTEST_LOGTELEMETRY_PATH
+- **Description**: Specifies the directory where telemetry log files should be written.
+- **Example**: `VSTEST_LOGTELEMETRY_PATH=C:\TelemetryLogs`
+
+## Configuration and Path Variables
+
+### VSTEST_CONSOLE_PATH
+- **Description**: Specifies the path to the vstest.console executable. This variable is read by the .NET SDK's `dotnet test` forwarding app (not by vstest product code under `src/` in this repo), which is why there are no `src/` references here. It is equivalent to specifying `-p:VSTestConsolePath` when using `dotnet test` with a project.
+- **Example**: `VSTEST_CONSOLE_PATH=C:\Tools\VSTest\vstest.console.exe`
+
+### VSTEST_IGNORE_DOTNET_ROOT
+- **Description**: When set to a non-zero value, ignores the DOTNET_ROOT environment variable during testhost selection.
+- **Values**: Set to any non-zero value to ignore DOTNET_ROOT
+- **Default**: "0" (respects DOTNET_ROOT)
+- **Example**: `VSTEST_IGNORE_DOTNET_ROOT=1`
+
+### VSTEST_DOTNET_ROOT_PATH
+- **Description**: Path to the `dotnet` root that the SDK wants the testhost to use. When set (together with `VSTEST_DOTNET_ROOT_ARCHITECTURE`), vstest points the testhost at the correct `hostfxr` by setting a `DOTNET_ROOT`-family environment variable. The exact variable depends on the testhost: newer testhosts (17.14+, built against net8) understand and get the architecture-specific `DOTNET_ROOT_<ARCH>`, while older (netcoreapp3.1) testhosts get `DOTNET_ROOT(x86)` when the target architecture is x86 and fall back to the architecture-less `DOTNET_ROOT` otherwise. Set by the .NET SDK; not typically set by hand.
+- **Example**: `VSTEST_DOTNET_ROOT_PATH=C:\Program Files\dotnet`
+
+### VSTEST_DOTNET_ROOT_ARCHITECTURE
+- **Description**: The target architecture that goes together with `VSTEST_DOTNET_ROOT_PATH`, used to pick the correct architecture-specific `DOTNET_ROOT_<ARCH>` variable for the testhost. Set by the .NET SDK; not typically set by hand.
+- **Example**: `VSTEST_DOTNET_ROOT_ARCHITECTURE=x64`
+
+### VSTEST_SKIP_FAKES_CONFIGURATION
+- **Description**: Skips Microsoft Fakes configuration during test execution.
+- **Values**: Set to "1" to skip
+- **Example**: `VSTEST_SKIP_FAKES_CONFIGURATION=1`
+
+## Discovery Variables
+
+### VSTEST_BACKGROUND_DISCOVERY
+- **Description**: Hints that a discovery is running in the background (for example the continuous discovery an IDE performs while editing). It is typically specified via run settings (`RunConfiguration/EnvironmentVariables`) by the host (for example Visual Studio) and then propagated into the testhost process environment. When set to "1" it has two effects: the platform reduces the number of cores used for parallelism (this applies to both test discovery and execution) when no explicit `MaxCpuCount` is configured, so it leaves processing power for other tasks, and the testhost process priority is lowered to `BelowNormal`.
+- **Values**: Set to "1" to enable
+- **Example**: `VSTEST_BACKGROUND_DISCOVERY=1`
+
+## UWP (Universal Windows Platform) Variables
+
+### VSTEST_UWP_DEPLOY_LOCAL_PATH
+- **Description**: Overrides the local path for UWP application deployment.
+- **Example**: `VSTEST_UWP_DEPLOY_LOCAL_PATH=C:\UWPApps\LocalDeploy`
+
+### VSTEST_UWP_DEPLOY_REMOTE_PATH
+- **Description**: Overrides the remote path for UWP application deployment.
+- **Example**: `VSTEST_UWP_DEPLOY_REMOTE_PATH=\\RemoteDevice\Deploy`
+
+## Windows App Host Variables
+
+### VSTEST_WINAPPHOST_*
+- **Description**: Prefix historically read by `DotnetTestHostManager` when launching the custom Windows app host (`testhost.exe`). The .NET SDK set `VSTEST_WINAPPHOST_DOTNET_ROOT` / `VSTEST_WINAPPHOST_DOTNET_ROOT(x86)` to support private-install scenarios; vstest forwarded them (stripping the prefix) as `DOTNET_ROOT` / `DOTNET_ROOT(x86)` so the app host could locate the runtime. Here "app host" means the native `testhost.exe` launcher — this is **not** related to the Windows App SDK, UWP, or .NET MAUI. This mechanism existed in older versions (up to ~17.7); it is **not** referenced anywhere under this repository's current `src/`, because current source sets the standard `DOTNET_ROOT` / `DOTNET_ROOT(x86)` / `DOTNET_ROOT_<ARCH>` variables directly.
+- **Pattern**: Variables following the pattern `VSTEST_WINAPPHOST_{VARIABLE_NAME}`
+
+## Legacy/Experimental Variables
+
+### VSTEST_DISABLE_PROTOCOL_3_VERSION_DOWNGRADE
+- **Description**: Disables automatic downgrade to protocol version 3 for compatibility.
+- **Values**: Set to any non-empty value to disable downgrade
+- **Example**: `VSTEST_DISABLE_PROTOCOL_3_VERSION_DOWNGRADE=1`
+
+## Usage Examples
+
+### Debugging a Test Run
+```bash
+# Enable testhost debugging and increase connection timeout
+set VSTEST_HOST_DEBUG=1
+set VSTEST_CONNECTION_TIMEOUT=300
+dotnet test MyTests.dll
+```
+
+### Collecting Diagnostics
+```bash
+# Enable detailed diagnostic logging
+set VSTEST_DIAG=C:\temp\vstest.log
+set VSTEST_DIAG_VERBOSITY=Verbose
+dotnet test MyTests.dll
+```
+
+### Crash Dump Collection
+```bash
+# Configure crash dump collection
+set VSTEST_DUMP_PATH=C:\CrashDumps
+set VSTEST_DUMP_FORCEPROCDUMP=1
+dotnet test MyTests.dll --collect:"blame;collectdump=true"
+```
+
+## Notes
+
+- Most debug variables require only being set to any non-empty value to be enabled.
+- Feature disable variables typically use "1" or any non-zero value to disable the feature.
+- Connection timeout values are in seconds unless otherwise specified.
+- Paths should use the appropriate path separator for your operating system.
+- Some variables are only effective in specific scenarios (e.g., UWP variables only apply to UWP test projects).
+
+For more information about VSTest and its features, see the [VSTest documentation](https://github.com/Microsoft/vstest/tree/main/docs).

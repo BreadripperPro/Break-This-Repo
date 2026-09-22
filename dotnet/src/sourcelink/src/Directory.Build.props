@@ -1,0 +1,15 @@
+<Project>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.DotNet.Arcade.Sdk" />
+
+  <PropertyGroup>
+    <LangVersion>Preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GenerateResxSource>true</GenerateResxSource>
+    <PublishWindowsPdb>false</PublishWindowsPdb>
+    
+    <IncludeSymbols Condition="'$(DebugType)' != 'embedded' and '$(UsingMicrosoftNoTargetsSdk)' != 'true'">true</IncludeSymbols>
+  </PropertyGroup>
+
+</Project>

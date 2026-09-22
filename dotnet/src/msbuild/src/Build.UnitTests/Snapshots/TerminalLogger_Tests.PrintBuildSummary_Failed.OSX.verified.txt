@@ -1,0 +1,2 @@
+﻿
+Build [31;1mfailed[m in 5.0s
