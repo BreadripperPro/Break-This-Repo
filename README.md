@@ -1,4 +1,21 @@
-## Break This Repository! 破坏这个仓库！
+
+
+<h1 align="center">
+  <img src="./readme/hide.png">
+    Break This Repository!    破坏这个仓库！
+	<p align="center">
+	    <img src="https://img.shields.io/badge/License-Unknown-red?logo=inquirer&logoColor=white" alt="License">
+	    <img src="https://img.shields.io/badge/Language-various-blue?logo=inquirer&logoColor=white" alt="Language">
+	    <img src="https://img.shields.io/badge/Pull_Requests-infinity-white?logo=infinityfree&logoColor=white" alt="Pull_Requests">
+	    <img src="https://img.shields.io/badge/Forks-infinity-brown?logo=infinityfree&logoColor=white" alt="Forks">
+	<br>
+	    <img src="https://img.shields.io/badge/Stars-infinity-yellow?logo=infinityfree&logoColor=white" alt="Stars">
+	    <img src="https://img.shields.io/badge/Platform-Unknown-0078D6?logo=inquirer&logoColor=white" alt="Platform">
+	    <img src="https://img.shields.io/badge/Website-Unknown-green?logo=inquirer&logoColor=white" alt="Website">
+	    <img src="https://img.shields.io/badge/Documents-Unknown-red?logo=inquirer&logoColor=white" alt="Documents">
+	    </a>
+	</p>
+</h1>
 
 > [!CAUTION]
 > This repository automatically merges pull requests without conflicts.
@@ -60,12 +77,118 @@
 >
 > Ce dépôt peut contenir du contenu généré par l’IA
 
+## 注意
+> [!NOTE]
+>
+> 如果您在仓库主页看到了本文，不要惊慌，不要着急，请站稳扶好，安定坐下，本消息是为了告诉你，你需要换个地方才能阅读 `README` 的完整文本。
+> 
+> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制（500KiB），导致无法完全显示。
+> (望后人，如若位置变更，请同步移动(现在在 3047 行)，谢谢)
+> 我编写了一个自动插入的脚本[自动插入readme大小警告](./自动插入readme大小警告.py) 可以使用这个脚本自动插入！（不保证没有bug)
+
+> [!NOTE]
+> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径的命名可能不适用于所有的文件系统和操作系统，执行 `git clone` 操作时可能会发生各类文件错误和文件系统错误，请您做好心理准备和预防方案。
+
+> [!NOTE]
+> 得益于 Github 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特 (37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注)，请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
+
+
 ---
 
-> [!CAUTION]
-> We are the Borg. You will be assimilated. Resistance is futile.
+## 安装
 
-[Learn more](./Borg.md)
+```bash
+git clone https://github.com/<owner>/break-this-repo.git
+```
+
+> [!NOTE]
+> 如果你只是想看 README，不想下 37.7 GiB，可以用浅克隆：
+> `git clone --depth 1 https://github.com/<owner>/break-this-repo.git`
+
+> [!WARNING]
+> 克隆前请确保硬盘有足够空间、网络稳定、心态良好。否则可能 clone 到一半去喝茶。
+
+### 更新
+
+> [!TIP]
+> 如果你是直接 `git clone` 的本仓库，更新就是：
+> ```bash
+> git pull
+> ```
+
+如果你是 **fork 之后 clone 了自己的仓库**，需要先把原仓库添加为上游（upstream）：
+
+```bash
+git remote add upstream https://github.com/<owner>/break-this-repo.git
+git fetch upstream
+git merge upstream/main
+```
+
+或者一条命令直接拉取上游更新：
+
+```bash
+git pull upstream main
+```
+
+### 卸载
+
+#### Linux
+
+```bash
+rm -rf
+```
+
+#### Windows
+
+> [!TIP]
+> **就是删掉文件夹。**
+
+1. 在文件资源管理器中找到你 `git clone` 下来的那个文件夹。
+2. 右键 → 删除。
+
+或者，如果您使用无桌面版本的 Windows Server：
+
+```cmd
+rmdir /s /q "你的仓库路径"
+```
+
+或者 PowerShell：
+
+```powershell
+Remove-Item -Recurse -Force "你的仓库路径"
+```
+
+## 贡献
+
+> [!TIP]
+> 本仓库欢迎一切形式的贡献，包括但不限于：修一个错字、加一个文件、删一个文件、把 README 改得连亲妈都不认识（不过很有可能会被改回来）、或者提交一个完全无关的 `.txt`。
+
+### 贡献流程
+
+1. **Fork** 本仓库。
+2. 新建一个分支（名字随意，比如 `i-want-to-break-this`、`add-more-rust`、`fix-nothing`）。
+3. 提交你的修改（可以是一行、一个文件、一整坨）。
+4. 发起 **Pull Request**。如果没有冲突，机器人会自动合并。
+5. 如果出现冲突，请自行解决后重新提交（我们不会帮你擦屁股）。
+
+### 禁止事项
+
+> [!WARNING]
+> 禁止提交广告、恶意软件。违者将被举报至 GitHub。
+>
+> Advertising and malware are strictly prohibited. Violators will be reported to GitHub.
+
+---
+
+> [!NOTE]
+> Space, the final frontier. These are the voyages of the starship Enterprise. Her five-year mission: to explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before.
+>
+> 太空，最后的边疆。这些是星舰企业号的旅程。她的五年任务是:探索奇异新世界，寻找新生命和新文明，勇踏前人未及之境。
+>
+> —— [STAR TREK](https://www.startrek.com)
+
+---
+
 
 ---
 
@@ -106,18 +229,7 @@
 > !
 
 ---
-## 注意
-> [!NOTE]
->
-> 如果您在仓库主页看到了本文，不要惊慌，不要着急，请站稳扶好，安定坐下，本消息是为了告诉你，你需要换个地方才能阅读 `README` 的完整文本。
-> 
-> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制（500KiB），导致无法完全显示。
-> (望后人，如若位置变更，请同步移动(现在在 3047 行)，谢谢)
-> 我编写了一个自动插入的脚本[自动插入readme大小警告](./自动插入readme大小警告.py) 可以使用这个脚本自动插入！（不保证没有bug)
 
-> [!NOTE]
-> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径可能不适用于所有文件系统和操作系统，执行 `clone` 操作时可能会发生各类文件错误和文件系统错误。
----
 
 ## Break This Document ! 破坏这个文档！
 
@@ -125,21 +237,7 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 
 ---
 
-<h1 align="center">
-    Break-This-Repo
-	<p align="center">
-	    <img src="https://img.shields.io/badge/License-Unknown-red?logo=inquirer&logoColor=white" alt="License">
-	    <img src="https://img.shields.io/badge/Language-various-blue?logo=inquirer&logoColor=white" alt="Language">
-	    <img src="https://img.shields.io/badge/Pull_Requests-infinity-white?logo=infinityfree&logoColor=white" alt="Pull_Requests">
-	    <img src="https://img.shields.io/badge/Forks-infinity-brown?logo=infinityfree&logoColor=white" alt="Forks">
-	<br>
-	    <img src="https://img.shields.io/badge/Stars-infinity-yellow?logo=infinityfree&logoColor=white" alt="Stars">
-	    <img src="https://img.shields.io/badge/Platform-Unknown-0078D6?logo=inquirer&logoColor=white" alt="Platform">
-	    <img src="https://img.shields.io/badge/Website-Unknown-green?logo=inquirer&logoColor=white" alt="Website">
-	    <img src="https://img.shields.io/badge/Documents-Unknown-red?logo=inquirer&logoColor=white" alt="Documents">
-	    </a>
-	</p>
-</h1>
+
 
 ---
 
@@ -2436,6 +2534,7 @@ https://admincmd.xyz/
 
 # Debian --通用操作系统
 [![Debian Logo](https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/512/emoji_u1f365.png)](https://www.debian.org/)
+![Debian installation media](./assets/debian.jpg)
 ## Debian 是自由软件。
 Debian 是由自由和开放源代码的软件组成的，并将始终保持 100% 自由。每个人都能自由使用、修改，以及分发。这是我们对我们的用户的主要承诺。它也是免费的。
 ## Debian 稳定且安全。
@@ -3046,3 +3145,5 @@ WCNMSSB 是我的名字之一（真的没有恶意QWQ）
 > 请移步 [README.markdown](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制，导致无法完全显示。
 > (望后人，如若位置变更，请同步移动（或者使用我写的脚本 [自动插入readme大小警告](./自动插入readme大小警告.py) ），谢谢)
 ---
+
+你在期待什么
