@@ -482,7 +482,9 @@ def main() -> int:
         return 2
 
     here = Path(__file__).resolve().parent
-    scratch = Path(args.dir)
+    # resolve: collect() runs git with cwd=<dir>, so a relative --dir would
+    # nest one level deeper ("./_graph" + cwd ./_graph -> ./_graph/_graph)
+    scratch = Path(args.dir).resolve()
     if args.mode == "collect":
         collect(args.repo, scratch)
         return 0
