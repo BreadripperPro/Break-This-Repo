@@ -139,10 +139,16 @@
     "reading": "同体积、同为「零信息」，一份付 1,052 字节，一份付 1,048,628 字节。差 996 倍。"
   },
   "provenance": {
-    "working_tree": "repo-scale/weigh.py，本轮实跑 HEAD 181c7e49",
-    "compress_ratios": "_junk/repo_sample.py 抽样实测（novel 14 个 / rust-corpus 14 个 / dotnet 14 个）",
-    "media_census": "_junk/ext_census.py 对 3 个媒体目录做扩展名字节普查",
+    "working_tree": "repo-scale/weigh.py（同一仓库的另一份交付）实跑，命令：weigh.py KrisTHL181/Break-This-Repo --by-dir 8 --top 0",
+    "compress_ratios": "internet-landfill/sample_repo.py comp <dir> --n 14，对 novel / rust-corpus / dotnet 各抽 14 个 blob 实测",
+    "media_census": "internet-landfill/sample_repo.py ext '琵琶曲' wallpapers '彼方的他Aliya'，扩展名字节普查",
     "deposit": "internet-landfill/manifest.json（junk.py --analyze 生成）",
+    "reproduce": [
+      "python sample_repo.py ext '琵琶曲' wallpapers '彼方的他Aliya'",
+      "python sample_repo.py comp novel --n 14",
+      "python sample_repo.py comp rust-corpus --n 14",
+      "python sample_repo.py comp dotnet --n 14"
+    ],
     "limits": "全部为只读 API 访问；未 clone；未下载任何 100 MiB 级文件（仅读其元数据 size 字段）"
   }
 }

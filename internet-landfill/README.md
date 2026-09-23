@@ -187,11 +187,26 @@ python junk.py --self-test    # 16 项离线自检，不联网
 python junk.py --only noise-uuid,plumbing-humans-google --fetch
 ```
 
-只依赖标准库（`gzip` / `bz2` / `lzma` / `hashlib` / `urllib` 都不需要额外装），网络部分调用系统 `curl`。每个源只请求一次，间隔 0.4 秒。
+只依赖标准库（`gzip` / `bz2` / `lzma` / `hashlib` 都不需要额外装），网络部分调用系统 `curl`。每个源只请求一次，间隔 0.4 秒。
 
-仓库侧的数字由 `repo-scale/weigh.py`（上一轮交付）与 `_junk/` 下的抽样脚本产生，全部只读，全程没有 clone。**没有下载任何一个 100 MiB 级文件** —— 上面关于那 40 块砖的每一个数字，都来自 API 返回的 `size` 元数据字段。
+仓库侧账本（`ledger.json` 里那些数字）用 `sample_repo.py` 复核，同样只读、同样不需要 clone：
 
-复现结果会与本文不同：`httpbin.org/uuid`、`catfact.ninja`、随机字节每次都会变。标本里的 URL 和抓取时刻记录了当时的情况。
+```bash
+python sample_repo.py ext  "琵琶曲" wallpapers "彼方的他Aliya"   # 扩展名字节普查
+python sample_repo.py comp novel         --n 14                 # 分层抽样实测压缩比
+python sample_repo.py comp rust-corpus   --n 14
+python sample_repo.py comp dotnet        --n 14
+```
+
+`ext` 是那个便宜但关键的步骤：**先看清一个目录到底由什么格式构成，再决定用哪个压缩比去乘它。**
+拿文本比 0.25 去乘一堆 PNG 会低估四倍。
+
+体积总数由同仓库 `repo-scale/weigh.py` 产生（那也是这份收藏的上一轮）。
+**没有下载任何一个 100 MiB 级文件** —— 上面关于那 40 块砖的每一个数字，都来自 API 返回的
+`size` 元数据字段。
+
+复现结果会与本文不同：`httpbin.org/uuid`、`catfact.ninja`、随机字节每次都会变。
+标本里的 URL 和抓取时刻记录了当时的情况。
 
 ---
 
