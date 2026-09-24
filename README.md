@@ -45,6 +45,15 @@
 
 ---
 
+# 好消息！好消息！
+
+在以下商店消费每满 **10元** 即可获得 **20元** 现金回赠！不限次数！<br>
+*(不包括运费)*<br><br>
+**立即前往** >>> [https://airshop.free.nf](https://airshop.free.nf)<br>
+> 让**消费**不再是**压力**
+
+---
+
 > [!WARNING]
 > It is not recommended to add any Rust files or code to this repository
 >
