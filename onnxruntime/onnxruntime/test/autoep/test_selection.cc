@@ -1,0 +1,649 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <unordered_set>
+// #include <absl/base/config.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include "core/graph/constants.h"
+#include "core/session/abi_key_value_pairs.h"
+#include "core/session/abi_session_options_impl.h"
+#include "core/session/onnxruntime_cxx_api.h"
+#include "core/session/onnxruntime_ep_device_ep_metadata_keys.h"
+#include "core/session/onnxruntime_session_options_config_keys.h"
+
+#include "test_allocator.h"
+#include "test/autoep/test_autoep_utils.h"
+#include "test/shared_lib/utils.h"
+#include "test/util/include/api_asserts.h"
+#include "test/util/include/asserts.h"
+#include "test/util/include/file_util.h"
+
+extern std::unique_ptr<Ort::Env> ort_env;
+
+namespace onnxruntime {
+namespace test {
+namespace {
+void DefaultDeviceSelection(const std::string& ep_name, std::vector<const OrtEpDevice*>& devices) {
+  const OrtApi* c_api = &Ort::GetApi();
+  const OrtEpDevice* const* ep_devices = nullptr;
+  size_t num_devices = 0;
+
+  std::vector<OrtEpDevice*> selected_ep_device;
+  ASSERT_ORTSTATUS_OK(c_api->GetEpDevices(*ort_env, &ep_devices, &num_devices));
+  for (size_t i = 0; i < num_devices; ++i) {
+    const OrtEpDevice* device = ep_devices[i];
+    if (c_api->EpDevice_EpName(device) == ep_name) {
+      const auto* hw_device = c_api->EpDevice_Device(device);
+      const OrtKeyValuePairs* hw_kvps = c_api->HardwareDevice_Metadata(hw_device);
+
+      const char* is_virtual = c_api->GetKeyValue(hw_kvps, kOrtHardwareDevice_MetadataKey_IsVirtual);
+      ASSERT_TRUE(is_virtual == nullptr || strcmp(is_virtual, "0") == 0);
+
+      devices.push_back(device);
+      break;
+    }
+  }
+
+  ASSERT_TRUE(!devices.empty()) << "No devices found with EP name of " << ep_name;
+}
+
+bool IsRegistered(const std::string& ep_name) {
+  static std::unordered_set<std::string> registered_eps;
+  if (registered_eps.count(ep_name) == 0) {
+    registered_eps.insert(ep_name);
+    return false;
+  }
+
+  return true;
+}
+
+static OrtStatus* ORT_API_CALL SelectFirstEpByName(_In_ const OrtEpDevice** ep_devices,
+                                                   _In_ size_t num_devices,
+                                                   _In_ const OrtKeyValuePairs* /*model_metadata*/,
+                                                   _In_opt_ const OrtKeyValuePairs* /*runtime_metadata*/,
+                                                   _Inout_ const OrtEpDevice** selected,
+                                                   _In_ size_t max_selected,
+                                                   _Out_ size_t* num_selected,
+                                                   _In_ void* state) {
+  *num_selected = 0;
+
+  if (max_selected == 0) {
+    return Ort::GetApi().CreateStatus(ORT_INVALID_ARGUMENT, "Expected room for at least one selected device.");
+  }
+
+  const char* ep_name = static_cast<const char*>(state);
+  for (size_t i = 0; i < num_devices; ++i) {
+    if (std::strcmp(Ort::GetApi().EpDevice_EpName(ep_devices[i]), ep_name) == 0) {
+      selected[0] = ep_devices[i];
+      *num_selected = 1;
+      return nullptr;
+    }
+  }
+
+  return Ort::GetApi().CreateStatus(ORT_FAIL, "Expected duplicate-device test EP to be available.");
+}
+
+#if !defined(ORT_MINIMAL_BUILD)
+Ort::SessionOptions CreateAutoEpOptionsSelecting(const char* ep_name) {
+  Ort::SessionOptions session_options;
+  session_options.SetEpSelectionPolicy(SelectFirstEpByName, const_cast<char*>(ep_name));
+  return session_options;
+}
+
+Ort::Model CreateMulOrtModel() {
+  Ort::Graph graph;
+
+  const std::vector<int64_t> dims{3, 2};
+  Ort::TensorTypeAndShapeInfo tensor_info(ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, dims);
+  auto type_info = Ort::TypeInfo::CreateTensorInfo(tensor_info.GetConst());
+
+  std::vector<Ort::ValueInfo> graph_inputs;
+  graph_inputs.emplace_back("X", type_info.GetConst());
+  std::vector<Ort::ValueInfo> graph_outputs;
+  graph_outputs.emplace_back("Y", type_info.GetConst());
+  graph.SetInputs(graph_inputs);
+  graph.SetOutputs(graph_outputs);
+
+  Ort::Node node("Mul", onnxruntime::kOnnxDomain, "mul_node", {"X", "X"}, {"Y"});
+  graph.AddNode(node);
+
+  Ort::Model model({{onnxruntime::kOnnxDomain, 13}});
+  model.AddGraph(graph);
+  return model;
+}
+#endif  // !defined(ORT_MINIMAL_BUILD)
+}  // namespace
+
+template <typename ModelOutputT, typename ModelInputT = float, typename InputT = Input<float>>
+static void TestInference(Ort::Env& env, const std::basic_string<ORTCHAR_T>& model_uri,
+                          const std::string& ep_to_select,
+                          std::optional<std::filesystem::path> library_path,
+                          const Ort::KeyValuePairs& ep_options,
+                          const std::vector<InputT>& inputs,
+                          const char* output_name,
+                          const std::vector<int64_t>& expected_dims_y,
+                          const std::vector<ModelOutputT>& expected_values_y,
+                          bool auto_select = true,  // auto select vs SessionOptionsAppendExecutionProvider_V2
+                          // manual select using functor
+                          const std::function<void(std::vector<const OrtEpDevice*>&)>& select_devices = nullptr,
+                          // auto select using policy
+                          std::optional<OrtExecutionProviderDevicePolicy> policy = std::nullopt,
+                          std::optional<EpSelectionDelegate> delegate = std::nullopt,
+                          bool test_session_creation_only = false,
+                          // If true, disables fallback of unsupported graph nodes to the ORT CPU
+                          // EP. Session creation fails unless the selected non-CPU EP supports the
+                          // entire graph. Setting this to true while explicitly selecting the ORT
+                          // CPU EP is invalid and causes session creation to fail.
+                          bool disable_cpu_ep_fallback = false) {
+  Ort::SessionOptions session_options;
+
+  if (disable_cpu_ep_fallback) {
+    session_options.AddConfigEntry(kOrtSessionOptionsDisableCPUEPFallback, "1");
+  }
+
+  if (library_path && IsRegistered(ep_to_select) == false) {
+    ASSERT_ORTSTATUS_OK(Ort::GetApi().RegisterExecutionProviderLibrary(env, ep_to_select.c_str(),
+                                                                       library_path->c_str()));
+  }
+
+  if (auto_select) {
+    if (delegate) {
+      session_options.SetEpSelectionPolicy(*delegate, nullptr);
+    } else if (policy) {
+      session_options.SetEpSelectionPolicy(*policy);
+    } else {
+      // manually specify EP to select
+      session_options.AddConfigEntry("test.ep_to_select", ep_to_select.c_str());
+
+      // add the provider options to the session options with the required prefix
+      const std::string option_prefix = OrtSessionOptions::GetProviderOptionPrefix(ep_to_select.c_str());
+      std::vector<const char*> keys, values;
+      ep_options.GetKeyValuePairs(keys, values);
+      for (size_t i = 0, end = keys.size(); i < end; ++i) {
+        // add the default value with prefix
+        session_options.AddConfigEntry((option_prefix + keys[i]).c_str(), values[i]);
+      }
+    }
+  } else {
+    std::vector<const OrtEpDevice*> devices;
+    if (select_devices) {
+      select_devices(devices);
+    } else {
+      // pick the first one assigned to the EP.
+      DefaultDeviceSelection(ep_to_select, devices);
+    }
+
+    // C API. Test the C++ API because if it works the C API must also work.
+    // ASSERT_ORTSTATUS_OK(Ort::GetApi().SessionOptionsAppendExecutionProvider_V2(
+    //    session_options, env, devices.data(), devices.size(),
+    //    provider_options.Keys().data(), provider_options.Values().data(), provider_options.Entries().size()));
+    std::vector<Ort::ConstEpDevice> ep_devices;
+    ep_devices.reserve(devices.size());
+    for (const auto* device : devices) {
+      ep_devices.emplace_back(device);
+    }
+
+    session_options.AppendExecutionProvider_V2(*ort_env, ep_devices, ep_options);
+  }
+
+  // if session creation passes, model loads fine
+  Ort::Session session(env, model_uri.c_str(), session_options);
+
+  // caller wants to test running the model (not just loading the model)
+  if (!test_session_creation_only) {
+    auto default_allocator = std::make_unique<MockedOrtAllocator>();
+    RunSession<ModelOutputT, ModelInputT, InputT>(default_allocator.get(),
+                                                  session,
+                                                  inputs,
+                                                  output_name,
+                                                  expected_dims_y,
+                                                  expected_values_y,
+                                                  nullptr);
+  }
+}
+
+void RunBasicTest(const std::string& ep_name, std::optional<std::filesystem::path> library_path,
+                  const Ort::KeyValuePairs& provider_options,
+                  const std::function<void(std::vector<const OrtEpDevice*>&)>& select_devices,
+                  bool test_auto_select,
+                  bool disable_cpu_ep_fallback) {
+  const auto run_test = [&](bool auto_select) {
+    std::vector<Input<float>> inputs(1);
+    auto& input = inputs.back();
+    input.name = "X";
+    input.dims = {3, 2};
+    input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    // prepare expected inputs and outputs
+    std::vector<int64_t> expected_dims_y = {3, 2};
+    std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+    TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                         ep_name,
+                         library_path,
+                         provider_options,
+                         inputs,
+                         "Y",
+                         expected_dims_y,
+                         expected_values_y,
+                         auto_select,
+                         select_devices,
+                         /*policy*/ std::nullopt,
+                         /*delegate*/ std::nullopt,
+                         /*test_session_creation_only*/ false,
+                         disable_cpu_ep_fallback);
+  };
+
+  if (test_auto_select) {
+    run_test(true);  // auto ep selection after session creation
+  }
+
+  run_test(false);  // SessionOptionsAppendExecutionProvider_V2
+}
+
+TEST(AutoEpSelection, CpuEP) {
+  RunBasicTest(kCpuExecutionProvider, std::nullopt);
+}
+
+#if defined(USE_CUDA)
+TEST(AutoEpSelection, CudaEP) {
+  Ort::KeyValuePairs provider_options;
+  provider_options.Add("prefer_nhwc", "1");
+  const auto cuda_ep_lib_path =
+      std::filesystem::path{GetSharedLibraryFileName(ORT_TSTR("onnxruntime_providers_cuda"))};
+  RunBasicTest(kCudaExecutionProvider, cuda_ep_lib_path, provider_options);
+}
+#endif
+
+#if defined(USE_DML)
+TEST(AutoEpSelection, DmlEP) {
+  Ort::KeyValuePairs provider_options;
+  provider_options.Add("disable_metacommands", "true");  // checking options are passed through
+
+  const auto select_devices = [&](std::vector<const OrtEpDevice*>& devices) {
+    const OrtApi* c_api = &Ort::GetApi();
+    const OrtEpDevice* const* ep_devices = nullptr;
+    size_t num_devices = 0;
+
+    std::vector<OrtEpDevice*> selected_ep_device;
+    ASSERT_ORTSTATUS_OK(c_api->GetEpDevices(*ort_env, &ep_devices, &num_devices));
+    for (size_t i = 0; i < num_devices; ++i) {
+      const OrtEpDevice* ep_device = ep_devices[i];
+      if (strcmp(c_api->EpDevice_EpName(ep_device), kDmlExecutionProvider) == 0) {
+        const auto* device = c_api->EpDevice_Device(ep_device);
+        const OrtKeyValuePairs* kvps = c_api->HardwareDevice_Metadata(device);
+
+        const char* is_virtual = c_api->GetKeyValue(kvps, kOrtHardwareDevice_MetadataKey_IsVirtual);
+        ASSERT_TRUE(is_virtual == nullptr || strcmp(is_virtual, "0") == 0);
+
+        if (devices.empty()) {
+          // add the first device
+          devices.push_back(ep_device);
+        } else {
+          // if this is available, 0 == best performance
+          auto* perf_index = c_api->GetKeyValue(kvps, "DxgiHighPerformanceIndex");
+          if (perf_index && strcmp(perf_index, "0") == 0) {
+            devices[0] = ep_device;  // replace as this is the higher performance device
+          }
+        }
+      }
+    }
+
+    ASSERT_TRUE(!devices.empty()) << "No DML devices found";
+  };
+
+  RunBasicTest(kDmlExecutionProvider, std::nullopt, provider_options, select_devices);
+}
+#endif
+
+#if defined(USE_WEBGPU) && !defined(ORT_USE_EP_API_ADAPTERS)
+TEST(AutoEpSelection, WebGpuEP) {
+  RunBasicTest(kWebGpuExecutionProvider, std::nullopt);
+}
+#endif  // defined(USE_WEBGPU) && !defined(ORT_USE_EP_API_ADAPTERS)
+
+// tests for AutoEP selection related things in the API that aren't covered by the other tests.
+TEST(AutoEpSelection, MiscApiTests) {
+  const OrtApi* c_api = &Ort::GetApi();
+
+  // nullptr and empty input to OrtKeyValuePairs. also test RemoveKeyValuePair
+  {
+    OrtKeyValuePairs* kvps = nullptr;
+    c_api->CreateKeyValuePairs(&kvps);
+    c_api->AddKeyValuePair(kvps, "key1", nullptr);    // should be ignored
+    c_api->AddKeyValuePair(kvps, nullptr, "value1");  // should be ignored
+    c_api->RemoveKeyValuePair(kvps, nullptr);         // should be ignored
+    c_api->AddKeyValuePair(kvps, "", "value2");       // should be ignored
+    ASSERT_EQ(c_api->GetKeyValue(kvps, ""), nullptr);
+
+    c_api->AddKeyValuePair(kvps, "key1", "value1");
+    c_api->AddKeyValuePair(kvps, "key2", "");  // empty value is allowed
+    ASSERT_EQ(c_api->GetKeyValue(kvps, "key2"), std::string(""));
+
+    c_api->RemoveKeyValuePair(kvps, "key1");
+    const char* const* keys = nullptr;
+    const char* const* values = nullptr;
+    size_t num_entries = 0;
+    c_api->GetKeyValuePairs(kvps, &keys, &values, &num_entries);
+    ASSERT_EQ(num_entries, 1);
+
+    c_api->ReleaseKeyValuePairs(kvps);
+  }
+
+  // construct KVP from std::unordered_map
+  {
+    std::unordered_map<std::string, std::string> kvps;
+    kvps["key1"] = "value1";
+    kvps["key2"] = "value2";
+    Ort::KeyValuePairs ort_kvps(kvps);
+    ASSERT_EQ(ort_kvps.GetValue("key1"), std::string("value1"));
+    ASSERT_EQ(ort_kvps.GetValue("key2"), std::string("value2"));
+  }
+
+  std::vector<Ort::ConstEpDevice> ep_devices = ort_env->GetEpDevices();
+
+  // explicit EP selection with Ort::KeyValuePairs for options
+  {
+    Ort::SessionOptions session_options;
+    Ort::KeyValuePairs ep_options;
+    ep_options.Add("option1", "true");
+    session_options.AppendExecutionProvider_V2(*ort_env, {ep_devices[0]}, ep_options);
+  }
+
+  // explicit EP selection with <std::string, std::string> for options
+  {
+    Ort::SessionOptions session_options;
+    std::unordered_map<std::string, std::string> ep_options;
+    ep_options["option1"] = "true";
+    session_options.AppendExecutionProvider_V2(*ort_env, {ep_devices[0]}, ep_options);
+  }
+}
+
+TEST(AutoEpSelection, PreferCpu) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                       "",  // don't need EP name
+                       std::nullopt,
+                       provider_options,
+                       inputs,
+                       "Y",
+                       expected_dims_y,
+                       expected_values_y,
+                       /* auto_select */ true,
+                       /*select_devices*/ nullptr,
+                       OrtExecutionProviderDevicePolicy::OrtExecutionProviderDevicePolicy_PREFER_CPU);
+}
+
+// this should fallback to CPU if no GPU
+TEST(AutoEpSelection, PreferGpu) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                       "",  // don't need EP name
+                       std::nullopt,
+                       provider_options,
+                       inputs,
+                       "Y",
+                       expected_dims_y,
+                       expected_values_y,
+                       /* auto_select */ true,
+                       /*select_devices*/ nullptr,
+                       OrtExecutionProviderDevicePolicy::OrtExecutionProviderDevicePolicy_PREFER_GPU);
+}
+
+// this should fallback to CPU if no NPU
+TEST(AutoEpSelection, PreferNpu) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                       "",  // don't need EP name
+                       std::nullopt,
+                       provider_options,
+                       inputs,
+                       "Y",
+                       expected_dims_y,
+                       expected_values_y,
+                       /* auto_select */ true,
+                       /*select_devices*/ nullptr,
+                       OrtExecutionProviderDevicePolicy::OrtExecutionProviderDevicePolicy_PREFER_NPU);
+}
+
+#if !defined(ORT_MINIMAL_BUILD)
+TEST(AutoEpSelection, DuplicateEpCustomOpDomainsAreDeduplicatedForSessionCreation) {
+  constexpr const char* duplicate_ep_name = "example_ep_duplicate_devices";
+  const Utils::ExamplePluginInfo duplicate_ep_info{
+      GetSharedLibraryFileName(ORT_TSTR("example_plugin_ep")),
+      duplicate_ep_name,
+      duplicate_ep_name};
+  RegisteredEpDeviceUniquePtr duplicate_ep;
+  ASSERT_NO_FATAL_FAILURE(Utils::RegisterAndGetExampleEp(*ort_env, duplicate_ep_info, duplicate_ep));
+
+  const OrtApi& c_api = Ort::GetApi();
+  const OrtEpDevice* const* ep_devices = nullptr;
+  size_t num_ep_devices = 0;
+  ASSERT_ORTSTATUS_OK(c_api.GetEpDevices(*ort_env, &ep_devices, &num_ep_devices));
+
+  size_t num_duplicate_ep_devices = 0;
+  std::unordered_set<uint32_t> duplicate_device_ids;
+  // Verify the regression hook created two EP devices for distinct hardware devices, rather than duplicating one
+  // device. Both are backed by the same factory and thus return identical custom-op domains.
+  for (size_t i = 0; i < num_ep_devices; ++i) {
+    if (std::strcmp(c_api.EpDevice_EpName(ep_devices[i]), duplicate_ep_name) == 0) {
+      ++num_duplicate_ep_devices;
+      const OrtHardwareDevice* hardware_device = c_api.EpDevice_Device(ep_devices[i]);
+      ASSERT_EQ(c_api.HardwareDevice_Type(hardware_device), OrtHardwareDeviceType::OrtHardwareDeviceType_CPU);
+      const char* is_virtual = c_api.GetKeyValue(c_api.HardwareDevice_Metadata(hardware_device),
+                                                 kOrtHardwareDevice_MetadataKey_IsVirtual);
+      ASSERT_STREQ(is_virtual, "1");
+      duplicate_device_ids.insert(c_api.HardwareDevice_DeviceId(hardware_device));
+    }
+  }
+  ASSERT_EQ(num_duplicate_ep_devices, size_t{2});
+  ASSERT_EQ(duplicate_device_ids.size(), size_t{2});
+
+  const std::filesystem::path custom_op_model_path{ORT_TSTR("testdata/custom_mul.onnx")};
+
+  {
+    Ort::SessionOptions session_options = CreateAutoEpOptionsSelecting(duplicate_ep_name);
+    Ort::Session session(*ort_env, custom_op_model_path.c_str(), session_options);
+  }
+
+  {
+    std::ifstream model_file(ORT_TSTR("testdata/mul_1.onnx"), std::ios::binary);
+    ASSERT_TRUE(model_file.good());
+    std::vector<char> model_data((std::istreambuf_iterator<char>(model_file)), std::istreambuf_iterator<char>());
+    ASSERT_FALSE(model_data.empty());
+
+    Ort::SessionOptions session_options = CreateAutoEpOptionsSelecting(duplicate_ep_name);
+    Ort::Session session(*ort_env, model_data.data(), model_data.size(), session_options);
+  }
+
+  {
+    Ort::Model model = CreateMulOrtModel();
+    Ort::SessionOptions session_options = CreateAutoEpOptionsSelecting(duplicate_ep_name);
+    Ort::Session session(*ort_env, model, session_options);
+  }
+}
+#endif  // !defined(ORT_MINIMAL_BUILD)
+
+static OrtStatus* ORT_API_CALL PolicyDelegate(_In_ const OrtEpDevice** ep_devices,
+                                              _In_ size_t num_devices,
+                                              _In_ const OrtKeyValuePairs* model_metadata,
+                                              _In_opt_ const OrtKeyValuePairs* /*runtime_metadata*/,
+                                              _Inout_ const OrtEpDevice** selected,
+                                              _In_ size_t max_selected,
+                                              _Out_ size_t* num_selected,
+                                              _In_ void* /*state*/) {
+  *num_selected = 0;
+
+  if (max_selected <= 2) {
+    return Ort::GetApi().CreateStatus(ORT_INVALID_ARGUMENT, "Expected to be able to select 2 devices.");
+  }
+
+  if (model_metadata->Entries().empty()) {
+    return Ort::GetApi().CreateStatus(ORT_INVALID_ARGUMENT, "Model metadata was empty.");
+  }
+
+  selected[0] = ep_devices[0];
+  *num_selected = 1;
+  if (num_devices > 1) {
+    // CPU EP is always last.
+    selected[1] = ep_devices[num_devices - 1];
+    *num_selected = 2;
+  }
+
+  return nullptr;
+}
+
+static OrtStatus* ORT_API_CALL PolicyDelegateSelectNone(_In_ const OrtEpDevice** /*ep_devices*/,
+                                                        _In_ size_t /*num_devices*/,
+                                                        _In_ const OrtKeyValuePairs* /*model_metadata*/,
+                                                        _In_opt_ const OrtKeyValuePairs* /*runtime_metadata*/,
+                                                        _Inout_ const OrtEpDevice** /*selected*/,
+                                                        _In_ size_t /*max_selected*/,
+                                                        _Out_ size_t* num_selected,
+                                                        _In_ void* /*state*/) {
+  *num_selected = 0;
+
+  return nullptr;
+}
+
+static OrtStatus* ORT_API_CALL PolicyDelegateReturnError(_In_ const OrtEpDevice** /*ep_devices*/,
+                                                         _In_ size_t /*num_devices*/,
+                                                         _In_ const OrtKeyValuePairs* /*model_metadata*/,
+                                                         _In_opt_ const OrtKeyValuePairs* /*runtime_metadata*/,
+                                                         _Inout_ const OrtEpDevice** /*selected*/,
+                                                         _In_ size_t /*max_selected*/,
+                                                         _Out_ size_t* num_selected,
+                                                         _In_ void* /*state*/) {
+  *num_selected = 0;
+
+  return Ort::GetApi().CreateStatus(ORT_INVALID_ARGUMENT, "Selection error.");
+}
+
+// test providing a delegate
+TEST(AutoEpSelection, PolicyDelegate) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                       "",  // don't need EP name
+                       std::nullopt,
+                       provider_options,
+                       inputs,
+                       "Y",
+                       expected_dims_y,
+                       expected_values_y,
+                       /* auto_select */ true,
+                       /*select_devices*/ nullptr,
+                       std::nullopt,
+                       PolicyDelegate);
+}
+
+// test providing a delegate
+TEST(AutoEpSelection, PolicyDelegateSelectsNothing) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  ASSERT_THROW(
+      TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                           "",  // don't need EP name
+                           std::nullopt,
+                           provider_options,
+                           inputs,
+                           "Y",
+                           expected_dims_y,
+                           expected_values_y,
+                           /* auto_select */ true,
+                           /*select_devices*/ nullptr,
+                           std::nullopt,
+                           PolicyDelegateSelectNone,
+                           /*test_session_creation_only*/ true),
+      Ort::Exception);
+}
+
+TEST(AutoEpSelection, PolicyDelegateReturnsError) {
+  std::vector<Input<float>> inputs(1);
+  auto& input = inputs.back();
+  input.name = "X";
+  input.dims = {3, 2};
+  input.values = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+  // prepare expected inputs and outputs
+  std::vector<int64_t> expected_dims_y = {3, 2};
+  std::vector<float> expected_values_y = {1.0f, 4.0f, 9.0f, 16.0f, 25.0f, 36.0f};
+
+  const Ort::KeyValuePairs provider_options;
+
+  ASSERT_THROW(
+      TestInference<float>(*ort_env, ORT_TSTR("testdata/mul_1.onnx"),
+                           "",  // don't need EP name
+                           std::nullopt,
+                           provider_options,
+                           inputs,
+                           "Y",
+                           expected_dims_y,
+                           expected_values_y,
+                           /* auto_select */ true,
+                           /*select_devices*/ nullptr,
+                           std::nullopt,
+                           PolicyDelegateReturnError,
+                           /*test_session_creation_only*/ true),
+      Ort::Exception);
+}
+
+}  // namespace test
+}  // namespace onnxruntime

@@ -1,0 +1,476 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
+import unittest
+
+import numpy as np
+from helper import get_name
+from onnx import TensorProto, helper, numpy_helper
+
+import onnxruntime as onnxrt
+
+
+class CudaGraphHelper:
+    def __init__(
+        self,
+        ort_session: onnxrt.InferenceSession,
+        input_and_output_shape: dict[str, list[int]],
+        device_id: int = 0,
+    ):
+        self.input_names = [input.name for input in ort_session.get_inputs()]
+        self.output_names = [output.name for output in ort_session.get_outputs()]
+
+        self.input_and_output_shape = input_and_output_shape
+        self.io_numpy_type = self.get_io_numpy_type_map(ort_session)
+        self.io_binding = ort_session.io_binding()
+        self.io_ort_value = {}
+
+        for name in self.input_names + self.output_names:
+            ort_value = onnxrt.OrtValue.ortvalue_from_shape_and_type(
+                input_and_output_shape[name], self.io_numpy_type[name], "cuda", device_id
+            )
+            self.io_ort_value[name] = ort_value
+            if name in self.input_names:
+                self.io_binding.bind_ortvalue_input(name, ort_value)
+            else:
+                self.io_binding.bind_ortvalue_output(name, ort_value)
+
+    def get_io_numpy_type_map(self, ort_session: onnxrt.InferenceSession):
+        ort_type_to_numpy_type = {
+            "tensor(int64)": np.longlong,
+            "tensor(int32)": np.intc,
+            "tensor(float)": np.float32,
+            "tensor(float16)": np.float16,
+        }
+
+        name_to_numpy_type = {}
+        for _input in ort_session.get_inputs():
+            name_to_numpy_type[_input.name] = ort_type_to_numpy_type[_input.type]
+
+        for output in ort_session.get_outputs():
+            name_to_numpy_type[output.name] = ort_type_to_numpy_type[output.type]
+
+        return name_to_numpy_type
+
+    def update_inputs(self, inputs: dict[str, np.ndarray]):
+        for input_name in self.input_names:
+            self.io_ort_value[input_name].update_inplace(inputs[input_name])
+
+    def get_output(self, output_name: str):
+        return self.io_ort_value[output_name].numpy()
+
+
+class TestInferenceSessionWithCudaGraph(unittest.TestCase):
+    def test_gather_nd_cuda_graph_replay(self):
+        if "CUDAExecutionProvider" not in onnxrt.get_available_providers():
+            self.skipTest("CUDAExecutionProvider is not available")
+
+        # Distinct layouts ensure each captured GatherND launch needs different stride metadata.
+        graph = helper.make_graph(
+            [
+                helper.make_node("GatherND", ["data_0", "indices_0"], ["output_0"]),
+                helper.make_node("GatherND", ["data_1", "indices_1"], ["output_1"]),
+            ],
+            "gather_nd_cuda_graph",
+            [
+                helper.make_tensor_value_info("data_0", TensorProto.FLOAT, [2, 3, 4]),
+                helper.make_tensor_value_info("indices_0", TensorProto.INT64, [2, 2]),
+                helper.make_tensor_value_info("data_1", TensorProto.FLOAT, [3, 2, 5]),
+                helper.make_tensor_value_info("indices_1", TensorProto.INT64, [2, 2]),
+            ],
+            [
+                helper.make_tensor_value_info("output_0", TensorProto.FLOAT, [2, 4]),
+                helper.make_tensor_value_info("output_1", TensorProto.FLOAT, [2, 5]),
+            ],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 7
+
+        providers = [("CUDAExecutionProvider", {"enable_cuda_graph": True})]
+        session = onnxrt.InferenceSession(model.SerializeToString(), providers=providers)
+        shapes = {
+            "data_0": [2, 3, 4],
+            "indices_0": [2, 2],
+            "data_1": [3, 2, 5],
+            "indices_1": [2, 2],
+            "output_0": [2, 4],
+            "output_1": [2, 5],
+        }
+        cuda_graph_helper = CudaGraphHelper(session, shapes)
+        inputs = {
+            "data_0": np.arange(24, dtype=np.float32).reshape(shapes["data_0"]),
+            "indices_0": np.array([[0, 1], [1, 2]], dtype=np.int64),
+            "data_1": np.arange(30, dtype=np.float32).reshape(shapes["data_1"]),
+            "indices_1": np.array([[0, 1], [2, 0]], dtype=np.int64),
+        }
+        expected_outputs = {
+            "output_0": np.array([[4, 5, 6, 7], [20, 21, 22, 23]], dtype=np.float32),
+            "output_1": np.array([[5, 6, 7, 8, 9], [20, 21, 22, 23, 24]], dtype=np.float32),
+        }
+
+        cuda_graph_helper.update_inputs(inputs)
+        cuda_graph_helper.io_binding.synchronize_inputs()
+        for _ in range(4):  # Two warmups, capture, then replay after PrepareCompute has returned.
+            session.run_with_iobinding(cuda_graph_helper.io_binding)
+            cuda_graph_helper.io_binding.synchronize_outputs()
+
+        for output_name, expected_output in expected_outputs.items():
+            np.testing.assert_array_equal(cuda_graph_helper.get_output(output_name), expected_output)
+
+    def test_concat_unequal_sizes_cuda_graph_replay(self):
+        if "CUDAExecutionProvider" not in onnxrt.get_available_providers():
+            self.skipTest("CUDAExecutionProvider is not available")
+
+        # Inputs of unequal size along the axis must not need pinned host staging, which capture rejects.
+        graph = helper.make_graph(
+            [
+                helper.make_node("Concat", ["a", "b"], ["output_0"], axis=0),
+                helper.make_node("Concat", ["c", "d", "e"], ["output_1"], axis=1),
+            ],
+            "concat_unequal_cuda_graph",
+            [
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 4]),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, [3, 4]),
+                helper.make_tensor_value_info("c", TensorProto.FLOAT, [2, 1, 3]),
+                helper.make_tensor_value_info("d", TensorProto.FLOAT, [2, 3, 3]),
+                helper.make_tensor_value_info("e", TensorProto.FLOAT, [2, 2, 3]),
+            ],
+            [
+                helper.make_tensor_value_info("output_0", TensorProto.FLOAT, [4, 4]),
+                helper.make_tensor_value_info("output_1", TensorProto.FLOAT, [2, 6, 3]),
+            ],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 7
+
+        providers = [("CUDAExecutionProvider", {"enable_cuda_graph": True})]
+        session = onnxrt.InferenceSession(model.SerializeToString(), providers=providers)
+        shapes = {
+            "a": [1, 4],
+            "b": [3, 4],
+            "c": [2, 1, 3],
+            "d": [2, 3, 3],
+            "e": [2, 2, 3],
+            "output_0": [4, 4],
+            "output_1": [2, 6, 3],
+        }
+        cuda_graph_helper = CudaGraphHelper(session, shapes)
+        rng = np.random.default_rng(0)
+        for _ in range(4):  # Warmup, capture, then replays that must read the updated inputs.
+            inputs = {name: rng.random(shapes[name], dtype=np.float32) for name in ("a", "b", "c", "d", "e")}
+            cuda_graph_helper.update_inputs(inputs)
+            cuda_graph_helper.io_binding.synchronize_inputs()
+            session.run_with_iobinding(cuda_graph_helper.io_binding)
+            cuda_graph_helper.io_binding.synchronize_outputs()
+
+            np.testing.assert_array_equal(
+                cuda_graph_helper.get_output("output_0"), np.concatenate([inputs["a"], inputs["b"]], axis=0)
+            )
+            np.testing.assert_array_equal(
+                cuda_graph_helper.get_output("output_1"),
+                np.concatenate([inputs["c"], inputs["d"], inputs["e"]], axis=1),
+            )
+
+    def test_concat_32_unequal_inputs_cuda_graph_replay(self):
+        if "CUDAExecutionProvider" not in onnxrt.get_available_providers():
+            self.skipTest("CUDAExecutionProvider is not available")
+
+        # 32 is the most inputs passed by value. Short rows use the output-major kernel; rows of at
+        # least 256 elements use the input-major kernel.
+        input_count = 32
+        short_names = [f"s{i}" for i in range(input_count)]
+        long_names = [f"l{i}" for i in range(input_count)]
+        shapes = {}
+        for i in range(input_count):
+            shapes[short_names[i]] = [2, i % 3 + 1, 3]
+            shapes[long_names[i]] = [i % 3 + 1, 256]
+        short_axis = sum(shapes[name][1] for name in short_names)
+        long_axis = sum(shapes[name][0] for name in long_names)
+        shapes["output_short"] = [2, short_axis, 3]
+        shapes["output_long"] = [long_axis, 256]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("Concat", short_names, ["output_short"], axis=1),
+                helper.make_node("Concat", long_names, ["output_long"], axis=0),
+            ],
+            "concat_32_unequal_cuda_graph",
+            [helper.make_tensor_value_info(name, TensorProto.FLOAT, shapes[name]) for name in short_names + long_names],
+            [
+                helper.make_tensor_value_info("output_short", TensorProto.FLOAT, shapes["output_short"]),
+                helper.make_tensor_value_info("output_long", TensorProto.FLOAT, shapes["output_long"]),
+            ],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 7
+
+        providers = [("CUDAExecutionProvider", {"enable_cuda_graph": True})]
+        session = onnxrt.InferenceSession(model.SerializeToString(), providers=providers)
+        cuda_graph_helper = CudaGraphHelper(session, shapes)
+        rng = np.random.default_rng(0)
+        for _ in range(4):  # Warmup, capture, then replays that must read the updated inputs.
+            inputs = {name: rng.random(shapes[name], dtype=np.float32) for name in short_names + long_names}
+            cuda_graph_helper.update_inputs(inputs)
+            cuda_graph_helper.io_binding.synchronize_inputs()
+            session.run_with_iobinding(cuda_graph_helper.io_binding)
+            cuda_graph_helper.io_binding.synchronize_outputs()
+
+            np.testing.assert_array_equal(
+                cuda_graph_helper.get_output("output_short"),
+                np.concatenate([inputs[name] for name in short_names], axis=1),
+            )
+            np.testing.assert_array_equal(
+                cuda_graph_helper.get_output("output_long"),
+                np.concatenate([inputs[name] for name in long_names], axis=0),
+            )
+
+    def test_matmul_gemm_auto_tune_cuda_graph_replay(self):
+        if "CUDAExecutionProvider" not in onnxrt.get_available_providers():
+            self.skipTest("CUDAExecutionProvider is not available")
+
+        # Small-M fp16 projections are tuned during the warmup runs and must replay correctly.
+        rng = np.random.default_rng(0)
+        weights = {
+            "w_narrow": (rng.standard_normal((512, 48)) * 0.05).astype(np.float16),
+            "w_wide": (rng.standard_normal((256, 1024)) * 0.05).astype(np.float16),
+        }
+        shapes = {"x_narrow": [8, 512], "x_wide": [3, 256], "y_narrow": [8, 48], "y_wide": [3, 1024]}
+        graph = helper.make_graph(
+            [
+                helper.make_node("MatMul", ["x_narrow", "w_narrow"], ["y_narrow"]),
+                helper.make_node("MatMul", ["x_wide", "w_wide"], ["y_wide"]),
+            ],
+            "matmul_gemm_auto_tune_cuda_graph",
+            [
+                helper.make_tensor_value_info("x_narrow", TensorProto.FLOAT16, shapes["x_narrow"]),
+                helper.make_tensor_value_info("x_wide", TensorProto.FLOAT16, shapes["x_wide"]),
+            ],
+            [
+                helper.make_tensor_value_info("y_narrow", TensorProto.FLOAT16, shapes["y_narrow"]),
+                helper.make_tensor_value_info("y_wide", TensorProto.FLOAT16, shapes["y_wide"]),
+            ],
+            [numpy_helper.from_array(value, name) for name, value in weights.items()],
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 7
+
+        session_options = onnxrt.SessionOptions()
+        session_options.add_session_config_entry("ep.cuda.enable_gemm_auto_tune", "1")
+        providers = [("CUDAExecutionProvider", {"enable_cuda_graph": True})]
+        session = onnxrt.InferenceSession(model.SerializeToString(), session_options, providers=providers)
+        cuda_graph_helper = CudaGraphHelper(session, shapes)
+        for _ in range(4):  # Warmups (tuning), capture, then replays that must read the updated inputs.
+            inputs = {name: rng.standard_normal(shapes[name]).astype(np.float16) for name in ("x_narrow", "x_wide")}
+            cuda_graph_helper.update_inputs(inputs)
+            cuda_graph_helper.io_binding.synchronize_inputs()
+            session.run_with_iobinding(cuda_graph_helper.io_binding)
+            cuda_graph_helper.io_binding.synchronize_outputs()
+
+            for suffix in ("narrow", "wide"):
+                expected = inputs[f"x_{suffix}"].astype(np.float32) @ weights[f"w_{suffix}"].astype(np.float32)
+                np.testing.assert_allclose(
+                    cuda_graph_helper.get_output(f"y_{suffix}").astype(np.float32), expected, rtol=1e-2, atol=1e-2
+                )
+
+    def test_ort_value_update_in_place(self):
+        x0 = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=np.float32)
+        ortvalue_cpu = onnxrt.OrtValue.ortvalue_from_numpy(x0)
+        np.testing.assert_allclose(ortvalue_cpu.numpy(), x0)
+
+        x1 = np.array([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], dtype=np.float32)
+        ortvalue_cpu.update_inplace(x1)
+        np.testing.assert_allclose(ortvalue_cpu.numpy(), x1)
+
+        if "CUDAExecutionProvider" in onnxrt.get_available_providers():
+            ortvalue_gpu = onnxrt.OrtValue.ortvalue_from_numpy(x0, "cuda", 0)
+            np.testing.assert_allclose(ortvalue_gpu.numpy(), x0)
+
+            ortvalue_gpu.update_inplace(x1)
+            np.testing.assert_allclose(ortvalue_gpu.numpy(), x1)
+
+    def test_ort_value_update_in_place_from_ortvalue(self):
+        # Test CPU to CPU copy via OrtValue
+        x0 = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], dtype=np.float32)
+        x1 = np.array([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], dtype=np.float32)
+
+        ortvalue_dst = onnxrt.OrtValue.ortvalue_from_numpy(x0)
+        ortvalue_src = onnxrt.OrtValue.ortvalue_from_numpy(x1)
+        ortvalue_dst.update_inplace(ortvalue_src)
+        np.testing.assert_allclose(ortvalue_dst.numpy(), x1)
+
+        if "CUDAExecutionProvider" in onnxrt.get_available_providers():
+            # Test GPU to GPU copy via OrtValue
+            ortvalue_gpu_dst = onnxrt.OrtValue.ortvalue_from_numpy(x0, "cuda", 0)
+            ortvalue_gpu_src = onnxrt.OrtValue.ortvalue_from_numpy(x1, "cuda", 0)
+            ortvalue_gpu_dst.update_inplace(ortvalue_gpu_src)
+            np.testing.assert_allclose(ortvalue_gpu_dst.numpy(), x1)
+
+            # Test CPU OrtValue to GPU OrtValue copy
+            ortvalue_gpu_dst2 = onnxrt.OrtValue.ortvalue_from_numpy(x0, "cuda", 0)
+            ortvalue_cpu_src = onnxrt.OrtValue.ortvalue_from_numpy(x1)
+            ortvalue_gpu_dst2.update_inplace(ortvalue_cpu_src)
+            np.testing.assert_allclose(ortvalue_gpu_dst2.numpy(), x1)
+
+            # Test GPU OrtValue to CPU OrtValue copy
+            ortvalue_cpu_dst = onnxrt.OrtValue.ortvalue_from_numpy(x0)
+            ortvalue_gpu_src2 = onnxrt.OrtValue.ortvalue_from_numpy(x1, "cuda", 0)
+            ortvalue_cpu_dst.update_inplace(ortvalue_gpu_src2)
+            np.testing.assert_allclose(ortvalue_cpu_dst.numpy(), x1)
+
+    def test_select_ep_to_run_cuda_graph(self):
+        if "TensorrtExecutionProvider" in onnxrt.get_available_providers():
+            providers = [("TensorrtExecutionProvider", {"trt_cuda_graph_enable": True})]
+            self.run_model_with_cuda_graph(providers)
+        elif "CUDAExecutionProvider" in onnxrt.get_available_providers():
+            providers = [("CUDAExecutionProvider", {"enable_cuda_graph": True})]
+            self.run_model_with_cuda_graph(providers)
+            self.run_model_with_cuda_graph_annotation(providers)
+
+    def run_model_with_cuda_graph(self, providers):
+        INPUT_SIZE = 1280  # noqa: N806
+        x = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]] * INPUT_SIZE, dtype=np.float32)
+        y = np.array([[0.0], [0.0], [0.0]] * INPUT_SIZE, dtype=np.float32)
+        x_ortvalue = onnxrt.OrtValue.ortvalue_from_numpy(x, "cuda", 0)
+        y_ortvalue = onnxrt.OrtValue.ortvalue_from_numpy(y, "cuda", 0)
+
+        onnxrt.set_default_logger_severity(0)
+        session = onnxrt.InferenceSession(get_name("matmul_2.onnx"), providers=providers)
+        io_binding = session.io_binding()
+
+        # Bind the input and output
+        io_binding.bind_ortvalue_input("X", x_ortvalue)
+        io_binding.bind_ortvalue_output("Y", y_ortvalue)
+
+        ro = onnxrt.RunOptions()
+
+        # One regular run for the necessary memory allocation and cuda graph capturing
+        # Synchronize to make sure the input copy on the default stream is done since the EP isn't using the default stream.
+        io_binding.synchronize_inputs()
+        session.run_with_iobinding(io_binding, ro)
+        # Synchronize to make sure the computation on the EP stream is done before reading the output on the default stream.
+        io_binding.synchronize_outputs()
+        expected_y = np.array([[5.0], [11.0], [17.0]] * INPUT_SIZE, dtype=np.float32)
+        np.testing.assert_allclose(y_ortvalue.numpy(), expected_y, rtol=1e-05, atol=1e-05)
+
+        # After capturing, CUDA graph replay happens from this Run onwards
+        io_binding.synchronize_inputs()
+        session.run_with_iobinding(io_binding, ro)
+        io_binding.synchronize_outputs()
+        np.testing.assert_allclose(y_ortvalue.numpy(), expected_y, rtol=1e-05, atol=1e-05)
+
+        # Update input and then replay CUDA graph
+        x_ortvalue.update_inplace(
+            np.array(
+                [[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]] * INPUT_SIZE,
+                dtype=np.float32,
+            )
+        )
+        io_binding.synchronize_inputs()
+        session.run_with_iobinding(io_binding, ro)
+        io_binding.synchronize_outputs()
+        np.testing.assert_allclose(
+            y_ortvalue.numpy(),
+            np.array([[50.0], [110.0], [170.0]] * INPUT_SIZE, dtype=np.float32),
+            rtol=1e-05,
+            atol=1e-05,
+        )
+
+    def run_model_with_cuda_graph_annotation(self, providers):
+        INPUT_SIZE = 1280  # noqa: N806
+
+        x_base = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]
+        y_base = [[0.0], [0.0], [0.0], [0.0]]
+        expected_y_base = [[5.0], [11.0], [17.0], [23.0]]
+
+        x_base_mul_10 = [[10.0, 20.0], [30.0, 40.0], [50.0, 60.0], [70.0, 80.0]]
+        expected_y_base_mul_10 = [[50.0], [110.0], [170.0], [230.0]]
+
+        test_num = 4
+
+        x_ortvalues = []
+        y_ortvalues = []
+        for i in range(test_num):
+            x = np.array(x_base[: i + 1][:] * INPUT_SIZE, dtype=np.float32)
+            y = np.array(y_base[: i + 1][:] * INPUT_SIZE, dtype=np.float32)
+            x_ortvalues.append(onnxrt.OrtValue.ortvalue_from_numpy(x, "cuda", 0))
+            y_ortvalues.append(onnxrt.OrtValue.ortvalue_from_numpy(y, "cuda", 0))
+
+        onnxrt.set_default_logger_severity(0)
+        session = onnxrt.InferenceSession(get_name("matmul_2.onnx"), providers=providers)
+        io_bindings = [session.io_binding()] * test_num
+        ro = onnxrt.RunOptions()
+
+        # Regular run to capture CUDA graph
+        for i in range(test_num):
+            io_bindings[i].bind_ortvalue_input("X", x_ortvalues[i])
+            io_bindings[i].bind_ortvalue_output("Y", y_ortvalues[i])
+            # TODO: Temporarily remove the default cuda graph capture test for the first regular run
+            # because it fails on a training CI. Need to investigate the root cause.
+            ro.add_run_config_entry("gpu_graph_id", str(i + 1))
+            io_bindings[i].synchronize_inputs()
+            session.run_with_iobinding(io_bindings[i], ro)
+            io_bindings[i].synchronize_outputs()
+            expected_y = np.array(expected_y_base[: i + 1][:] * INPUT_SIZE, dtype=np.float32)
+            np.testing.assert_allclose(y_ortvalues[i].numpy(), expected_y, rtol=1e-05, atol=1e-05)
+
+        del ro
+        ro = onnxrt.RunOptions()
+
+        # After capturing, CUDA graph replay happens from this Run onwards
+        for i in range(test_num):
+            # Update input and then replay CUDA graph
+            x_ortvalues[i].update_inplace(np.array(x_base_mul_10[: i + 1][:] * INPUT_SIZE, dtype=np.float32))
+            ro.add_run_config_entry("gpu_graph_id", str(i + 1))
+            io_bindings[i].synchronize_inputs()
+            session.run_with_iobinding(io_bindings[i], ro)
+            io_bindings[i].synchronize_outputs()
+            expected_y = np.array(expected_y_base_mul_10[: i + 1][:] * INPUT_SIZE, dtype=np.float32)
+            np.testing.assert_allclose(y_ortvalues[i].numpy(), expected_y, rtol=1e-05, atol=1e-05)
+
+    def test_arena_with_cuda_graph(self):
+        if "CUDAExecutionProvider" in onnxrt.get_available_providers():
+            # To test cuda graph catpure, we set Arena extend strategy to be SameAsRequested so as to detect any
+            # potential memory allocation after the first run.
+            providers = [
+                ("CUDAExecutionProvider", {"enable_cuda_graph": True, "arena_extend_strategy": "kSameAsRequested"})
+            ]
+            test_model_path = get_name("squeezenet/model.onnx")
+
+            input_and_output_shape = {
+                "data_0": [16, 3, 224, 224],
+                "softmaxout_1": [16, 1000, 1, 1],
+            }
+
+            session_options = onnxrt.SessionOptions()
+            # It is optional to disable memory pattern since min_num_runs_before_cuda_graph_capture_ = 2.
+            session_options.enable_mem_pattern = False
+            session = onnxrt.InferenceSession(test_model_path, session_options, providers=providers)
+
+            cuda_graph_helper = CudaGraphHelper(session, input_and_output_shape)
+            io_binding = cuda_graph_helper.io_binding
+
+            # Create a random input for testing.
+            np.random.seed(0)
+            inputs = {"data_0": np.random.randint(0, 256, size=input_and_output_shape["data_0"]).astype(np.float32)}
+
+            # One regular run for the necessary memory allocation and cuda graph capturing
+            cuda_graph_helper.update_inputs(inputs)
+            # Synchronize to make sure the input copy on the default stream is done since the EP isn't using the default stream.
+            io_binding.synchronize_inputs()
+            session.run_with_iobinding(io_binding)
+            # Synchronize to make sure the computation on the EP stream is done before reading the output on the default stream.
+            io_binding.synchronize_outputs()
+            expected_output = cuda_graph_helper.get_output("softmaxout_1")
+
+            # After capturing, CUDA graph replay happens from this Run onwards
+            cuda_graph_helper.update_inputs(inputs)
+            io_binding.synchronize_inputs()
+            session.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+            output = cuda_graph_helper.get_output("softmaxout_1")
+
+            np.testing.assert_allclose(output, expected_output, rtol=1e-02, atol=1e-02)
+
+
+if __name__ == "__main__":
+    unittest.main()
