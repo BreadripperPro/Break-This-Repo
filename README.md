@@ -48,6 +48,12 @@
 
 ---
 
+## Break This Document ! 破坏这个文档！
+
+https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/edit?usp=sharing
+
+---
+
 # 砖业问题修复指南:一键修复！再也没烦恼！
 
 <img src="https://breadripper.pages.dev/superfixer.jpeg" alt="图片alt" title="null">
