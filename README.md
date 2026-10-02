@@ -29,3 +29,47 @@
 > 请注意，`.github` 目录是受保护的。
 
 ---
+
+🔞想打炮🔥，打飞机🔥，打手枪🔥
+
+🔞血与肉的碰撞，声声入耳的叫声🔥
+
+🔞这是灵魂的碰撞，更是对自己意志的磨炼🔥
+
+🔞别害羞，深夜寂寞是时候来点热血的🔥
+
+🔞体会真男人一样激烈的战斗🔥
+
+🔞前往此网站🔥
+
+🔞[点我前往🔞🔞🔞](https://www.gfbzb.gov.cn/)🔥
+
+🔞未成年无法参加🔞
+
+---
+
+# 砖业问题修复指南:一键修复！再也没烦恼！
+
+<img src="https://breadripper.pages.dev/superfixer.jpeg" alt="图片alt" title="null">
+
+# 电脑中毒怎么办？
+
+<img src="https://breadripper.pages.dev/linuxsafeclean.jpeg" alt="图片alt" title="null">
+
+# 免费领取高速cdn!!!
+
+<img src="https://breadripper.pages.dev/cf.png" alt="图片alt" title="cf">
+
+# 温馨提示：
+
+<img src="https://breadripper.pages.dev/warnl.png" alt="图片alt" title="null">
+
+# 免费Hypixel Rank领取
+
+<img src="https://breadripper.pages.dev/hypgift.png" alt="图片alt" title="null">
+
+# 设计轻而易举啊
+
+<img src="https://breadripper.pages.dev/design.png" alt="图片alt" title="null">
+
+---
