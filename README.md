@@ -139,6 +139,9 @@
 > [!NOTE]
 > 得益于 GitHub 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注），请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
 
+> [!WARNING]
+> 禁止提交广告、恶意软件。违者将被举报至 GitHub。
+
 ---
 
 **English**
@@ -157,6 +160,10 @@
 
 > [!NOTE]
 > Thanks to the active commits from a large number of developers and contributors on GitHub, the size of this repository has reached tens of gibibytes (37.7 GiB — as of 2026/9/22 22:57:00 UTC+08:00, editor's note). Please ensure that your computer has sufficient storage space and a good network connection when performing related operations, to prevent unexpected disconnection.
+
+> [!WARNING]
+> Advertising and malware are strictly prohibited. Violators will be reported to GitHub.
+
 
 ---
 
@@ -177,6 +184,9 @@
 > [!NOTE]
 > Grâce aux commits actifs d'un grand nombre de développeurs et de contributeurs sur GitHub, la taille de ce dépôt a atteint des dizaines de gibioctets (37,7 Gio — au 2026/9/22 22:57:00 UTC+08:00, note de l'éditeur). Veuillez vous assurer que votre ordinateur dispose de suffisamment d'espace de stockage et d'une bonne connexion réseau lors de l'exécution d'opérations connexes, afin d'éviter une déconnexion inattendue.
 
+> [!WARNING]
+> La soumission de publicités ou de logiciels malveillants est interdite. Les contrevenants seront signalés à GitHub.
+
 ---
 
 **Русский**
@@ -195,6 +205,11 @@
 
 > [!NOTE]
 > Благодаря активным коммитам большого числа разработчиков и участников на GitHub, размер этого репозитория достиг десятков гибибайт (37,7 ГиБ — по состоянию на 2026/9/22 22:57:00 UTC+08:00, примечание редактора). Пожалуйста, при выполнении связанных операций убедитесь, что на вашем компьютере достаточно места для хранения и хорошее сетевое соединение, чтобы предотвратить неожиданное отключение.
+
+> [!WARNING]
+> Запрещается размещать рекламу и вредоносное программное обеспечение. Нарушители будут переданы в GitHub.
+
+---
 
 ---
 
@@ -215,6 +230,9 @@
 > [!NOTE]
 > Gracias a los commits activos de un gran número de desarrolladores y contribuidores en GitHub, el tamaño de este repositorio ha alcanzado decenas de gibibytes (37,7 GiB — a fecha de 2026/9/22 22:57:00 UTC+08:00, nota del editor). Por favor, asegúrate de que tu computadora tenga suficiente espacio de almacenamiento y una buena conexión de red al realizar operaciones relacionadas, para evitar una desconexión inesperada.
 
+> [!WARNING]
+> Queda prohibido enviar publicidad o software malicioso. Los infractores serán reportados a GitHub.
+
 **日本語**
 
 **注意**
@@ -231,6 +249,9 @@
 
 > [!NOTE]
 > GitHub 上の多数の開発者とコントリビューターによる活発なコミットのおかげで、このリポジトリのサイズは数十ギビバイトに達しています（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 編集者注）。関連する操作を実行する際は、予期しない切断を防ぐため、コンピュータに十分なストレージ容量と良好なネットワーク接続があることを確認してください。
+
+> [!WARNING]
+> 広告およびマルウェアの投稿を禁止します。違反者は GitHub に報告されます。
 
 ---
 
