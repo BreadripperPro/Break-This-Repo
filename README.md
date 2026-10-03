@@ -17,7 +17,7 @@
 	</p>
 </h1>
 
-# 卧槽了哪里来的设证玩意啊😓不怕似吗😓
+<!-- # 卧槽了哪里来的设证玩意啊😓不怕似吗😓 -->
 
 > [!CAUTION]
 > This repository automatically merges pull requests without conflicts.
@@ -27,8 +27,6 @@
 > 这个仓库会自动合并没有冲突的拉取请求。
 > 
 > 请注意，`.github` 目录是受保护的。
-
----
 
 ---
 
@@ -123,20 +121,116 @@
 ---
 
 ## 注意
+
+**中文**
+
+**注意**
+
 > [!NOTE]
->
 > 如果您在仓库主页看到了本文，不要惊慌，不要着急，请站稳扶好，安定坐下，本消息是为了告诉你，你需要换个地方才能阅读 `README` 的完整文本。
-> 
-> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制（500KiB），导致无法完全显示。
-> (望后人，如若位置变更，请同步移动(现在在 3047 行)，谢谢)
-> 我编写了一个自动插入的脚本[自动插入readme大小警告](./自动插入readme大小警告.py) 可以使用这个脚本自动插入！（不保证没有bug)
+>
+> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的显示长度限制（500KiB），导致无法完全显示。
+> （望后人，如若位置变更，请同步移动（现在在 3047 行），谢谢）
+> 我编写了一个自动插入的脚本 [自动插入readme大小警告](./自动插入readme大小警告.py)，可以使用这个脚本自动插入！（不保证没有bug）
 
 > [!NOTE]
-> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径的命名可能不适用于所有的文件系统和操作系统，执行 `git clone` 操作时可能会发生各类文件错误和文件系统错误，请您做好心理准备和预防方案。
+> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径的命名及组合可能不适用于所有的文件系统和操作系统，执行 `git clone` 或相关操作时可能会发生各类文件错误和文件系统错误，请您做好心理准备和预防方案。
 
 > [!NOTE]
-> 得益于 Github 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特 (37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注)，请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
+> 得益于 GitHub 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注），请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
 
+---
+
+**English**
+
+**Attention**
+
+> [!NOTE]
+> If you see this text on the repository's home page, do not panic, do not rush, stand steady, and sit down calmly. This message is to tell you that you need to go elsewhere to read the full text of the `README`.
+>
+> Please go to [README.md](./README.md) (the file page) to view it. This is because the display length limit on the repository home page is shorter than that of the file (500 KiB), causing it to be incompletely displayed.
+> (To future maintainers: if the location changes, please move this note accordingly (currently at line 3047). Thank you.)
+> I have written a script to automatically insert this warning: [自动插入readme大小警告](./自动插入readme大小警告.py). You can use this script to insert it automatically! (No guarantee that there are no bugs.)
+
+> [!NOTE]
+> The repository may contain various strange files and paths. The naming and combination of these files or paths may not be applicable to all file systems and operating systems. When executing `git clone` or related operations, various file errors and file system errors may occur. Please be mentally prepared and take preventive measures.
+
+> [!NOTE]
+> Thanks to the active commits from a large number of developers and contributors on GitHub, the size of this repository has reached tens of gibibytes (37.7 GiB — as of 2026/9/22 22:57:00 UTC+08:00, editor's note). Please ensure that your computer has sufficient storage space and a good network connection when performing related operations, to prevent unexpected disconnection.
+
+---
+
+**Français**
+
+**Attention**
+
+> [!NOTE]
+> Si vous voyez ce texte sur la page d'accueil du dépôt, ne paniquez pas, ne vous précipitez pas, tenez-vous bien et asseyez-vous calmement. Ce message est là pour vous dire que vous devez vous rendre ailleurs pour lire le texte complet du `README`.
+>
+> Veuillez vous rendre sur [README.md](./README.md) (la page du fichier) pour le consulter. Cela est dû au fait que la limite de longueur d'affichage sur la page d'accueil du dépôt est plus courte que celle du fichier (500 Kio), ce qui empêche un affichage complet.
+> (Aux futurs mainteneurs : si l'emplacement change, veuillez déplacer cette note en conséquence (actuellement à la ligne 3047). Merci.)
+> J'ai écrit un script pour insérer automatiquement cet avertissement : [自动插入readme大小警告](./自动插入readme大小警告.py). Vous pouvez utiliser ce script pour l'insérer automatiquement ! (Aucune garantie d'absence de bugs.)
+
+> [!NOTE]
+> Le dépôt peut contenir divers fichiers et chemins étranges. Le nommage et la combinaison de ces fichiers ou chemins peuvent ne pas être applicables à tous les systèmes de fichiers et systèmes d'exploitation. Lors de l'exécution de `git clone` ou d'opérations connexes, diverses erreurs de fichiers et erreurs de systèmes de fichiers peuvent survenir. Veuillez vous préparer mentalement et prendre des mesures préventives.
+
+> [!NOTE]
+> Grâce aux commits actifs d'un grand nombre de développeurs et de contributeurs sur GitHub, la taille de ce dépôt a atteint des dizaines de gibioctets (37,7 Gio — au 2026/9/22 22:57:00 UTC+08:00, note de l'éditeur). Veuillez vous assurer que votre ordinateur dispose de suffisamment d'espace de stockage et d'une bonne connexion réseau lors de l'exécution d'opérations connexes, afin d'éviter une déconnexion inattendue.
+
+---
+
+**Русский**
+
+**Внимание**
+
+> [!NOTE]
+> Если вы видите этот текст на главной странице репозитория, не паникуйте, не спешите, встаньте устойчиво и спокойно сядьте. Это сообщение предназначено для того, чтобы сказать вам, что вам нужно перейти в другое место, чтобы прочитать полный текст `README`.
+>
+> Пожалуйста, перейдите на [README.md](./README.md) (страница файла), чтобы просмотреть его. Это связано с тем, что ограничение длины отображения на главной странице репозитория короче, чем у файла (500 КиБ), из-за чего он отображается не полностью.
+> (Будущим сопровождающим: если местоположение изменится, пожалуйста, переместите это примечание соответственно (сейчас на строке 3047). Спасибо.)
+> Я написал скрипт для автоматической вставки этого предупреждения: [自动插入readme大小警告](./自动插入readme大小警告.py). Вы можете использовать этот скрипт для автоматической вставки! (Без гарантии отсутствия ошибок.)
+
+> [!NOTE]
+> В репозитории могут находиться различные странные файлы и пути. Именование и комбинация этих файлов или путей могут быть неприменимы ко всем файловым системам и операционным системам. При выполнении `git clone` или связанных операций могут возникнуть различные ошибки файлов и ошибки файловой системы. Пожалуйста, будьте морально готовы и примите меры предосторожности.
+
+> [!NOTE]
+> Благодаря активным коммитам большого числа разработчиков и участников на GitHub, размер этого репозитория достиг десятков гибибайт (37,7 ГиБ — по состоянию на 2026/9/22 22:57:00 UTC+08:00, примечание редактора). Пожалуйста, при выполнении связанных операций убедитесь, что на вашем компьютере достаточно места для хранения и хорошее сетевое соединение, чтобы предотвратить неожиданное отключение.
+
+---
+
+**Español**
+
+**Atención**
+
+> [!NOTE]
+> Si ves este texto en la página principal del repositorio, no entres en pánico, no te apresures, mantente firme y siéntate con calma. Este mensaje es para decirte que necesitas ir a otro lugar para leer el texto completo del `README`.
+>
+> Por favor, dirígete a [README.md](./README.md) (la página del archivo) para verlo. Esto se debe a que el límite de longitud de visualización en la página principal del repositorio es más corto que el del archivo (500 KiB), lo que provoca que no se muestre por completo.
+> (A los futuros mantenedores: si la ubicación cambia, muevan esta nota en consecuencia (actualmente en la línea 3047). Gracias.)
+> He escrito un script para insertar automáticamente esta advertencia: [自动插入readme大小警告](./自动插入readme大小警告.py). ¡Puedes usar este script para insertarla automáticamente! (Sin garantía de que no tenga errores.)
+
+> [!NOTE]
+> El repositorio puede contener varios archivos y rutas extraños. El nombrado y la combinación de estos archivos o rutas pueden no ser aplicables a todos los sistemas de archivos y sistemas operativos. Al ejecutar `git clone` u operaciones relacionadas, pueden producirse diversos errores de archivos y errores del sistema de archivos. Por favor, prepárate mentalmente y toma medidas preventivas.
+
+> [!NOTE]
+> Gracias a los commits activos de un gran número de desarrolladores y contribuidores en GitHub, el tamaño de este repositorio ha alcanzado decenas de gibibytes (37,7 GiB — a fecha de 2026/9/22 22:57:00 UTC+08:00, nota del editor). Por favor, asegúrate de que tu computadora tenga suficiente espacio de almacenamiento y una buena conexión de red al realizar operaciones relacionadas, para evitar una desconexión inesperada.
+
+**日本語**
+
+**注意**
+
+> [!NOTE]
+> リポジトリのホームページでこのテキストを見かけても、慌てないでください。急がないでください。しっかり立って、落ち着いて座ってください。このメッセージは、`README` の全文を読むには別の場所へ移動する必要があることを伝えるためのものです。
+>
+> [README.md](./README.md)（ファイルページ）へ移動して閲覧してください。これは、リポジトリのホームページにおける `README` の表示長制限がファイル本体より短い（500KiB）ため、完全に表示できないことが原因です。
+> （後世の方へ：位置が変更された場合は、この注記も併せて移動してください（現在 3047 行目）。よろしくお願いします。）
+> この警告を自動挿入するスクリプトを書きました：[自动插入readme大小警告](./自动插入readme大小警告.py)。このスクリプトを使って自動挿入できます！（バグがないことは保証できません。）
+
+> [!NOTE]
+> リポジトリ内には、さまざまな奇妙なファイルやパスが存在する可能性があります。これらのファイルやパスの命名および組み合わせは、すべてのファイルシステムやオペレーティングシステムに適合するとは限りません。`git clone` や関連する操作を実行する際に、各種のファイルエラーやファイルシステムエラーが発生する可能性があります。心の準備と予防策を講じてください。
+
+> [!NOTE]
+> GitHub 上の多数の開発者とコントリビューターによる活発なコミットのおかげで、このリポジトリのサイズは数十ギビバイトに達しています（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 編集者注）。関連する操作を実行する際は、予期しない切断を防ぐため、コンピュータに十分なストレージ容量と良好なネットワーク接続があることを確認してください。
 
 ---
 
@@ -201,6 +295,14 @@ rmdir /s /q "你的仓库路径"
 
 ```powershell
 Remove-Item -Recurse -Force "你的仓库路径"
+```
+*如果您在删除的时候遇到了“文件名过长”相关问题，请尝试启用 Windows 长路径支持并在 PowerShell 中运行：*
+```powerShell
+Remove-Item -Recurse -Force "\\?\仓库的绝对路径"
+```
+Ex.
+```powerShell
+Remove-Item -Recurse -Force "\\?\E:\Break-This-Repo"
 ```
 
 ## 贡献
