@@ -1961,3 +1961,32 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 > 这是谁放的这么多乱七八糟的东西 ——御坂御坂如此疑惑地说道
 >
 > ——admincmd-a
+
+---
+
+## 👁️ BTR-001：Anthropic 已将本仓库列为「暂时无法解释」样本（迫真）
+
+> **非官方 · 虚构玩梗。** 以下“研究档案”是本仓库的娱乐彩蛋，与 Anthropic 无隶属、合作或背书关系；没有证据表明 Anthropic 研究过本仓库。
+
+![BTR-001 虚构异常档案：电路之眼正在凝视仓库；标注 UNOFFICIAL PARODY](./assets/anthropic-anomaly-btr-001.svg)
+
+据本段刚刚编造的消息，Anthropic 已对本仓库实施机制可解释性观察。研究员原计划寻找“代码”特征，最后只分离出三个方向：**整活、继续整活、谁又往 README 里塞东西了**。
+
+- 样本编号：BTR-001
+- 异常现象：你在读 README，README 也在读你
+- 收容进度：0%。负责解释的稀疏自编码器已申请年假
+- 审稿意见：建议增加对照组。对照组看了一眼本仓库，也开始提 PR
+
+### 真正的研究路径（这些链接是真的）
+
+想从梗走到论文，可以沿着 **特征叠加 → 特征分解 → 电路追踪** 这条线读：
+
+1. [Toy Models of Superposition（2022）](https://transformer-circuits.pub/2022/toy_model/index.html)：少量维度如何容纳更多稀疏特征
+2. [Towards Monosemanticity（2023）](https://transformer-circuits.pub/2023/monosemantic-features/index.html)：用稀疏自编码器，从单层 Transformer 中分离可解释特征
+3. [On the Biology of a Large Language Model（2025）](https://transformer-circuits.pub/2025/attribution-graphs/biology.html)：通过电路追踪研究 Claude 3.5 Haiku 的部分内部计算机制
+
+上述论文研究的是模型机制，不是这个仓库；本图也不展示任何真实实验数据。
+
+**围观路径：** 本节 → `assets/anthropic-anomaly-btr-001.svg` → 上面的三篇论文。无需运行任何脚本。
+
+*本次 breaking change：仓库从“没人看得懂”升级为“假装有人正在研究为什么没人看得懂”。*
