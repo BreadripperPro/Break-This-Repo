@@ -12,7 +12,7 @@
 | 时长 | 15:48.74 |
 | 码率 | 78643 kb/s |
 | 容器 | RF64（WAV 的 >4 GiB 扩展） |
-| 解压后 | 9,326,454,910 字节（8.69 GiB） |
+| 文件大小 | 9,326,454,910 字节（8.69 GiB） |
 | 波形 | **每个样本恒为 ±1.0**（0 dBFS 满幅方波） |
 | 动态范围 | **0 dB**（RMS = Peak = 0 dBFS，波峰因数 1.000000） |
 | 集成响度 | EBU R128 ≈ +3.1 LUFS |
@@ -21,9 +21,11 @@
 
 ---
 
-## 解压
+## 📥 下载
 
-标准 7z 格式，用 [7-Zip](https://www.7-zip.org/) / WinRAR / PeaZip，或命令行 `7z x 文件名.7z`。
+音频文件体积过大，不放在仓库里，请从网盘下载**未压缩的原始 WAV**：
+
+<https://drive.google.com/drive/folders/1mISlL_hXAeygnnjanpJ5skg9bXrAL5x1?usp=sharing>
 
 ## ⚠️ 播放注意
 
