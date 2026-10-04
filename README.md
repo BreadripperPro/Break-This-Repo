@@ -1,10 +1,10 @@
 
 
 <h1 align="center">
-  <img src="./readme/hide.png">
+  <img src="./readme/out - 副本.png">
     Break This Repository!    破坏这个仓库！
 	<p align="center">
-	    <img src="https://img.shields.io/badge/License-Unknown-red?logo=inquirer&logoColor=white" alt="License">
+	    <img src="https://img.shields.io/badge/License-AS--IS-red" alt="License">
 	    <img src="https://img.shields.io/badge/Language-various-blue?logo=inquirer&logoColor=white" alt="Language">
 	    <img src="https://img.shields.io/badge/Pull_Requests-infinity-white?logo=infinityfree&logoColor=white" alt="Pull_Requests">
 	    <img src="https://img.shields.io/badge/Forks-infinity-brown?logo=infinityfree&logoColor=white" alt="Forks">
@@ -16,6 +16,8 @@
 	    </a>
 	</p>
 </h1>
+
+<!-- # 卧槽了哪里来的设证玩意啊😓不怕似吗😓 -->
 
 > [!CAUTION]
 > This repository automatically merges pull requests without conflicts.
@@ -47,14 +49,6 @@
 
 ---
 
-# 好消息！好消息！
-
-在以下商店消费每满 **10元** 即可获得 **20元** 现金回赠！不限次数！<br>
-*(不包括运费)*<br><br>
-**立即前往** >>> [https://airshop.free.nf](https://airshop.free.nf)<br>
-> 让**消费**不再是**压力**
-
----
 
 > [!WARNING]
 > It is not recommended to add any Rust files or code to this repository
@@ -92,19 +86,26 @@
 > Dieses Repository kann KI-generierte Inhalte enthalten
 >
 > Ce dépôt peut contenir du contenu généré par l’IA
-> 
-> 厉害哦，仓库酱原来能塞进这么多pr呢
+
+---
+
+<img src="https://simpleicons.org/icons/scpfoundation.svg" width="120" height="120" />
+
+> [!CAUTION]
+> Warning: This repository contains content that may cause Level III mental contamination, please read with caution
 >
-> 小提交次数一抽一抽的，真可爱呢
-> 
-> 受不了了吗，都开始拒绝下载了呢，报错提示红红的，憋坏了吧
-> 
-> 想让我删一点pr，可以啊，求我吧
-> 
-> 不过，删掉一个的话，我会亲自再提交两个的哦
+> 警告：此仓库包含可能导致III级精神污染的内容，请谨慎阅读
 >
-> 好好享受吧，我把梯子关了哦
+> Предупреждение: этот репозиторий содержит материалы, способные вызвать психическое загрязнение III степени, пожалуйста, читайте с осторожностью
+>
+> 警告：このリポジトリにはIII級精神汚染を引き起こす可能性のある内容が含まれていますので、閲覧には十分ご注意ください
+>
+> Avertissement : ce dépôt contient du contenu susceptible de provoquer une contamination mentale de niveau III, veuillez le consulter avec prudence
+>
+> Warnung: Dieses Repository enthält möglicherweise Inhalte, die eine psychische Kontamination der Stufe III verursachen können. Bitte lesen Sie mit Vorsicht
 > 
+
+
 ---
 
 > [!NOTE]
@@ -114,21 +115,143 @@
 >
 > —— [STAR TREK](https://www.startrek.com)
 
+> [!CAUTION]
+> We are the [Borg](./Borg.md). You will be assimilated. Resistance is futile.
+
+---
+
 ## 注意
+
+**中文**
+
+**注意**
+
 > [!NOTE]
->
 > 如果您在仓库主页看到了本文，不要惊慌，不要着急，请站稳扶好，安定坐下，本消息是为了告诉你，你需要换个地方才能阅读 `README` 的完整文本。
-> 
-> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制（500KiB），导致无法完全显示。
-> (望后人，如若位置变更，请同步移动(现在在 3047 行)，谢谢)
-> 我编写了一个自动插入的脚本[自动插入readme大小警告](./自动插入readme大小警告.py) 可以使用这个脚本自动插入！（不保证没有bug)
+>
+> 请移步 [README.md](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的显示长度限制（500KiB），导致无法完全显示。
+> （望后人，如若位置变更，请同步移动（现在在 3047 行），谢谢）
+> 我编写了一个自动插入的脚本 [自动插入readme大小警告](./自动插入readme大小警告.py)，可以使用这个脚本自动插入！（不保证没有bug）
 
 > [!NOTE]
-> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径的命名可能不适用于所有的文件系统和操作系统，执行 `git clone` 操作时可能会发生各类文件错误和文件系统错误，请您做好心理准备和预防方案。
+> 仓库内可能存在各种奇怪的文件和路径，这些文件或路径的命名及组合可能不适用于所有的文件系统和操作系统，执行 `git clone` 或相关操作时可能会发生各类文件错误和文件系统错误，请您做好心理准备和预防方案。
 
 > [!NOTE]
-> 得益于 Github 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特 (37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注)，请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
+> 得益于 GitHub 上大量开发者和贡献者的活跃提交，这个仓库的大小已来到数十吉比特（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 编者注），请您在执行相关操作的时候保证您的计算机有足够的存储空间，以及良好的网络连接以防止意外断开连接。
 
+> [!WARNING]
+> 禁止提交广告、恶意软件。违者将被举报至 GitHub。
+
+---
+
+**English**
+
+**Attention**
+
+> [!NOTE]
+> If you see this text on the repository's home page, do not panic, do not rush, stand steady, and sit down calmly. This message is to tell you that you need to go elsewhere to read the full text of the `README`.
+>
+> Please go to [README.md](./README.md) (the file page) to view it. This is because the display length limit on the repository home page is shorter than that of the file (500 KiB), causing it to be incompletely displayed.
+> (To future maintainers: if the location changes, please move this note accordingly (currently at line 3047). Thank you.)
+> I have written a script to automatically insert this warning: [自动插入readme大小警告](./自动插入readme大小警告.py). You can use this script to insert it automatically! (No guarantee that there are no bugs.)
+
+> [!NOTE]
+> The repository may contain various strange files and paths. The naming and combination of these files or paths may not be applicable to all file systems and operating systems. When executing `git clone` or related operations, various file errors and file system errors may occur. Please be mentally prepared and take preventive measures.
+
+> [!NOTE]
+> Thanks to the active commits from a large number of developers and contributors on GitHub, the size of this repository has reached tens of gibibytes (37.7 GiB — as of 2026/9/22 22:57:00 UTC+08:00, editor's note). Please ensure that your computer has sufficient storage space and a good network connection when performing related operations, to prevent unexpected disconnection.
+
+> [!WARNING]
+> Advertising and malware are strictly prohibited. Violators will be reported to GitHub.
+
+
+---
+
+**Français**
+
+**Attention**
+
+> [!NOTE]
+> Si vous voyez ce texte sur la page d'accueil du dépôt, ne paniquez pas, ne vous précipitez pas, tenez-vous bien et asseyez-vous calmement. Ce message est là pour vous dire que vous devez vous rendre ailleurs pour lire le texte complet du `README`.
+>
+> Veuillez vous rendre sur [README.md](./README.md) (la page du fichier) pour le consulter. Cela est dû au fait que la limite de longueur d'affichage sur la page d'accueil du dépôt est plus courte que celle du fichier (500 Kio), ce qui empêche un affichage complet.
+> (Aux futurs mainteneurs : si l'emplacement change, veuillez déplacer cette note en conséquence (actuellement à la ligne 3047). Merci.)
+> J'ai écrit un script pour insérer automatiquement cet avertissement : [自动插入readme大小警告](./自动插入readme大小警告.py). Vous pouvez utiliser ce script pour l'insérer automatiquement ! (Aucune garantie d'absence de bugs.)
+
+> [!NOTE]
+> Le dépôt peut contenir divers fichiers et chemins étranges. Le nommage et la combinaison de ces fichiers ou chemins peuvent ne pas être applicables à tous les systèmes de fichiers et systèmes d'exploitation. Lors de l'exécution de `git clone` ou d'opérations connexes, diverses erreurs de fichiers et erreurs de systèmes de fichiers peuvent survenir. Veuillez vous préparer mentalement et prendre des mesures préventives.
+
+> [!NOTE]
+> Grâce aux commits actifs d'un grand nombre de développeurs et de contributeurs sur GitHub, la taille de ce dépôt a atteint des dizaines de gibioctets (37,7 Gio — au 2026/9/22 22:57:00 UTC+08:00, note de l'éditeur). Veuillez vous assurer que votre ordinateur dispose de suffisamment d'espace de stockage et d'une bonne connexion réseau lors de l'exécution d'opérations connexes, afin d'éviter une déconnexion inattendue.
+
+> [!WARNING]
+> La soumission de publicités ou de logiciels malveillants est interdite. Les contrevenants seront signalés à GitHub.
+
+---
+
+**Русский**
+
+**Внимание**
+
+> [!NOTE]
+> Если вы видите этот текст на главной странице репозитория, не паникуйте, не спешите, встаньте устойчиво и спокойно сядьте. Это сообщение предназначено для того, чтобы сказать вам, что вам нужно перейти в другое место, чтобы прочитать полный текст `README`.
+>
+> Пожалуйста, перейдите на [README.md](./README.md) (страница файла), чтобы просмотреть его. Это связано с тем, что ограничение длины отображения на главной странице репозитория короче, чем у файла (500 КиБ), из-за чего он отображается не полностью.
+> (Будущим сопровождающим: если местоположение изменится, пожалуйста, переместите это примечание соответственно (сейчас на строке 3047). Спасибо.)
+> Я написал скрипт для автоматической вставки этого предупреждения: [自动插入readme大小警告](./自动插入readme大小警告.py). Вы можете использовать этот скрипт для автоматической вставки! (Без гарантии отсутствия ошибок.)
+
+> [!NOTE]
+> В репозитории могут находиться различные странные файлы и пути. Именование и комбинация этих файлов или путей могут быть неприменимы ко всем файловым системам и операционным системам. При выполнении `git clone` или связанных операций могут возникнуть различные ошибки файлов и ошибки файловой системы. Пожалуйста, будьте морально готовы и примите меры предосторожности.
+
+> [!NOTE]
+> Благодаря активным коммитам большого числа разработчиков и участников на GitHub, размер этого репозитория достиг десятков гибибайт (37,7 ГиБ — по состоянию на 2026/9/22 22:57:00 UTC+08:00, примечание редактора). Пожалуйста, при выполнении связанных операций убедитесь, что на вашем компьютере достаточно места для хранения и хорошее сетевое соединение, чтобы предотвратить неожиданное отключение.
+
+> [!WARNING]
+> Запрещается размещать рекламу и вредоносное программное обеспечение. Нарушители будут переданы в GitHub.
+
+---
+
+---
+
+**Español**
+
+**Atención**
+
+> [!NOTE]
+> Si ves este texto en la página principal del repositorio, no entres en pánico, no te apresures, mantente firme y siéntate con calma. Este mensaje es para decirte que necesitas ir a otro lugar para leer el texto completo del `README`.
+>
+> Por favor, dirígete a [README.md](./README.md) (la página del archivo) para verlo. Esto se debe a que el límite de longitud de visualización en la página principal del repositorio es más corto que el del archivo (500 KiB), lo que provoca que no se muestre por completo.
+> (A los futuros mantenedores: si la ubicación cambia, muevan esta nota en consecuencia (actualmente en la línea 3047). Gracias.)
+> He escrito un script para insertar automáticamente esta advertencia: [自动插入readme大小警告](./自动插入readme大小警告.py). ¡Puedes usar este script para insertarla automáticamente! (Sin garantía de que no tenga errores.)
+
+> [!NOTE]
+> El repositorio puede contener varios archivos y rutas extraños. El nombrado y la combinación de estos archivos o rutas pueden no ser aplicables a todos los sistemas de archivos y sistemas operativos. Al ejecutar `git clone` u operaciones relacionadas, pueden producirse diversos errores de archivos y errores del sistema de archivos. Por favor, prepárate mentalmente y toma medidas preventivas.
+
+> [!NOTE]
+> Gracias a los commits activos de un gran número de desarrolladores y contribuidores en GitHub, el tamaño de este repositorio ha alcanzado decenas de gibibytes (37,7 GiB — a fecha de 2026/9/22 22:57:00 UTC+08:00, nota del editor). Por favor, asegúrate de que tu computadora tenga suficiente espacio de almacenamiento y una buena conexión de red al realizar operaciones relacionadas, para evitar una desconexión inesperada.
+
+> [!WARNING]
+> Queda prohibido enviar publicidad o software malicioso. Los infractores serán reportados a GitHub.
+
+**日本語**
+
+**注意**
+
+> [!NOTE]
+> リポジトリのホームページでこのテキストを見かけても、慌てないでください。急がないでください。しっかり立って、落ち着いて座ってください。このメッセージは、`README` の全文を読むには別の場所へ移動する必要があることを伝えるためのものです。
+>
+> [README.md](./README.md)（ファイルページ）へ移動して閲覧してください。これは、リポジトリのホームページにおける `README` の表示長制限がファイル本体より短い（500KiB）ため、完全に表示できないことが原因です。
+> （後世の方へ：位置が変更された場合は、この注記も併せて移動してください（現在 3047 行目）。よろしくお願いします。）
+> この警告を自動挿入するスクリプトを書きました：[自动插入readme大小警告](./自动插入readme大小警告.py)。このスクリプトを使って自動挿入できます！（バグがないことは保証できません。）
+
+> [!NOTE]
+> リポジトリ内には、さまざまな奇妙なファイルやパスが存在する可能性があります。これらのファイルやパスの命名および組み合わせは、すべてのファイルシステムやオペレーティングシステムに適合するとは限りません。`git clone` や関連する操作を実行する際に、各種のファイルエラーやファイルシステムエラーが発生する可能性があります。心の準備と予防策を講じてください。
+
+> [!NOTE]
+> GitHub 上の多数の開発者とコントリビューターによる活発なコミットのおかげで、このリポジトリのサイズは数十ギビバイトに達しています（37.7GiB —— 2026/9/22 22:57:00 UTC+08:00 編集者注）。関連する操作を実行する際は、予期しない切断を防ぐため、コンピュータに十分なストレージ容量と良好なネットワーク接続があることを確認してください。
+
+> [!WARNING]
+> 広告およびマルウェアの投稿を禁止します。違反者は GitHub に報告されます。
 
 ---
 
@@ -194,6 +317,14 @@ rmdir /s /q "你的仓库路径"
 ```powershell
 Remove-Item -Recurse -Force "你的仓库路径"
 ```
+*如果您在删除的时候遇到了“文件名过长”相关问题，请尝试启用 Windows 长路径支持并在 PowerShell 中运行：*
+```powerShell
+Remove-Item -Recurse -Force "\\?\仓库的绝对路径"
+```
+Ex.
+```powerShell
+Remove-Item -Recurse -Force "\\?\E:\Break-This-Repo"
+```
 
 ## 贡献
 
@@ -217,19 +348,53 @@ Remove-Item -Recurse -Force "你的仓库路径"
 
 ---
 
-> [!NOTE]
-> Space, the final frontier. These are the voyages of the starship Enterprise. Her five-year mission: to explore strange new worlds, to seek out new life and new civilizations, to boldly go where no one has gone before.
->
-> 太空，最后的边疆。这些是星舰企业号的旅程。她的五年任务是:探索奇异新世界，寻找新生命和新文明，勇踏前人未及之境。
->
-> —— [STAR TREK](https://www.startrek.com)
+## 总目录
+这些目录仍然需要补充，上一次补充是在几周前了，有心之人可以来补充。
+<!--toc:start-->
+  - [Break This Repository!](#break-this-repository)
+  - [破坏这个仓库！](#破坏这个仓库)
+  - [目录](#目录)
+- [想到什么说什么](#想到什么说什么)
+  - [嘿嘿嘿哈](#嘿嘿嘿哈)
+	- [[dream away](https://www.bilibili.com/video/BV1nC41137aW)真好听吧](#dream-awayhttpswwwbilibilicomvideobv1nc41137aw真好听吧)
+  - [hyw](#hyw)
+  - [我先喝一口再说](#我先喝一口再说)
+  - [Build from source](#build-from-source)
+	- [C++ with Make](#c-with-make)
+	- [C++ with CMake](#c-with-cmake)
+	- [C++ with Meson](#c-with-meson)
+	- [Python and Rust with maturin](#python-and-rust-with-maturin)
+	- [TypeScript with Hereby](#typescript-with-hereby)
+  - [重要补充](#重要补充)
+  - [Linux distribution packages](#linux-distribution-packages)
+	- [Debian and Ubuntu](#debian-and-ubuntu)
+	- [Arch Linux](#arch-linux)
+	- [Fedora](#fedora)
+	- [Gentoo](#gentoo)
+  - [相关文件](#相关文件)
+- [show you my cat](#show-you-my-cat)
+- [Hello, Mayx](#hello-mayx)
+  - [Follow Me On [Mabbs](https://github.com/Mabbs)](#follow-me-on-mabbshttpsgithubcommabbs)
+- [BREAKING:Deepseek V4.5 Flash Preview just released!](#breakingdeepseek-v45-flash-preview-just-released)
+- [BREAKING:Deepsuck R2 Flash Preview just released!](#breakingdeepsuck-r2-flash-preview-just-released)
+- [友链](#友链)
+- [Debian --通用操作系统](#debian-通用操作系统)
+  - [Debian 是自由软件。](#debian-是自由软件)
+  - [Debian 稳定且安全。](#debian-稳定且安全)
+  - [Debian 具有广泛的硬件支持。](#debian-具有广泛的硬件支持)
+  - [Debian 提供灵活的安装程序。](#debian-提供灵活的安装程序)
+  - [Debian 提供平滑的更新。](#debian-提供平滑的更新)
+  - [Debian 是许多其他发行版的基础。](#debian-是许多其他发行版的基础)
+  - [Debian 项目是一个社区。](#debian-项目是一个社区)
+  - [PR 模板](#pr-模板)
+- [github 文件加速](#github-文件加速)
+- [真正的 github 文件加速](#真正的-github-文件加速)
+- [冷知识](#冷知识)
+  - [现场基础设施考古档案](#现场基础设施考古档案)
+- [查看 README 历史版本](#查看-readme-历史版本)
+<!--toc:end-->
 
 ---
-
-
-
----
-
 
 ## Break This Document ! 破坏这个文档！
 
@@ -237,7 +402,17 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 
 ---
 
-
+> 厉害哦，仓库酱原来能塞进这么多pr呢
+>
+> 小提交次数一抽一抽的，真可爱呢
+> 
+> 受不了了吗，都开始拒绝下载了呢，报错提示红红的，憋坏了吧
+> 
+> 想让我删一点pr，可以啊，求我吧
+> 
+> 不过，删掉一个的话，我会亲自再提交两个的哦
+>
+> 好好享受吧，我把梯子关了哦
 
 ---
 
@@ -299,6 +474,10 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 给你留个链接得了
 [English](README_EN.md) 
 
+# 快来领取你的免费服务器！！！
+还没有领取专属于你的服务器吗？  
+快来 [127.0.0.1](http://127.0.0.1) 领取吧！  
+超大带宽·超强防御·永久免费
 
 ## bbhzm
 
@@ -537,11 +716,11 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 ✅ 已扫描文件 ............ 148,942 个
    发现垃圾文件 .......... 8 个（是的，就 8 个）
    发现高危漏洞 .......... 1 个
-                            └─ 人类把《2026 英语全国一卷听力》传进了 Git 仓库 📻
+							└─ 人类把《2026 英语全国一卷听力》传进了 Git 仓库 📻
    发现顽固木马 .......... 0 个
-                            └─ 木马看了这仓库一眼，表示太乱了，下不去手
+							└─ 木马看了这仓库一眼，表示太乱了，下不去手
    发现历史包袱 .......... 2,604 MB
-                            └─ 建议：别管它。（我们也不打算管）
+							└─ 建议：别管它。（我们也不打算管）
 ```
 
 **正在清理……**
@@ -671,55 +850,6 @@ https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/
 </details>
 
 **→ [进入语言门户（磁力全站图）](./translations/README.md)** ｜ [全部译文目录](./translations/) ｜ [校验工具](./translations/_tools/)
-
----
-
-
-## 目录
-
-<!--toc:start-->
-  - [Break This Repository!](#break-this-repository)
-  - [破坏这个仓库！](#破坏这个仓库)
-  - [目录](#目录)
-- [想到什么说什么](#想到什么说什么)
-  - [嘿嘿嘿哈](#嘿嘿嘿哈)
-    - [[dream away](https://www.bilibili.com/video/BV1nC41137aW)真好听吧](#dream-awayhttpswwwbilibilicomvideobv1nc41137aw真好听吧)
-  - [hyw](#hyw)
-  - [我先喝一口再说](#我先喝一口再说)
-  - [Build from source](#build-from-source)
-    - [C++ with Make](#c-with-make)
-    - [C++ with CMake](#c-with-cmake)
-    - [C++ with Meson](#c-with-meson)
-    - [Python and Rust with maturin](#python-and-rust-with-maturin)
-    - [TypeScript with Hereby](#typescript-with-hereby)
-  - [重要补充](#重要补充)
-  - [Linux distribution packages](#linux-distribution-packages)
-    - [Debian and Ubuntu](#debian-and-ubuntu)
-    - [Arch Linux](#arch-linux)
-    - [Fedora](#fedora)
-    - [Gentoo](#gentoo)
-  - [相关文件](#相关文件)
-- [show you my cat](#show-you-my-cat)
-- [Hello, Mayx](#hello-mayx)
-  - [Follow Me On [Mabbs](https://github.com/Mabbs)](#follow-me-on-mabbshttpsgithubcommabbs)
-- [BREAKING:Deepseek V4.5 Flash Preview just released!](#breakingdeepseek-v45-flash-preview-just-released)
-- [BREAKING:Deepsuck R2 Flash Preview just released!](#breakingdeepsuck-r2-flash-preview-just-released)
-- [友链](#友链)
-- [Debian --通用操作系统](#debian-通用操作系统)
-  - [Debian 是自由软件。](#debian-是自由软件)
-  - [Debian 稳定且安全。](#debian-稳定且安全)
-  - [Debian 具有广泛的硬件支持。](#debian-具有广泛的硬件支持)
-  - [Debian 提供灵活的安装程序。](#debian-提供灵活的安装程序)
-  - [Debian 提供平滑的更新。](#debian-提供平滑的更新)
-  - [Debian 是许多其他发行版的基础。](#debian-是许多其他发行版的基础)
-  - [Debian 项目是一个社区。](#debian-项目是一个社区)
-  - [PR 模板](#pr-模板)
-- [github 文件加速](#github-文件加速)
-- [真正的 github 文件加速](#真正的-github-文件加速)
-- [冷知识](#冷知识)
-  - [现场基础设施考古档案](#现场基础设施考古档案)
-- [查看 README 历史版本](#查看-readme-历史版本)
-<!--toc:end-->
 
 ---
 
@@ -1042,6 +1172,9 @@ https://xundei.qzz.io/
 
 > 个人小博客，欢迎交换友链
 
+https://blog.iamexrfy.top
+
+> 一个神秘的土豆服务器搭的博客来了
 ---
 
 # Debian --通用操作系统
@@ -1122,7 +1255,15 @@ Debian 是一个广泛用于各种设备的基于 Linux 的操作系统，其使
 你们继续玩可以，但最好把它当行为艺术，别当代码仓库用。SCP 基金会那边已经收到报告了。
 (这段文字AI味好浓啊——HQ123-BOOP评)
 
-<!--
+
+# Hello This is Omia
+<img src="https://omiasun.pages.dev/images/misaka.jpg">
+
+> 点击访问我的博客网: <a href="omiasun.pages.dev"> 喵喵喵 </a>
+
+> 点击观看温州市轻工职业学校不给学生赔款事件 <a href="https://github.com/sunZshanY/TsingGong">点击观看</a> <!--求传开-->
+
+
 
 ## 🚀 zzz API 中转站 — 免费 Kimi K3
 
@@ -1645,7 +1786,7 @@ WCNMSSB 是我的名字之一（真的没有恶意QWQ）
 # ↓点这里去关注周-zhou谢谢喵
 [GOGOGO](https://space.bilibili.com/1668225938)
 
-## 注意
+<!-- ## 注意
 > [!NOTE]
 > 你到达了主页渲染的尽头
 >
@@ -1656,6 +1797,196 @@ WCNMSSB 是我的名字之一（真的没有恶意QWQ）
 > 
 > 请移步 [README.markdown](./README.md) （文件页面）查看，这是由于仓库主页的 `README` 的显示存在比文件更短的长度限制，导致无法完全显示。
 > (望后人，如若位置变更，请同步移动（或者使用我写的脚本 [自动插入readme大小警告](./自动插入readme大小警告.py) ），谢谢)
----
+--- -->
 
 你在期待什么
+
+
+
+🔞想打炮🔥，打飞机🔥，打手枪🔥
+
+🔞血与肉的碰撞，声声入耳的叫声🔥
+
+🔞这是灵魂的碰撞，更是对自己意志的磨炼🔥
+
+🔞别害羞，深夜寂寞是时候来点热血的🔥
+
+🔞体会真男人一样激烈的战斗🔥
+
+🔞前往此网站🔥
+
+🔞[点我前往🔞🔞🔞](https://www.gfbzb.gov.cn/)🔥
+
+🔞未成年无法参加🔞
+
+---
+
+## Break This Document ! 破坏这个文档！
+
+https://docs.google.com/document/d/1Y669HJaH4areKBSFie_2k1dT045l3U2fiM34O_Y-dwQ/edit?usp=sharing
+
+---
+
+# 砖业问题修复指南:一键修复！再也没烦恼！
+
+<img src="https://breadripper.pages.dev/superfixer.jpeg" alt="图片alt" title="null">
+
+# 电脑中毒怎么办？
+
+<img src="https://breadripper.pages.dev/linuxsafeclean.jpeg" alt="图片alt" title="null">
+
+# 免费领取高速cdn!!!
+
+<img src="https://breadripper.pages.dev/cf.png" alt="图片alt" title="cf">
+
+# 温馨提示：
+
+<img src="https://breadripper.pages.dev/warnl.png" alt="图片alt" title="null">
+
+# 免费Hypixel Rank领取
+
+<img src="https://breadripper.pages.dev/hypgift.png" alt="图片alt" title="null">
+
+# 设计轻而易举啊
+
+<img src="https://breadripper.pages.dev/design.png" alt="图片alt" title="null">
+
+---
+---
+## 君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き 
+---
+<a href="https://www.bilibili.com/video/BV1os411D7be/">
+<img src="https://omiasun.pages.dev/images/misaka.jpg">
+
+
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+君指先跃动の光は、私の一生不变の信仰に、唯私の超电永世生き <br>
+你指尖跃动的电光，是我此生不变的信仰，唯我超电磁炮永世长存！<br>
+
+</a>
+
+> 这是谁放的这么多乱七八糟的东西 ——御坂御坂如此疑惑地说道
+>
+> ——admincmd-a
+
+---
+
+## 👁️ BTR-001：Anthropic 已将本仓库列为「暂时无法解释」样本（迫真）
+
+> **非官方 · 虚构玩梗。** 以下“研究档案”是本仓库的娱乐彩蛋，与 Anthropic 无隶属、合作或背书关系；没有证据表明 Anthropic 研究过本仓库。
+
+![BTR-001 虚构异常档案：电路之眼正在凝视仓库；标注 UNOFFICIAL PARODY](./assets/anthropic-anomaly-btr-001.svg)
+
+据本段刚刚编造的消息，Anthropic 已对本仓库实施机制可解释性观察。研究员原计划寻找“代码”特征，最后只分离出三个方向：**整活、继续整活、谁又往 README 里塞东西了**。
+
+- 样本编号：BTR-001
+- 异常现象：你在读 README，README 也在读你
+- 收容进度：0%。负责解释的稀疏自编码器已申请年假
+- 审稿意见：建议增加对照组。对照组看了一眼本仓库，也开始提 PR
+
+### 真正的研究路径（这些链接是真的）
+
+想从梗走到论文，可以沿着 **特征叠加 → 特征分解 → 电路追踪** 这条线读：
+
+1. [Toy Models of Superposition（2022）](https://transformer-circuits.pub/2022/toy_model/index.html)：少量维度如何容纳更多稀疏特征
+2. [Towards Monosemanticity（2023）](https://transformer-circuits.pub/2023/monosemantic-features/index.html)：用稀疏自编码器，从单层 Transformer 中分离可解释特征
+3. [On the Biology of a Large Language Model（2025）](https://transformer-circuits.pub/2025/attribution-graphs/biology.html)：通过电路追踪研究 Claude 3.5 Haiku 的部分内部计算机制
+
+上述论文研究的是模型机制，不是这个仓库；本图也不展示任何真实实验数据。
+
+**围观路径：** 本节 → `assets/anthropic-anomaly-btr-001.svg` → 上面的三篇论文。无需运行任何脚本。
+
+*本次 breaking change：仓库从“没人看得懂”升级为“假装有人正在研究为什么没人看得懂”。*

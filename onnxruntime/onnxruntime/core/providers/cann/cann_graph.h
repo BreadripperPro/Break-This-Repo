@@ -1,0 +1,124 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Huawei. All rights reserved.
+// Licensed under the MIT License.
+
+#pragma once
+
+#include <vector>
+#include <utility>
+#include <iomanip>
+#include <string>
+#include <exception>
+#include <future>
+#include <memory>
+#include <shared_mutex>
+#include <thread>
+
+#include "core/providers/cann/cann_common.h"
+#include "core/providers/cann/cann_inc.h"
+#include "core/providers/cann/cann_utils.h"
+#include "core/providers/cann/cann_execution_provider_info.h"
+
+namespace onnxruntime {
+namespace cann {
+
+struct GeState {
+  GeState()
+      : future_init(promise_init.get_future().share()),
+        future_final(promise_final.get_future()),
+        ex_ptr_final(nullptr) {}
+
+  ~GeState() {
+    if (!thread.joinable()) {
+      return;
+    }
+
+    try {
+      promise_final.set_value(false);
+    } catch (const std::future_error&) {
+      // Already signalled by DeleteRegistry()
+    }
+
+    try {
+      thread.join();
+    } catch (...) {
+      // Nothing actionable during static teardown
+    }
+  }
+
+  ORT_DISALLOW_COPY_ASSIGNMENT_AND_MOVE(GeState);
+
+  std::thread thread;
+
+  std::promise<void> promise_init;
+  std::shared_future<void> future_init;
+
+  std::promise<bool> promise_final;
+  std::future<bool> future_final;
+  std::exception_ptr ex_ptr_final;
+};
+
+extern bool g_ge_shutdown;
+extern std::unique_ptr<GeState> g_ge_state;
+extern std::shared_mutex g_ge_mutex;
+
+struct CannModelPreparation {
+  explicit CannModelPreparation(uint32_t modelID) {
+    modelDesc_ = aclmdlCreateDesc();
+    CANN_CALL_THROW(aclmdlGetDesc(modelDesc_, modelID));
+
+    inputSet_ = aclmdlCreateDataset();
+    outputSet_ = aclmdlCreateDataset();
+  }
+
+  virtual ~CannModelPreparation() {
+    CANN_CALL_THROW(aclmdlDestroyDesc(modelDesc_));
+
+    CANN_CALL_THROW(aclmdlDestroyDataset(inputSet_));
+    CANN_CALL_THROW(aclmdlDestroyDataset(outputSet_));
+
+    for (auto buf : inputBuffers_) {
+      CANN_CALL_THROW(aclDestroyDataBuffer(buf));
+    }
+
+    for (auto buf : outputBuffers_) {
+      CANN_CALL_THROW(aclDestroyDataBuffer(buf));
+    }
+  }
+
+  std::vector<aclDataBuffer*> inputBuffers_;
+  std::vector<aclDataBuffer*> outputBuffers_;
+  aclmdlDataset* inputSet_;
+  aclmdlDataset* outputSet_;
+  aclmdlDesc* modelDesc_;
+};
+
+#define CANN_MODEL_PREPARE_INPUTBUFFER(var, ...)    \
+  do {                                              \
+    auto _rPtr = aclCreateDataBuffer(__VA_ARGS__);  \
+    if (_rPtr == nullptr) {                         \
+      ORT_THROW("aclCreateDataBuffer run failed");  \
+    } else {                                        \
+      var.inputBuffers_.push_back(_rPtr);           \
+      aclmdlAddDatasetBuffer(var.inputSet_, _rPtr); \
+    }                                               \
+  } while (0)
+
+#define CANN_MODEL_PREPARE_OUTPUTBUFFER(var, ...)    \
+  do {                                               \
+    auto _rPtr = aclCreateDataBuffer(__VA_ARGS__);   \
+    if (_rPtr == nullptr) {                          \
+      ORT_THROW("aclCreateDataBuffer run failed");   \
+    } else {                                         \
+      var.outputBuffers_.push_back(_rPtr);           \
+      aclmdlAddDatasetBuffer(var.outputSet_, _rPtr); \
+    }                                                \
+  } while (0)
+
+std::vector<NodeIndex> SupportONNXModel(const GraphViewer& graph_viewer);
+Status ParserONNXModel(std::string string_model, ge::Graph& graph);
+Status BuildONNXModel(ge::Graph& graph, std::string input_shape, const char* soc_name, std::string file_name,
+                      CANNExecutionProviderInfo& info, ge::ModelBufferData& model);
+
+}  // namespace cann
+}  // namespace onnxruntime
