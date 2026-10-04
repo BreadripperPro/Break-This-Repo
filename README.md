@@ -42,9 +42,6 @@
 
 📦 **仓库内附件** —— [`HiFi-614kHz-64bit/`](./HiFi-614kHz-64bit/)
 
-`Erich Kunzel Cincinnati Pops Orchestra - 1812 Overture, Op. 49.wav.7z`（8.0 MB）
-—— 7-Zip 无损压缩，解压后 **9.33 GB**（614400 Hz / 64 bit float / 2ch / RF64）
-
 <sub>uploaded by [@ExElectron](https://github.com/ExElectron)</sub>
 
 ---
