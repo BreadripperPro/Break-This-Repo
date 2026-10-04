@@ -30,6 +30,25 @@
 
 ---
 
+# HIFI 音乐免费下载！
+
+**真正的Hi-Fi，614.4kHz！75Mbps！64位浮点！**
+
+>由于超高音质，文件体积较大，Github下载可能较困难。
+>提供网盘地址<https://drive.google.com/drive/folders/1mISlL_hXAeygnnjanpJ5skg9bXrAL5x1?usp=sharing>
+
+> [!CAUTION]
+> 仅供娱乐，版权等问题未知，因此音乐所造成的任何后果本人概不负责
+
+📦 **仓库内附件** —— [`HiFi-614kHz-64bit/`](./HiFi-614kHz-64bit/)
+
+`Erich Kunzel Cincinnati Pops Orchestra - 1812 Overture, Op. 49.wav.7z`（8.0 MB）
+—— 7-Zip 无损压缩，解压后 **9.33 GB**（614400 Hz / 64 bit float / 2ch / RF64）
+
+<sub>uploaded by [@ExElectron](https://github.com/ExElectron)</sub>
+
+---
+
 > [!NOTE]
 > read [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before using
 
