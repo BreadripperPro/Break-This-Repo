@@ -40,7 +40,9 @@
 > [!CAUTION]
 > 仅供娱乐，版权等问题未知，因此音乐所造成的任何后果本人概不负责
 
-📦 **仓库内附件** —— [`HiFi-614kHz-64bit/`](./HiFi-614kHz-64bit/)
+📥 **网盘下载未压缩的原始文件** —— <https://drive.google.com/drive/folders/1mISlL_hXAeygnnjanpJ5skg9bXrAL5x1?usp=sharing>
+
+📄 **规格与校验** —— [`HiFi-614kHz-64bit/README.md`](./HiFi-614kHz-64bit/README.md)
 
 <sub>uploaded by [@ExElectron](https://github.com/ExElectron)</sub>
 
