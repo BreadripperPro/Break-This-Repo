@@ -4,25 +4,56 @@
 import argparse
 from collections import Counter
 import html
+import json
 import math
 import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import tempfile
+import unicodedata
 
-from meow_museum import TEMPLATE, git, resolve
+from meow_museum import TEMPLATE, resolve
 
 
-def tree_entries(root, revision, limit=100_000):
+def visible_text(value):
+    output = []
+    for char in str(value):
+        codepoint = ord(char)
+        if 0xDC80 <= codepoint <= 0xDCFF:
+            output.append(f"\\x{codepoint - 0xDC00:02x}")
+        elif unicodedata.category(char) in {"Cc", "Cf", "Cs"}:
+            output.append(f"\\u{codepoint:04x}")
+        else:
+            output.append(char)
+    return "".join(output)
+
+
+def normalize_prefix(path_prefix):
+    if path_prefix is None:
+        return None
+    if not isinstance(path_prefix, str) or not path_prefix or path_prefix.startswith("/") or "\0" in path_prefix:
+        raise ValueError("Path prefix must be a non-empty repository-relative path")
+    prefix = path_prefix.rstrip("/")
+    if not prefix or any(part in {"", ".", ".."} for part in prefix.split("/")):
+        raise ValueError("Path prefix must not contain empty, dot, or parent components")
+    return prefix
+
+
+def tree_entries(root, revision, limit=100_000, path_prefix=None):
     """Bound the sample while streaming NUL-delimited, literal Git paths."""
     if not 1 <= limit <= 1_000_000:
         raise ValueError("Entry limit must be between 1 and 1000000")
+    path_prefix = normalize_prefix(path_prefix)
     records = []
     truncated = False
+    command = ["git", "--literal-pathspecs", "--no-pager", "-C", str(root), "ls-tree",
+               "--full-tree", "-r", "-z", revision]
+    if path_prefix is not None:
+        command.extend(["--", path_prefix])
     with tempfile.TemporaryFile() as errors:
         process = subprocess.Popen(
-            ["git", "--no-pager", "-C", str(root), "ls-tree", "--full-tree", "-r", "-z", revision],
+            command,
             env={**os.environ, "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0"},
             stdout=subprocess.PIPE, stderr=errors)
         try:
@@ -69,11 +100,16 @@ def local_sizes(root, records):
     return {oid: int(size) for oid, size in (line.split() for line in result.stdout.decode().splitlines()) if size != "missing"}
 
 
-def atlas(root, revision="HEAD", limit=100_000):
+def atlas(root, revision="HEAD", limit=100_000, path_prefix=None, largest=20):
+    if not 0 <= largest <= 500:
+        raise ValueError("Largest-file count must be between 0 and 500")
+    path_prefix = normalize_prefix(path_prefix)
     revision = resolve(root, revision)
-    records, truncated = tree_entries(root, revision, limit)
+    records, truncated = tree_entries(root, revision, limit, path_prefix)
     sizes = local_sizes(root, records)
     groups = {}
+    object_references = Counter()
+    file_sizes = []
     for record in records:
         path = record["path"]
         name = path.split("/", 1)[0] if "/" in path else "[根目录文件]"
@@ -86,12 +122,21 @@ def atlas(root, revision="HEAD", limit=100_000):
         else:
             group["files"] += 1
             group["types"][PurePosixPath(path).suffix.lower() or "[无扩展名]"] += 1
+            object_references[record["oid"]] += 1
             if record["oid"] in sizes:
                 group["bytes"] += sizes[record["oid"]]
+                file_sizes.append({"path": path, "oid": record["oid"], "bytes": sizes[record["oid"]]})
             else:
                 group["unknown"] += 1
-    return {"revision": revision, "entries": len(records), "truncated": truncated,
-            "groups": sorted(groups.values(), key=lambda x: (-x["files"], x["name"]))}
+    duplicate_objects = {oid: count for oid, count in object_references.items() if count > 1}
+    duplicate_bytes = sum(sizes.get(oid, 0) * (count - 1) for oid, count in duplicate_objects.items())
+    return {"revision": revision, "path_prefix": path_prefix, "entries": len(records), "truncated": truncated,
+            "groups": sorted(groups.values(), key=lambda x: (-x["files"], x["name"])),
+            "largest_files": sorted(file_sizes, key=lambda item: (-item["bytes"], item["path"]))[:largest],
+            "duplicate_objects": len(duplicate_objects),
+            "duplicate_path_references": sum(count - 1 for count in duplicate_objects.values()),
+            "duplicate_logical_bytes": duplicate_bytes,
+            "duplicate_bytes_unknown_objects": sum(1 for oid in duplicate_objects if oid not in sizes)}
 
 
 def shell(title, body, script=""):
@@ -105,7 +150,7 @@ def shell(title, body, script=""):
 
 
 def render_atlas(report):
-    esc = lambda value: html.escape(str(value), quote=True)
+    esc = lambda value: html.escape(visible_text(value), quote=True)
     groups = report["groups"]
     cards = []
     maximum = max((g["files"] for g in groups), default=1) or 1
@@ -118,10 +163,22 @@ def render_atlas(report):
                      f'<p>已知体积 {known}<br>体积未知 {group["unknown"]:,} 个文件<br>符号链接 {group["symlinks"]} · 子模块 {group["submodules"]}</p>'
                      f'<details><summary>查看文件类型</summary><table><thead><tr><th>扩展名</th><th>文件数</th></tr></thead><tbody>{types}</tbody></table></details></article>')
     warning = "采样已截断：仅展示 Git 树遍历顺序中的前一部分条目，不能据此比较整个仓库。" if report["truncated"] else "已完整遍历该提交的 Git 树。"
+    scope = f'路径前缀 {esc(report["path_prefix"])}' if report.get("path_prefix") else "整个 Git 树"
+    largest = "".join(
+        f'<tr><td><code>{esc(item["path"])}</code></td><td>{item["bytes"]:,} B</td></tr>'
+        for item in report.get("largest_files", [])
+    ) or '<tr><td colspan="2">没有已知体积的普通文件</td></tr>'
+    duplicates = (f'<p>重复对象 {report.get("duplicate_objects", 0):,} 个 · '
+                  f'多余路径引用 {report.get("duplicate_path_references", 0):,} 次 · '
+                  f'重复逻辑体积 {report.get("duplicate_logical_bytes", 0):,} B（每个额外路径引用按该 blob 的逻辑体积计）')
+    if report.get("duplicate_bytes_unknown_objects", 0):
+        duplicates += f' · 其中 {report["duplicate_bytes_unknown_objects"]:,} 个对象体积未知'
+    duplicates += '</p>'
     body = (f'<h1>仓库地图</h1><p>从源码沉积层到壁纸大陆，看看每片区域住着什么。</p><p class="meta">观测提交 {report["revision"]}</p>'
-            f'<div class="note">{warning}<br>本次观察 {report["entries"]:,} 个 Git 条目、{len(groups)} 个分组。体积是文件的未压缩逻辑字节数；重复引用按路径计数，不代表磁盘占用。未知体积不计为零。条形长度采用文件数的对数尺度。</div>'
+            f'<div class="note">{warning}<br>范围：{scope}。本次观察 {report["entries"]:,} 个 Git 条目、{len(groups)} 个分组。体积是文件的未压缩逻辑字节数；重复引用按路径计数，不代表磁盘占用。未知体积不计为零。条形长度采用文件数的对数尺度。</div>'
             '<div class="controls" hidden><input id="region" type="search" aria-label="搜索目录" placeholder="搜索目录…"><select id="order" aria-label="排序方式"><option value="files">文件数优先</option><option value="bytes">已知体积优先</option><option value="name">名称顺序</option></select></div>'
             f'<p id="results" aria-live="polite">{len(groups)} 个分组</p><section class="grid">'+"".join(cards)+'</section>'
+            f'<section class="method"><h2>最大文件（已知体积）</h2><div class="table-wrap"><table><thead><tr><th>Git 路径</th><th>逻辑体积</th></tr></thead><tbody>{largest}</tbody></table></div>{duplicates}</section>'
             '<aside class="method"><h2>地图边界</h2><p>仅统计已跟踪的 Git 树条目，不受工作区缺失文件影响。符号链接和子模块单独计数，不跟随、不下载。缺失对象的体积标记为未知；扩展名分类不等同于编程语言识别。快照不自动更新。</p></aside>')
     script = '''const input=document.querySelector('#region'),order=document.querySelector('#order'),grid=document.querySelector('.grid'),tiles=[...document.querySelectorAll('.tile')];document.querySelector('.controls').hidden=false;function update(){const key=order.value;tiles.sort((a,b)=>key==='name'?a.querySelector('h3').textContent.localeCompare(b.querySelector('h3').textContent):Number(b.dataset[key])-Number(a.dataset[key]));let count=0;for(const tile of tiles){tile.hidden=!tile.querySelector('h3').textContent.toLocaleLowerCase().includes(input.value.toLocaleLowerCase());if(!tile.hidden)count++;grid.append(tile);}document.querySelector('#results').textContent=`显示 ${count} / ${tiles.length} 个分组`;}input.addEventListener('input',update);order.addEventListener('change',update);'''
     return shell("仓库地图", body, script)
@@ -132,12 +189,17 @@ def main():
     parser.add_argument("root", type=Path)
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--limit", type=int, default=100_000)
+    parser.add_argument("--path-prefix", help="literal repository-relative path prefix")
+    parser.add_argument("--largest", type=int, default=20, help="largest known-size files to include (0–500)")
+    parser.add_argument("--format", choices=["html", "json"], default="html")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        report = atlas(args.root, args.revision, args.limit)
+        report = atlas(args.root, args.revision, args.limit, args.path_prefix, args.largest)
+        content = (render_atlas(report) if args.format == "html" else
+                   json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2, allow_nan=False))
         with args.output.open("x", encoding="utf-8", errors="replace") as output:
-            output.write(render_atlas(report))
+            output.write(content)
     except (ValueError, OSError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"Atlas could not open: {error}\n")
     print(f"Observed {report['entries']} entries, {len(report['groups'])} groups; truncated={report['truncated']}")
