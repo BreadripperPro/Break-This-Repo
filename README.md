@@ -48,6 +48,12 @@
 
 ---
 
+# ↑↑ 上面这个只有兩首，还只有Google Drive下载，来看下面这个 ↓↓
+
+**[点我前往获取HIFI音乐！(详情页)](./HIFI音乐-享受高端音质)**
+
+---
+
 > [!NOTE]
 > read [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before using
 
