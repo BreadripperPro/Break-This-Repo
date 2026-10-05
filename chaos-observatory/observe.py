@@ -7,9 +7,10 @@ import argparse
 import json
 import math
 import os
+import stat
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 SKIP_DIRECTORIES = {
     ".git",
@@ -28,9 +29,34 @@ def classify(name: str) -> str:
     return suffix if suffix else "[no extension]"
 
 
-def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
-    """Survey *root* without opening files or following symbolic links."""
-    root = root.resolve()
+def survey(
+    root: Path,
+    max_files: int = 100_000,
+    root_label: Optional[str] = None,
+) -> dict[str, Any]:
+    """Survey a directory without opening files or following symbolic links.
+
+    The supplied root must itself be a real directory, not a symbolic link.
+    ``root_label`` is intended for display and is deliberately separate from
+    the filesystem path so reports do not disclose a machine-local location.
+    """
+    if isinstance(max_files, bool) or not isinstance(max_files, int) or max_files < 1:
+        raise ValueError("max_files must be positive")
+    if root_label is not None and not isinstance(root_label, str):
+        raise ValueError("root_label must be a string")
+    label = root_label.strip() if root_label is not None else ""
+    if not label:
+        label = "observed repository"
+
+    # abspath normalizes the path lexically without dereferencing its final
+    # component. resolve() here would silently follow a symlink root.
+    root = Path(os.path.abspath(os.fspath(root)))
+    root_stat = os.lstat(root)
+    if stat.S_ISLNK(root_stat.st_mode):
+        raise ValueError("root must not be a symbolic link")
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise ValueError("root must be a directory")
+
     species: Counter[str] = Counter()
     files = directories = symlinks = errors = total_bytes = max_depth = 0
     truncated = False
@@ -40,11 +66,13 @@ def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
         current, depth = stack.pop()
         max_depth = max(max_depth, depth)
         try:
-            entries = list(os.scandir(current))
+            with os.scandir(current) as directory:
+                entries = sorted(directory, key=lambda entry: os.fsencode(entry.name))
         except OSError:
             errors += 1
             continue
 
+        child_directories: list[tuple[Path, int]] = []
         for entry in entries:
             try:
                 if entry.is_symlink():
@@ -52,7 +80,7 @@ def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
                 elif entry.is_dir(follow_symlinks=False):
                     directories += 1
                     if entry.name not in SKIP_DIRECTORIES:
-                        stack.append((Path(entry.path), depth + 1))
+                        child_directories.append((Path(entry.path), depth + 1))
                 elif entry.is_file(follow_symlinks=False):
                     files += 1
                     species[classify(entry.name)] += 1
@@ -63,6 +91,11 @@ def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
                         break
             except OSError:
                 errors += 1
+        if truncated:
+            break
+        # The stack is LIFO; reverse insertion preserves sorted directory
+        # order across runs and makes a capped observation reproducible.
+        stack.extend(reversed(child_directories))
 
     diversity = len(species)
     chaos_score = round(
@@ -70,7 +103,8 @@ def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
         1,
     )
     return {
-        "root": str(root),
+        "schema_version": 1,
+        "root_label": label,
         "files_observed": files,
         "directories_observed": directories,
         "symbolic_links_not_followed": symlinks,
@@ -79,6 +113,7 @@ def survey(root: Path, max_files: int = 100_000) -> dict[str, Any]:
         "maximum_depth": max_depth,
         "species_count": diversity,
         "common_species": species.most_common(12),
+        "species_counts": dict(sorted(species.items())),
         "chaos_index": chaos_score,
         "truncated": truncated,
         "conclusion": "The site remains in an active state of formation.",
@@ -89,10 +124,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", nargs="?", type=Path, default=Path(".."))
     parser.add_argument("--max-files", type=int, default=100_000)
+    parser.add_argument("--label", help="safe display label for this observation")
     args = parser.parse_args()
     if args.max_files < 1:
         parser.error("--max-files must be positive")
-    print(json.dumps(survey(args.root, args.max_files), indent=2, ensure_ascii=False))
+    try:
+        report = survey(args.root, args.max_files, args.label)
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"Observation could not open: {error}\n")
+    print(json.dumps(report, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
