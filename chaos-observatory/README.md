@@ -15,7 +15,7 @@ network. It only examines directory entries and file metadata.
 From this directory:
 
 ```sh
-python3 observe.py ..
+python3 observe.py .. --label "my field station"
 python3 weather.py ..
 ```
 
@@ -26,6 +26,12 @@ you mean it:
 ```sh
 python3 observe.py .. --max-files 250000
 ```
+
+The JSON report records aggregate metadata and a complete extension count. It
+does not include the local absolute path. The root itself must be a real
+directory; a symlink root is rejected, and nested symlinks are counted but not
+followed. Entries are visited in a stable name order, so capped scans are
+repeatable. `--label` is an optional display name for the report.
 
 Every reading ends with the same scientifically defensible conclusion:
 
@@ -38,6 +44,21 @@ Every reading ends with the same scientifically defensible conclusion:
 - never enter `.git` or common dependency/cache directories;
 - never execute, import, parse, or upload observed files;
 - collect no personal information and make no network requests.
+
+Saved observations can be compared and plotted without rescanning:
+
+```sh
+python3 compare_observations.py before.json after.json
+python3 compare_observations.py before.json after.json --format json
+python3 observation_trend.py before.json after.json later.json --output /tmp/weather.html
+```
+
+The comparison reports aggregate deltas and extension changes, never file
+names or source paths. It accepts earlier reports that lack `schema_version`;
+their extension distribution is marked incomplete because those reports kept
+only the twelve most common categories. The trend page needs at least two
+snapshots and is a static, offline HTML document with no script or external
+resources. Existing output files are never replaced.
 
 Future researchers may append observations to `FIELD_NOTES.md`. Please record
 what you saw, not who you think caused it.
@@ -107,6 +128,7 @@ itself became an exhibit when it covered its own latest meow footprint.
 
 ```sh
 python3 repo_atlas.py .. --revision HEAD --limit 100000 --output /tmp/atlas.html
+python3 repo_atlas.py .. --path-prefix 'src/literal[1]' --largest 50 --format json --output /tmp/src-atlas.json
 ```
 
 The atlas groups tracked paths by top-level directory and shows ordinary file
@@ -115,11 +137,34 @@ symlink/submodule counts. Search regions, sort by count/known size/name, and
 expand a region's type table. It never traverses checkout paths or submodules.
 Duplicate blobs count once per path, so these sizes are not disk usage. Missing
 partial-clone blobs are explicitly unknown, not zero. No objects are downloaded.
+The atlas also lists the largest known-size files and counts repeated blob
+objects, extra path references, and their repeated logical bytes. These
+duplicate figures cover the selected sample and scope. `--path-prefix` is a
+literal repository-relative path prefix (wildcards and brackets have no special
+meaning), which lets large trees be inspected in smaller sections. JSON output
+can be consumed by other local tools; it preserves unusual path bytes with JSON
+escapes.
 
 The NUL-delimited tree stream is capped at `--limit` entries (1–1000000). A
 truncated sample is labeled prominently and is not a whole-repository ranking.
 The supplied `atlas.html` records its revision and coverage. Regenerate to a new
 file to obtain a later snapshot. The original metadata survey remains unchanged.
+
+## Git sediment / Historical object sizes
+
+```sh
+python3 blob_strata.py .. --from START_SHA --to END_SHA --output /tmp/blob-strata.html
+python3 blob_strata.py .. --from START_SHA --to END_SHA --format json --output /tmp/blob-strata.json
+```
+
+This report finds Git objects reachable from the end commit but not the start,
+then sums the uncompressed logical sizes of the newly reachable unique blobs.
+It reads only Git object metadata, not blob contents or filenames. Lazy fetching
+is disabled; it never contacts a remote. Missing objects are counted as unknown
+and excluded from known byte totals. A shallow clone is rejected because its
+history boundary could hide objects. The report describes object reachability,
+not pack-file growth or disk usage. As with the other generated exhibits, the
+output must be a new file.
 
 ## 奇葩路径展览 / Path portability gallery
 
