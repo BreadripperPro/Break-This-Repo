@@ -37,6 +37,22 @@ Every reading ends with the same scientifically defensible conclusion:
 
 > The site remains in an active state of formation.
 
+## 混沌内核 / Chaos kernel theatre
+
+The repository history contains Linus Torvalds-authored Linux commits, so the
+observatory can also pretend to boot this repository as a tiny read-only
+machine. This is theatre, not Linux: it copies no kernel code and runs no
+commands. It reads only an observation JSON snapshot and prints aggregate
+metadata as a fake boot log:
+
+```sh
+python3 observe.py .. --label "the chaos repository" > /tmp/chaos.json
+python3 chaos_boot.py /tmp/chaos.json
+```
+
+The log marks capped scans as partial and repeats the observatory's read-only
+boundary. It does not include file names or local paths.
+
 ## Safety boundary
 
 - read names and metadata only;
