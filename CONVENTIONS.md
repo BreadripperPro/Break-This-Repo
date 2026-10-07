@@ -1,1 +1,1 @@
-任何 agent 开始任何任务前，必须先读取并遵守 `.agents/AGENTS.md`。这是强制预执行协议。
+AI (or LLM) is not allowed to make breaking changes in this repository. For details, read AGENTS.md
