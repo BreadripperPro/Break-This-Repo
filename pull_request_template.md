@@ -1,51 +1,9 @@
-# 🔥🔞🔞🔞 你对 Break-This-Repo 干了啥 🔞🔞🔞🔥
+### Explain what you did
 
----
+_write something here_
 
-🔞想打炮🔥，打飞机🔥，打手枪🔥
+### Legitimacy Check
 
-🔞血与肉的碰撞，声声入耳的叫声🔥
-
-🔞这是灵魂的碰撞，更是对自己意志的磨炼🔥
-
-🔞别害羞，深夜寂寞是时候来点热血的🔥
-
-🔞体会真男人一样激烈的战斗🔥
-
-🔞前往此网站🔥
-
-🔞[点我前往🔞🔞🔞](https://www.gfbzb.gov.cn/)🔥
-
-🔞[备用线路🔞🔞🔞](https://www.bilibili.com/video/BV1hq4y1s7VH/)🔥
-
-🔞未成年无法参加🔞
-
----
-
-## 你做了什么？
-
-<!-- 解♂释♂一♂下♂ -->
-
-## 类型
-
-- [ ] 踹了 README
-- [ ] 踹了 文档
-- [ ] 空城计代码故障（cos 许家印）
-- [ ] GitHub 笑传之测测 Branch-rendering
-- [ ] 跨平台用 Git
-- [ ] 猫导致的事故
-- [ ] 超自然现象（建议联系某三个字母然后一个圆心三个箭头往里面插加了个描边的基金会或者一个五角星背景是世界地图然后周围一圈农作物围着五个单词的国际性联盟）
-
-## 验证
-
-- [ ] 我~~没~~改 `.github/`。
-- [ ] 我~~没~~改保护了的 README 部分。
-- [ ] 这个问题会一直保留。
-- [ ] ~~没~~凭据, 病毒, 或者个人信息。
-- [ ] 我解释了怎么观察。
-
-## 声明
-
-> 我声明：这个仓库的内容已经成功被我进行了 breaking change
-
-> 然后原因还是我乱写的并且不必须。
+- [ ] I didn't modify `README.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, etc.
+- [ ] I didn't modify `.github/`
+- [ ] I followed Code of Conduct
