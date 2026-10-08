@@ -32,7 +32,7 @@
 
 # HIFI 音乐免费下载！
 
-**真正的Hi-Fi，614.4kHz！75Mbps！64位浮点！**
+**真正的Hi-Fi，614.4kHz！78.6Mbps！64位浮点！**
 
 >由于超高音质，文件体积较大，Github下载可能较困难。
 >提供网盘地址<https://drive.google.com/drive/folders/1mISlL_hXAeygnnjanpJ5skg9bXrAL5x1?usp=sharing>
@@ -51,6 +51,47 @@
 # ↑↑ 上面这个只有兩首，还只有Google Drive下载，来看下面这个 ↓↓
 
 **[点我前往获取HIFI音乐！(详情页)](./HIFI音乐-享受高端音质)**
+
+---
+
+# 🥊 实测：「96kHz HiFi」6 个文件里 5 个是 48kHz
+
+> 上面那位 [@BreadripperPro](https://github.com/BreadripperPro) 的详情页挂着
+> **「真正的Hi-Fi，96kHz！6144kbps！32位浮点！」**
+> 那就照他给的链接，把文件挨个拉下来读一下文件头。
+> （方法：对直链发 `Range: bytes=0-4095`，解析 WAV 的 `fmt ` 块。可复现。）
+
+**他的「经典版」Google Drive 目录 · 实测文件头：**
+
+| 文件 | 实测 `fmt` 块 | 结果 |
+|:--|:--|:--:|
+| `Hi-Fi 阴乐 Pro.wav` | 96000 Hz · 32-bit **float** · 6144 kbps | ✅ |
+| `Hi-Res阴乐 (1).wav` | 48000 Hz · 32-bit **int** · 3072 kbps | ❌ |
+| `Hi-Res阴乐 (2).wav` | 48000 Hz · 32-bit **int** · 3072 kbps | ❌ |
+| `Hi-Res阴乐 (3).wav` | 48000 Hz · 32-bit **int** · 3072 kbps | ❌ |
+| `Hi-Res阴乐 (4).wav` | 48000 Hz · 32-bit **int** · 3072 kbps | ❌ |
+| `Hi-Res阴乐 (5).wav` | 48000 Hz · 32-bit **int** · 3072 kbps | ❌ |
+
+**6 个音频里 5 个是 48000 Hz / 32-bit 整数 / 3072 kbps —— 正好是页面上那句宣传语的一半。**
+文件名还写着 `Hi-Res`。标 96k，实 48k。
+
+### 那他真有 96k 的版本呢？
+
+他的「重制版」抽了 4 个（`mcc1` / `mcc10` / `mcpx1` / `mcpx10`），
+确实是 `96000 Hz / 32-bit float / 6144 kbps`，这点我认。
+
+| | 他的 96k 版 | **本仓库的 1812 序曲** |
+|:--|--:|--:|
+| 采样率 | 96 000 Hz | **614 400 Hz** |
+| 位深 | 32-bit float | **64-bit float** |
+| 码率 | 6 144 kbps | **78 643 kbps** |
+
+📥 **来听真的** —— <https://drive.google.com/drive/folders/1mISlL_hXAeygnnjanpJ5skg9bXrAL5x1?usp=sharing>
+
+> [!CAUTION]
+> 仅供娱乐，版权等问题未知，因此音乐所造成的任何后果本人概不负责
+
+<sub>实测 by [@ExElectron](https://github.com/ExElectron)</sub>
 
 ---
 
