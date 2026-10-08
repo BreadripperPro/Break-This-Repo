@@ -16,7 +16,7 @@
 	    </a>
 	</p>
 </h1>
-
+*\*：你可以更改这个头图，相关资源文件位于 <.\readme\> 中*
 <!-- # 卧槽了哪里来的设证玩意啊😓不怕似吗😓 -->
 
 > [!CAUTION]
@@ -257,6 +257,15 @@
 
 > [!WARNING]
 > 広告およびマルウェアの投稿を禁止します。違反者は GitHub に報告されます。
+---
+
+## 贡献者
+<a href="https://github.com/KrisTHL181/Break-This-Repo/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=KrisTHL181/Break-This-Repo" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
 
 ---
 
